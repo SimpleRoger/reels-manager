@@ -1,0 +1,213 @@
+Yep — this is a very buildable app, and it’s a strong idea.
+
+Call it something like Reel Journal.
+
+What it does:
+	•	pulls your latest Reel from your IG professional account
+	•	shows core stats like comments, likes, reach, saves, shares, and Reel insights that Meta exposes for that media/account setup  ￼
+	•	lets you write notes like:
+	•	“funny hook in first 1 second”
+	•	“people argued in comments”
+	•	“Sydney local content”
+	•	“copied format from a viral Reel”
+	•	has AI analyze the post + your notes
+	•	gives you a reasoned breakdown of why it likely worked
+	•	builds a repeatable playbook for future posts
+
+A really good v1 would have these pages:
+
+1. Dashboard
+	•	latest Reel thumbnail
+	•	caption
+	•	posted time
+	•	stats
+	•	quick verdict: underperforming / normal / overperforming
+
+2. Notes panel
+Fields like:
+	•	Hook
+	•	Format
+	•	Emotion
+	•	Why I think it worked
+	•	Why I think it flopped
+	•	Similar viral reference
+	•	What to repeat next time
+
+3. AI analysis
+AI turns your stats + notes into:
+	•	what likely drove comments
+	•	what likely drove retention
+	•	whether controversy/funniness/novelty carried it
+	•	what exact format to remake next
+
+4. Playbook
+A running database of lessons:
+	•	“public trolling works”
+	•	“local Sydney content gets recognition”
+	•	“simple visual gag > overexplaining”
+	•	“strong first frame matters”
+
+5. Viral finder
+Separate tool:
+	•	search hashtags or tracked accounts
+	•	collect media metadata where available
+	•	sort what you fetched by comments_count
+	•	save references you want to remake
+Officially, hashtag endpoints support recent/top media for hashtags, and media objects can expose fields like comments_count; Business Discovery can also retrieve media from other professional accounts you query. But there is not a normal official global search that ranks all Reels on Instagram by comments.  ￼
+
+For Replit, here’s the app plan you can paste:
+
+⸻
+
+App idea: Reel Journal
+
+Build a web app called Reel Journal.
+
+Goal
+
+Help me study my latest Instagram Reel performance and keep notes on why a video did well or badly. The app should also use AI to analyze patterns and help me make better future Reels.
+
+Main features
+
+1) Instagram latest Reel fetch
+Connect to my Instagram professional account using Meta’s Instagram API.
+
+Fetch my latest media and identify the latest Reel/video.
+
+For that Reel, display:
+	•	thumbnail
+	•	caption
+	•	permalink
+	•	posted timestamp
+	•	media type / product type
+	•	like count
+	•	comments count
+	•	and available Reel/media insights such as reach, saves, shares, views/plays if available through the API
+
+2) Performance status
+Show whether the latest Reel is:
+	•	underperforming
+	•	normal
+	•	overperforming
+
+Use simple logic such as comparing it to the average of my last 10–20 Reels.
+
+Example:
+	•	comments 2x above average = strong discussion
+	•	reach 1.5x above average = overperforming
+	•	saves/shares above average = sticky content
+
+3) Notes and journal
+For each Reel, let me manually save notes:
+	•	Hook
+	•	Format
+	•	Idea source
+	•	Why I think it did well
+	•	Why I think it failed
+	•	Emotional reaction from viewers
+	•	Was it funny / controversial / relatable / weird / cinematic?
+	•	Would I remake it?
+	•	Link to inspiration Reel
+	•	Extra notes
+
+4) AI analysis
+Use AI to analyze:
+	•	Reel stats
+	•	caption
+	•	my notes
+	•	recent performance history
+
+Generate:
+	•	probable reasons it performed well or poorly
+	•	content pattern summary
+	•	lessons learned
+	•	recommended next 5 Reel ideas
+	•	which variables to repeat
+
+5) Historical log
+Store all fetched Reels and notes in a database.
+
+Allow me to:
+	•	browse past Reels
+	•	sort by comments / reach / saves / shares
+	•	filter by tags like funny, troll, local, motivational, remake, controversy
+
+6) Viral reference finder
+Build a second page that helps me find reference Reels.
+
+Official/API-friendly version:
+	•	search by hashtag
+	•	optionally monitor selected creator/business accounts
+	•	fetch media metadata available through official Instagram endpoints
+	•	rank fetched results by comments count
+	•	save interesting references to a “Remake List”
+
+Note: this does NOT need to scrape all Instagram globally. It can work by hashtag buckets and tracked accounts.
+
+7) Remake List
+Allow me to save references and add:
+	•	why it’s good
+	•	what I’d change
+	•	how I’d remake it in my style
+
+Tech stack
+
+Use:
+	•	Replit
+	•	Next.js frontend
+	•	Node/Express API routes or Next API routes
+	•	PostgreSQL or Replit DB
+	•	OpenAI for AI analysis
+	•	Meta Instagram API for Instagram data
+	•	simple auth for my own login
+
+Database tables
+
+Create tables for:
+	•	users
+	•	instagram_accounts
+	•	reels
+	•	reel_insights
+	•	reel_notes
+	•	reel_tags
+	•	saved_references
+
+AI prompt behavior
+
+When analyzing a Reel, the AI should:
+	•	summarize what happened
+	•	explain likely reasons for performance
+	•	separate facts from guesses
+	•	suggest 3–5 specific next moves
+	•	write in a clear creator-strategy tone
+
+UI
+
+Keep it simple and clean:
+	•	dashboard cards
+	•	Reel thumbnail preview
+	•	metrics row
+	•	notes panel
+	•	AI analysis panel
+	•	history table
+	•	saved reference board
+
+MVP priority
+
+Build in this order:
+	1.	Instagram connect
+	2.	fetch latest Reel
+	3.	display stats
+	4.	notes field
+	5.	save to database
+	6.	AI analysis
+	7.	history page
+	8.	viral finder page
+
+Important constraint
+
+Use official Instagram/Meta APIs where possible. Avoid brittle scraping as the core architecture.
+
+⸻
+
+If you want, I can turn that into an even cleaner full Replit build spec with routes, schema, and exact API flow.

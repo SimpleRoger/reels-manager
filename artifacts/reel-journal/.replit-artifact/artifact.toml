@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Reel Journal"
+version = "1.0.0"
+id = "artifacts/reel-journal"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21113
+
+[services.development]
+run = "pnpm --filter @workspace/reel-journal run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/reel-journal", "run", "build" ]
+publicDir = "artifacts/reel-journal/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21113"
+BASE_PATH = "/"

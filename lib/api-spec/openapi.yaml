@@ -3,13 +3,28 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Reel Journal API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: reels
+    description: Instagram Reels management
+  - name: notes
+    description: Reel notes and journal entries
+  - name: analysis
+    description: AI analysis of Reels
+  - name: playbook
+    description: Playbook lessons and patterns
+  - name: references
+    description: Viral reference Reels (Remake List)
+  - name: instagram
+    description: Instagram API integration
+  - name: dashboard
+    description: Dashboard summary endpoints
+
 paths:
   /healthz:
     get:
@@ -24,6 +39,470 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ─── INSTAGRAM ──────────────────────────────────────────────────────────────
+  /instagram/connect:
+    post:
+      operationId: connectInstagram
+      tags: [instagram]
+      summary: Save Instagram access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConnectInstagramBody"
+      responses:
+        "200":
+          description: Token saved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConnectInstagramResponse"
+        "400":
+          description: Invalid token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /instagram/status:
+    get:
+      operationId: getInstagramStatus
+      tags: [instagram]
+      summary: Check Instagram connection status
+      responses:
+        "200":
+          description: Connection status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstagramStatus"
+
+  /instagram/sync:
+    post:
+      operationId: syncReels
+      tags: [instagram]
+      summary: Fetch and sync latest Reels from Instagram
+      responses:
+        "200":
+          description: Sync result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncResult"
+        "400":
+          description: Not connected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /instagram/hashtag-search:
+    get:
+      operationId: searchHashtag
+      tags: [instagram]
+      summary: Search for media by hashtag via Instagram API
+      parameters:
+        - name: hashtag
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Hashtag media results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HashtagSearchResult"
+        "400":
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ─── DASHBOARD ──────────────────────────────────────────────────────────────
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Get dashboard summary with latest Reel and recent performance
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  # ─── REELS ──────────────────────────────────────────────────────────────────
+  /reels:
+    get:
+      operationId: listReels
+      tags: [reels]
+      summary: List all stored Reels
+      parameters:
+        - name: sortBy
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [createdAt, likeCount, commentsCount, reach, saves, shares]
+            default: createdAt
+        - name: sortOrder
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - name: tags
+          in: query
+          required: false
+          schema:
+            type: string
+            description: Comma-separated tags to filter by
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: List of Reels
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListReelsResponse"
+
+  /reels/{id}:
+    get:
+      operationId: getReel
+      tags: [reels]
+      summary: Get a single Reel with notes and insights
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Reel detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReelDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ─── NOTES ──────────────────────────────────────────────────────────────────
+  /reels/{id}/notes:
+    get:
+      operationId: getReelNotes
+      tags: [notes]
+      summary: Get notes for a Reel
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Notes for the Reel
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReelNotes"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      operationId: saveReelNotes
+      tags: [notes]
+      summary: Save (upsert) notes for a Reel
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveReelNotesBody"
+      responses:
+        "200":
+          description: Saved notes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReelNotes"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ─── TAGS ───────────────────────────────────────────────────────────────────
+  /reels/{id}/tags:
+    put:
+      operationId: updateReelTags
+      tags: [notes]
+      summary: Set tags for a Reel
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateReelTagsBody"
+      responses:
+        "200":
+          description: Updated tags
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UpdateReelTagsResponse"
+
+  # ─── AI ANALYSIS ────────────────────────────────────────────────────────────
+  /reels/{id}/analyze:
+    post:
+      operationId: analyzeReel
+      tags: [analysis]
+      summary: Run AI analysis on a Reel
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: AI analysis result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReelAnalysis"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "400":
+          description: Analysis failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /reels/{id}/analysis:
+    get:
+      operationId: getReelAnalysis
+      tags: [analysis]
+      summary: Get stored AI analysis for a Reel
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Stored analysis
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReelAnalysis"
+        "404":
+          description: No analysis yet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ─── PLAYBOOK ────────────────────────────────────────────────────────────────
+  /playbook:
+    get:
+      operationId: listPlaybookLessons
+      tags: [playbook]
+      summary: List all playbook lessons
+      responses:
+        "200":
+          description: Playbook lessons
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListPlaybookResponse"
+    post:
+      operationId: createPlaybookLesson
+      tags: [playbook]
+      summary: Create a new playbook lesson
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePlaybookBody"
+      responses:
+        "201":
+          description: Created lesson
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlaybookLesson"
+
+  /playbook/{id}:
+    patch:
+      operationId: updatePlaybookLesson
+      tags: [playbook]
+      summary: Update a playbook lesson
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePlaybookBody"
+      responses:
+        "200":
+          description: Updated lesson
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlaybookLesson"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deletePlaybookLesson
+      tags: [playbook]
+      summary: Delete a playbook lesson
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  # ─── SAVED REFERENCES (Remake List) ─────────────────────────────────────────
+  /references:
+    get:
+      operationId: listReferences
+      tags: [references]
+      summary: List saved viral references
+      responses:
+        "200":
+          description: Saved references
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListReferencesResponse"
+    post:
+      operationId: createReference
+      tags: [references]
+      summary: Save a reference Reel to remake list
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReferenceBody"
+      responses:
+        "201":
+          description: Created reference
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SavedReference"
+
+  /references/{id}:
+    patch:
+      operationId: updateReference
+      tags: [references]
+      summary: Update a saved reference
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateReferenceBody"
+      responses:
+        "200":
+          description: Updated reference
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SavedReference"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteReference
+      tags: [references]
+      summary: Delete a reference
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +513,465 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    # ─── INSTAGRAM ────────────────────────────────────────────────────────────
+    ConnectInstagramBody:
+      type: object
+      properties:
+        accessToken:
+          type: string
+      required:
+        - accessToken
+
+    ConnectInstagramResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        username:
+          type: string
+        accountId:
+          type: string
+      required:
+        - success
+        - username
+        - accountId
+
+    InstagramStatus:
+      type: object
+      properties:
+        connected:
+          type: boolean
+        username:
+          type: ["string", "null"]
+        accountId:
+          type: ["string", "null"]
+        lastSynced:
+          type: ["string", "null"]
+      required:
+        - connected
+        - username
+        - accountId
+        - lastSynced
+
+    SyncResult:
+      type: object
+      properties:
+        synced:
+          type: integer
+        total:
+          type: integer
+        message:
+          type: string
+      required:
+        - synced
+        - total
+        - message
+
+    HashtagSearchResult:
+      type: object
+      properties:
+        hashtag:
+          type: string
+        media:
+          type: array
+          items:
+            $ref: "#/components/schemas/HashtagMedia"
+      required:
+        - hashtag
+        - media
+
+    HashtagMedia:
+      type: object
+      properties:
+        id:
+          type: string
+        mediaType:
+          type: string
+        permalink:
+          type: ["string", "null"]
+        caption:
+          type: ["string", "null"]
+        commentsCount:
+          type: ["integer", "null"]
+        likeCount:
+          type: ["integer", "null"]
+        timestamp:
+          type: ["string", "null"]
+      required:
+        - id
+        - mediaType
+
+    # ─── DASHBOARD ────────────────────────────────────────────────────────────
+    DashboardSummary:
+      type: object
+      properties:
+        latestReel:
+          $ref: "#/components/schemas/ReelDetail"
+        totalReels:
+          type: integer
+        averages:
+          $ref: "#/components/schemas/ReelAverages"
+        connected:
+          type: boolean
+        lastSynced:
+          type: ["string", "null"]
+      required:
+        - totalReels
+        - averages
+        - connected
+        - lastSynced
+
+    ReelAverages:
+      type: object
+      properties:
+        avgLikes:
+          type: number
+        avgComments:
+          type: number
+        avgReach:
+          type: ["number", "null"]
+        avgSaves:
+          type: ["number", "null"]
+        avgShares:
+          type: ["number", "null"]
+      required:
+        - avgLikes
+        - avgComments
+        - avgReach
+        - avgSaves
+        - avgShares
+
+    # ─── REELS ────────────────────────────────────────────────────────────────
+    Reel:
+      type: object
+      properties:
+        id:
+          type: integer
+        instagramId:
+          type: string
+        caption:
+          type: ["string", "null"]
+        permalink:
+          type: ["string", "null"]
+        thumbnailUrl:
+          type: ["string", "null"]
+        mediaUrl:
+          type: ["string", "null"]
+        postedAt:
+          type: ["string", "null"]
+        likeCount:
+          type: ["integer", "null"]
+        commentsCount:
+          type: ["integer", "null"]
+        reach:
+          type: ["integer", "null"]
+        saves:
+          type: ["integer", "null"]
+        shares:
+          type: ["integer", "null"]
+        plays:
+          type: ["integer", "null"]
+        performanceStatus:
+          type: ["string", "null"]
+          description: underperforming | normal | overperforming
+        tags:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - instagramId
+        - tags
+        - createdAt
+        - updatedAt
+
+    ReelDetail:
+      allOf:
+        - $ref: "#/components/schemas/Reel"
+        - type: object
+          properties:
+            notes:
+              $ref: "#/components/schemas/ReelNotes"
+            analysis:
+              $ref: "#/components/schemas/ReelAnalysis"
+
+    ListReelsResponse:
+      type: object
+      properties:
+        reels:
+          type: array
+          items:
+            $ref: "#/components/schemas/Reel"
+        total:
+          type: integer
+      required:
+        - reels
+        - total
+
+    # ─── NOTES ────────────────────────────────────────────────────────────────
+    ReelNotes:
+      type: object
+      properties:
+        id:
+          type: integer
+        reelId:
+          type: integer
+        hook:
+          type: ["string", "null"]
+        format:
+          type: ["string", "null"]
+        ideaSource:
+          type: ["string", "null"]
+        whyItWorked:
+          type: ["string", "null"]
+        whyItFailed:
+          type: ["string", "null"]
+        emotionalReaction:
+          type: ["string", "null"]
+        contentType:
+          type: ["string", "null"]
+          description: funny | controversial | relatable | weird | cinematic | motivational
+        wouldRemake:
+          type: ["boolean", "null"]
+        inspirationLink:
+          type: ["string", "null"]
+        extraNotes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - reelId
+        - createdAt
+        - updatedAt
+
+    SaveReelNotesBody:
+      type: object
+      properties:
+        hook:
+          type: ["string", "null"]
+        format:
+          type: ["string", "null"]
+        ideaSource:
+          type: ["string", "null"]
+        whyItWorked:
+          type: ["string", "null"]
+        whyItFailed:
+          type: ["string", "null"]
+        emotionalReaction:
+          type: ["string", "null"]
+        contentType:
+          type: ["string", "null"]
+        wouldRemake:
+          type: ["boolean", "null"]
+        inspirationLink:
+          type: ["string", "null"]
+        extraNotes:
+          type: ["string", "null"]
+
+    UpdateReelTagsBody:
+      type: object
+      properties:
+        tags:
+          type: array
+          items:
+            type: string
+      required:
+        - tags
+
+    UpdateReelTagsResponse:
+      type: object
+      properties:
+        tags:
+          type: array
+          items:
+            type: string
+      required:
+        - tags
+
+    # ─── AI ANALYSIS ──────────────────────────────────────────────────────────
+    ReelAnalysis:
+      type: object
+      properties:
+        id:
+          type: integer
+        reelId:
+          type: integer
+        summary:
+          type: string
+        performanceDrivers:
+          type: string
+        retentionFactors:
+          type: string
+        contentPatterns:
+          type: string
+        lessonsLearned:
+          type: string
+        nextIdeas:
+          type: string
+        variablesToRepeat:
+          type: string
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - reelId
+        - summary
+        - performanceDrivers
+        - retentionFactors
+        - contentPatterns
+        - lessonsLearned
+        - nextIdeas
+        - variablesToRepeat
+        - createdAt
+        - updatedAt
+
+    # ─── PLAYBOOK ─────────────────────────────────────────────────────────────
+    PlaybookLesson:
+      type: object
+      properties:
+        id:
+          type: integer
+        lesson:
+          type: string
+        category:
+          type: ["string", "null"]
+        sourceReelId:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - lesson
+        - createdAt
+        - updatedAt
+
+    ListPlaybookResponse:
+      type: object
+      properties:
+        lessons:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlaybookLesson"
+      required:
+        - lessons
+
+    CreatePlaybookBody:
+      type: object
+      properties:
+        lesson:
+          type: string
+        category:
+          type: ["string", "null"]
+        sourceReelId:
+          type: ["integer", "null"]
+      required:
+        - lesson
+
+    UpdatePlaybookBody:
+      type: object
+      properties:
+        lesson:
+          type: string
+        category:
+          type: ["string", "null"]
+
+    # ─── SAVED REFERENCES ─────────────────────────────────────────────────────
+    SavedReference:
+      type: object
+      properties:
+        id:
+          type: integer
+        url:
+          type: string
+        caption:
+          type: ["string", "null"]
+        accountName:
+          type: ["string", "null"]
+        whyItsgood:
+          type: ["string", "null"]
+        whatToChange:
+          type: ["string", "null"]
+        howToRemake:
+          type: ["string", "null"]
+        commentsCount:
+          type: ["integer", "null"]
+        likeCount:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - url
+        - createdAt
+        - updatedAt
+
+    ListReferencesResponse:
+      type: object
+      properties:
+        references:
+          type: array
+          items:
+            $ref: "#/components/schemas/SavedReference"
+      required:
+        - references
+
+    CreateReferenceBody:
+      type: object
+      properties:
+        url:
+          type: string
+        caption:
+          type: ["string", "null"]
+        accountName:
+          type: ["string", "null"]
+        whyItsgood:
+          type: ["string", "null"]
+        whatToChange:
+          type: ["string", "null"]
+        howToRemake:
+          type: ["string", "null"]
+        commentsCount:
+          type: ["integer", "null"]
+        likeCount:
+          type: ["integer", "null"]
+      required:
+        - url
+
+    UpdateReferenceBody:
+      type: object
+      properties:
+        caption:
+          type: ["string", "null"]
+        accountName:
+          type: ["string", "null"]
+        whyItsgood:
+          type: ["string", "null"]
+        whatToChange:
+          type: ["string", "null"]
+        howToRemake:
+          type: ["string", "null"]
+        commentsCount:
+          type: ["integer", "null"]
+        likeCount:
+          type: ["integer", "null"]
