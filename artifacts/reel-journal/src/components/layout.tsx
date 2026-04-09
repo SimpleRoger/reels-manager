@@ -6,11 +6,13 @@ import {
   Search,
   ListChecks,
   Settings,
+  UserCircle2,
 } from "lucide-react";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Reels Log", href: "/reels", icon: Film },
+  { name: "Profile", href: "/profile", icon: UserCircle2 },
   { name: "Playbook", href: "/playbook", icon: BookOpen },
   { name: "Viral Finder", href: "/viral-finder", icon: Search },
   { name: "Remake List", href: "/remake-list", icon: ListChecks },

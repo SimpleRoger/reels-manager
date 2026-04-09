@@ -6,6 +6,7 @@ import reelsRouter from "./reels";
 import analysisRouter from "./analysis";
 import playbookRouter from "./playbook";
 import referencesRouter from "./references";
+import profileRouter from "./profile";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use(reelsRouter);
 router.use(analysisRouter);
 router.use(playbookRouter);
 router.use(referencesRouter);
+router.use(profileRouter);
 
 export default router;

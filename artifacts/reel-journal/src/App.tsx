@@ -9,6 +9,7 @@ import ReelDetail from "@/pages/reel-detail";
 import Playbook from "@/pages/playbook";
 import ViralFinder from "@/pages/viral-finder";
 import RemakeList from "@/pages/remake-list";
+import Profile from "@/pages/profile";
 import Settings from "@/pages/settings";
 import NotFound from "@/pages/not-found";
 
@@ -24,6 +25,7 @@ function Router() {
         <Route path="/playbook" component={Playbook} />
         <Route path="/viral-finder" component={ViralFinder} />
         <Route path="/remake-list" component={RemakeList} />
+        <Route path="/profile" component={Profile} />
         <Route path="/settings" component={Settings} />
         <Route component={NotFound} />
       </Switch>

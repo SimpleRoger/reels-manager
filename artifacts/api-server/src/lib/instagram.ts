@@ -37,6 +37,45 @@ export async function verifyToken(accessToken: string): Promise<{ id: string; us
   }
 }
 
+export interface IGUserProfile {
+  id: string;
+  username: string;
+  followersCount?: number;
+  mediaCount?: number;
+  biography?: string;
+  accountType?: string;
+}
+
+export async function fetchUserProfile(accessToken: string): Promise<IGUserProfile | null> {
+  try {
+    const resp = await fetch(
+      `${INSTAGRAM_GRAPH_API}/me?fields=id,username,followers_count,media_count,biography,account_type&access_token=${accessToken}`
+    );
+    if (!resp.ok) return null;
+    const data = await resp.json() as {
+      id?: string;
+      username?: string;
+      followers_count?: number;
+      media_count?: number;
+      biography?: string;
+      account_type?: string;
+      error?: unknown;
+    };
+    if (!data.id || !data.username) return null;
+    return {
+      id: data.id,
+      username: data.username,
+      followersCount: data.followers_count,
+      mediaCount: data.media_count,
+      biography: data.biography,
+      accountType: data.account_type,
+    };
+  } catch (err) {
+    logger.error({ err }, "Error fetching Instagram profile");
+    return null;
+  }
+}
+
 export async function fetchUserMedia(accessToken: string, limit = 30): Promise<IGMedia[]> {
   const fields = "id,media_type,media_product_type,caption,permalink,thumbnail_url,media_url,timestamp,like_count,comments_count";
   const url = `${INSTAGRAM_GRAPH_API}/me/media?fields=${fields}&limit=${limit}&access_token=${accessToken}`;

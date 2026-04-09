@@ -4,7 +4,7 @@ export function formatNumber(num: number | null | undefined, fallback = "—"): 
   if (num === null || num === undefined) return fallback;
   if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
   if (num >= 1000) return (num / 1000).toFixed(1) + "K";
-  return num.toString();
+  return Math.round(num).toString();
 }
 
 export function formatDate(dateString: string | null | undefined): string {
