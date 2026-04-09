@@ -40,6 +40,34 @@ const notesSchema = z.object({
   extraNotes: z.string().optional().nullable(),
 });
 
+function AnalysisBlock({ label, text, numbered = false }: { label: string; text: string; numbered?: boolean }) {
+  const lines = text.split(/\\n|\n/).map(l => l.trim()).filter(Boolean);
+  const isMultiLine = lines.length > 1;
+  return (
+    <div className="flex flex-col">
+      <h4 className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-2">{label}</h4>
+      <div className="text-sm text-card-foreground bg-background p-3 rounded-md border flex-1">
+        {isMultiLine ? (
+          <ul className="space-y-2">
+            {lines.map((line, i) => (
+              <li key={i} className="flex gap-2 leading-relaxed">
+                {numbered ? (
+                  <span className="text-primary font-mono shrink-0">{i + 1}.</span>
+                ) : (
+                  <span className="text-primary shrink-0 mt-1">›</span>
+                )}
+                <span>{line}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="leading-relaxed">{text}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function ReelDetail() {
   const { id } = useParams();
   const reelId = parseInt(id || "0", 10);
@@ -368,22 +396,10 @@ export default function ReelDetail() {
                         <p className="text-sm text-card-foreground leading-relaxed bg-background p-4 rounded-md border">{analysis.summary}</p>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <h4 className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-2">Performance Drivers</h4>
-                          <p className="text-sm text-card-foreground leading-relaxed bg-background p-3 rounded-md border h-full">{analysis.performanceDrivers}</p>
-                        </div>
-                        <div>
-                          <h4 className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-2">Lessons Learned</h4>
-                          <p className="text-sm text-card-foreground leading-relaxed bg-background p-3 rounded-md border h-full">{analysis.lessonsLearned}</p>
-                        </div>
-                        <div>
-                          <h4 className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-2">Next Ideas</h4>
-                          <p className="text-sm text-card-foreground leading-relaxed bg-background p-3 rounded-md border h-full">{analysis.nextIdeas}</p>
-                        </div>
-                        <div>
-                          <h4 className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-2">Variables to Repeat</h4>
-                          <p className="text-sm text-card-foreground leading-relaxed bg-background p-3 rounded-md border h-full">{analysis.variablesToRepeat}</p>
-                        </div>
+                        <AnalysisBlock label="Performance Drivers" text={analysis.performanceDrivers} />
+                        <AnalysisBlock label="Lessons Learned" text={analysis.lessonsLearned} numbered />
+                        <AnalysisBlock label="Next Ideas" text={analysis.nextIdeas} numbered />
+                        <AnalysisBlock label="Variables to Repeat" text={analysis.variablesToRepeat} />
                       </div>
                     </div>
                   ) : (

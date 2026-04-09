@@ -82,15 +82,18 @@ Creator notes:
 - Would remake: ${reel.notes?.wouldRemake == null ? "Unknown" : reel.notes.wouldRemake ? "Yes" : "No"}
 - Extra notes: ${reel.notes?.extraNotes ?? "None"}
 
-Respond ONLY with a JSON object in this exact structure (no markdown, no code blocks, just raw JSON):
+Respond ONLY with a JSON object in this exact structure (no markdown, no code blocks, just raw JSON).
+ALL values must be plain readable strings — no nested objects, no arrays, no JSON inside the values.
+Use line breaks (\\n) to separate multiple points within a single field.
+
 {
   "summary": "2-3 sentence summary of what happened with this Reel and its overall performance",
-  "performanceDrivers": "What specific factors likely drove comments and engagement — separate facts (from data) from hypotheses (from notes/context)",
-  "retentionFactors": "What likely drove people to watch, save, or share — factors affecting retention and stickiness",
-  "contentPatterns": "Content and format patterns identified — hook style, pacing, topic, emotion, controversy, novelty, relatability",
-  "lessonsLearned": "3-5 clear, actionable lessons from this Reel for future content",
-  "nextIdeas": "5 specific next Reel ideas that apply what worked here — be concrete and actionable",
-  "variablesToRepeat": "Specific elements, formats, or approaches that should be repeated in future Reels"
+  "performanceDrivers": "Plain text explanation of what drove (or hurt) engagement. Cover what the data shows and what may have contributed contextually. Write it as flowing prose or use short lines separated by \\n.",
+  "retentionFactors": "Plain text explanation of what likely drove people to watch, save, or share — factors affecting retention and stickiness",
+  "contentPatterns": "Plain text summary of content and format patterns — hook style, pacing, topic, emotion, controversy, novelty, relatability",
+  "lessonsLearned": "3-5 actionable lessons, each on its own line separated by \\n. No bullets, no numbers, just plain lines.",
+  "nextIdeas": "5 specific content ideas, each on its own line separated by \\n. Be concrete. No bullets, no numbers.",
+  "variablesToRepeat": "List the key elements to repeat, each on its own line separated by \\n. No bullets, no numbers."
 }`;
 
   const resp = await fetch(apiUrl, {
