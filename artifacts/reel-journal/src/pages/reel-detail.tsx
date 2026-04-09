@@ -188,7 +188,15 @@ export default function ReelDetail() {
         <div className="space-y-6">
           <Card className="overflow-hidden bg-card border-card-border shadow-md">
             <div className="aspect-[9/16] relative bg-muted border-b border-border">
-              {reel.thumbnailUrl ? (
+              {reel.mediaUrl ? (
+                <video
+                  src={reel.mediaUrl}
+                  poster={reel.thumbnailUrl ?? undefined}
+                  controls
+                  playsInline
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
+              ) : reel.thumbnailUrl ? (
                 <img 
                   src={reel.thumbnailUrl} 
                   alt="Thumbnail" 
@@ -199,7 +207,7 @@ export default function ReelDetail() {
                   <PlaySquare className="w-12 h-12 text-muted-foreground/30" />
                 </div>
               )}
-              <div className="absolute top-4 right-4">
+              <div className="absolute top-4 right-4 pointer-events-none">
                 <StatusBadge status={reel.performanceStatus} />
               </div>
             </div>
