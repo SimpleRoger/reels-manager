@@ -1,7 +1,7 @@
 import { format, parseISO } from "date-fns";
 
-export function formatNumber(num: number | null | undefined): string {
-  if (num === null || num === undefined) return "0";
+export function formatNumber(num: number | null | undefined, fallback = "—"): string {
+  if (num === null || num === undefined) return fallback;
   if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
   if (num >= 1000) return (num / 1000).toFixed(1) + "K";
   return num.toString();

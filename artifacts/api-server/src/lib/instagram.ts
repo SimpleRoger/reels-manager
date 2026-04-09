@@ -56,29 +56,13 @@ type InsightMetric = { name: string; value?: number; values?: Array<{ value: num
 type InsightResponse = { data?: InsightMetric[]; error?: { message?: string; code?: number } };
 
 // Fetch insights metrics for a media item.
-// NOTE: Requires `instagram_manage_insights` permission on the access token.
-// Without this permission Meta returns 400 errors or silently empty data for all insight metrics.
+// NOTE: reach/saved/shares/plays all require `instagram_manage_insights` permission.
+// The `plays` metric is additionally only available for REELS product type, so we
+// try with plays first, then fall back to the other three if plays is rejected.
 export async function fetchMediaInsights(mediaId: string, accessToken: string): Promise<IGInsights> {
-  // Request all key Reel insight metrics in a single call
-  const metrics = "reach,saved,shares,plays";
-  const url = `${INSTAGRAM_GRAPH_API}/${mediaId}/insights?metric=${metrics}&access_token=${accessToken}`;
-
-  try {
-    const resp = await fetch(url);
-    if (!resp.ok) {
-      const body = await resp.json().catch(() => ({})) as InsightResponse;
-      logger.warn(
-        { mediaId, status: resp.status, error: body?.error },
-        "Insights fetch failed — token likely missing instagram_manage_insights permission"
-      );
-      return {};
-    }
-
-    const data = await resp.json() as InsightResponse;
+  const parseMetrics = (metrics: InsightMetric[]): IGInsights => {
     const insights: IGInsights = {};
-
-    for (const m of data.data ?? []) {
-      // Meta API may return `value` (newer) or `values[0].value` (older period-based format)
+    for (const m of metrics) {
       const v = m.value ?? m.values?.[0]?.value;
       if (v === undefined) continue;
       if (m.name === "reach") insights.reach = v;
@@ -86,8 +70,31 @@ export async function fetchMediaInsights(mediaId: string, accessToken: string): 
       if (m.name === "shares") insights.shares = v;
       if (m.name === "plays") insights.plays = v;
     }
-
     return insights;
+  };
+
+  const fetchMetrics = async (metricList: string): Promise<InsightMetric[] | null> => {
+    const url = `${INSTAGRAM_GRAPH_API}/${mediaId}/insights?metric=${metricList}&access_token=${accessToken}`;
+    const resp = await fetch(url);
+    if (!resp.ok) {
+      const body = await resp.json().catch(() => ({})) as InsightResponse;
+      logger.warn({ mediaId, status: resp.status, metrics: metricList, error: body?.error }, "Insight metrics unavailable");
+      return null;
+    }
+    const data = await resp.json() as InsightResponse;
+    return data.data ?? [];
+  };
+
+  try {
+    // Try full set including plays (only works for REELS media product type)
+    const full = await fetchMetrics("reach,saved,shares,plays");
+    if (full !== null) return parseMetrics(full);
+
+    // Fallback: plays rejected (non-Reel video) — fetch remaining three metrics
+    const basic = await fetchMetrics("reach,saved,shares");
+    if (basic !== null) return parseMetrics(basic);
+
+    return {};
   } catch (err) {
     logger.error({ err, mediaId }, "Exception fetching insights");
     return {};

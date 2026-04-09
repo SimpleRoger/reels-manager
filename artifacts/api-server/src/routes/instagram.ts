@@ -115,6 +115,22 @@ router.post("/instagram/sync", async (req, res): Promise<void> => {
   for (const m of reelMedia) {
     const insights = await fetchMediaInsights(m.id, account.accessToken);
 
+    const existing = await db
+      .select()
+      .from(reelsTable)
+      .where(eq(reelsTable.instagramId, m.id))
+      .limit(1);
+
+    const prev = existing[0];
+
+    // For insight metrics: use the freshly fetched value if available,
+    // otherwise preserve whatever was already stored (prevents wiping good data
+    // when the API temporarily rejects a metric).
+    const reach  = insights.reach  ?? prev?.reach  ?? null;
+    const saves  = insights.saved  ?? prev?.saves  ?? null;
+    const shares = insights.shares ?? prev?.shares ?? null;
+    const plays  = insights.plays  ?? insights.video_views ?? prev?.plays ?? null;
+
     const reelData = {
       instagramId: m.id,
       caption: m.caption ?? null,
@@ -124,23 +140,17 @@ router.post("/instagram/sync", async (req, res): Promise<void> => {
       postedAt: m.timestamp ? new Date(m.timestamp) : null,
       likeCount: m.like_count ?? null,
       commentsCount: m.comments_count ?? null,
-      reach: insights.reach ?? null,
-      saves: insights.saved ?? null,
-      shares: insights.shares ?? null,
-      plays: insights.plays ?? insights.video_views ?? null,
+      reach,
+      saves,
+      shares,
+      plays,
       performanceStatus: null as string | null,
     };
 
     const performanceStatus = computePerformanceStatus(reelData, averages);
     reelData.performanceStatus = performanceStatus;
 
-    const existing = await db
-      .select()
-      .from(reelsTable)
-      .where(eq(reelsTable.instagramId, m.id))
-      .limit(1);
-
-    if (existing.length > 0) {
+    if (prev) {
       await db
         .update(reelsTable)
         .set(reelData)
