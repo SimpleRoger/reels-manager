@@ -80,7 +80,7 @@ router.post("/instagram/sync", async (req, res): Promise<void> => {
 
   let media;
   try {
-    media = await fetchUserMedia(account.accessToken, 30);
+    media = await fetchUserMedia(account.accessToken);
   } catch (err) {
     req.log.error({ err }, "Failed to fetch Instagram media");
     res.status(400).json({ error: "Failed to fetch Instagram media. Token may be expired." });

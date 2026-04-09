@@ -76,18 +76,40 @@ export async function fetchUserProfile(accessToken: string): Promise<IGUserProfi
   }
 }
 
-export async function fetchUserMedia(accessToken: string, limit = 30): Promise<IGMedia[]> {
+export async function fetchUserMedia(accessToken: string): Promise<IGMedia[]> {
   const fields = "id,media_type,media_product_type,caption,permalink,thumbnail_url,media_url,timestamp,like_count,comments_count";
-  const url = `${INSTAGRAM_GRAPH_API}/me/media?fields=${fields}&limit=${limit}&access_token=${accessToken}`;
-  
-  const resp = await fetch(url);
-  if (!resp.ok) {
-    const err = await resp.text();
-    throw new Error(`Instagram API error: ${err}`);
+  const PAGE_SIZE = 100;
+  const MAX_PAGES = 20; // safety cap — 2,000 posts max
+
+  type PageResponse = {
+    data?: IGMedia[];
+    paging?: { cursors?: { after?: string }; next?: string };
+  };
+
+  const all: IGMedia[] = [];
+  let url: string | null = `${INSTAGRAM_GRAPH_API}/me/media?fields=${fields}&limit=${PAGE_SIZE}&access_token=${accessToken}`;
+  let pages = 0;
+
+  while (url && pages < MAX_PAGES) {
+    const resp = await fetch(url);
+    if (!resp.ok) {
+      const err = await resp.text();
+      throw new Error(`Instagram API error: ${err}`);
+    }
+
+    const page = await resp.json() as PageResponse;
+    const items = page.data ?? [];
+    all.push(...items);
+
+    // Follow the next cursor if one exists
+    url = page.paging?.next ?? null;
+    pages++;
+
+    // If this page was less than a full page, we're done
+    if (items.length < PAGE_SIZE) break;
   }
-  
-  const data = await resp.json() as { data?: IGMedia[] };
-  return data.data ?? [];
+
+  return all;
 }
 
 type InsightMetric = { name: string; value?: number; values?: Array<{ value: number }> };
