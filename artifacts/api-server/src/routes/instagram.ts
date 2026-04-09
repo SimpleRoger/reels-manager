@@ -129,7 +129,7 @@ router.post("/instagram/sync", async (req, res): Promise<void> => {
     const reach  = insights.reach  ?? prev?.reach  ?? null;
     const saves  = insights.saved  ?? prev?.saves  ?? null;
     const shares = insights.shares ?? prev?.shares ?? null;
-    const plays  = insights.plays  ?? insights.video_views ?? prev?.plays ?? null;
+    const plays  = insights.views ?? prev?.plays ?? null;
 
     const reelData = {
       instagramId: m.id,

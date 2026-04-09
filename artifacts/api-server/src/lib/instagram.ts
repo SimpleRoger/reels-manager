@@ -19,8 +19,7 @@ export interface IGInsights {
   reach?: number;
   saved?: number;
   shares?: number;
-  plays?: number;
-  video_views?: number;
+  views?: number;
 }
 
 export async function verifyToken(accessToken: string): Promise<{ id: string; username: string } | null> {
@@ -68,7 +67,7 @@ export async function fetchMediaInsights(mediaId: string, accessToken: string): 
       if (m.name === "reach") insights.reach = v;
       if (m.name === "saved") insights.saved = v;
       if (m.name === "shares") insights.shares = v;
-      if (m.name === "plays") insights.plays = v;
+      if (m.name === "views") insights.views = v;
     }
     return insights;
   };
@@ -86,11 +85,11 @@ export async function fetchMediaInsights(mediaId: string, accessToken: string): 
   };
 
   try {
-    // Try full set including plays (only works for REELS media product type)
-    const full = await fetchMetrics("reach,saved,shares,plays");
+    // `views` is the current metric replacing deprecated `plays` (deprecated April 2025)
+    const full = await fetchMetrics("reach,saved,shares,views");
     if (full !== null) return parseMetrics(full);
 
-    // Fallback: plays rejected (non-Reel video) — fetch remaining three metrics
+    // Fallback: views not supported for this media type — fetch remaining three
     const basic = await fetchMetrics("reach,saved,shares");
     if (basic !== null) return parseMetrics(basic);
 
