@@ -49,6 +49,7 @@ router.get("/reels", async (req, res): Promise<void> => {
 
   const columnMap: Record<string, typeof reelsTable.createdAt> = {
     createdAt: reelsTable.createdAt,
+    postedAt: reelsTable.postedAt as unknown as typeof reelsTable.createdAt,
     likeCount: reelsTable.likeCount as unknown as typeof reelsTable.createdAt,
     commentsCount: reelsTable.commentsCount as unknown as typeof reelsTable.createdAt,
     reach: reelsTable.reach as unknown as typeof reelsTable.createdAt,
@@ -56,7 +57,7 @@ router.get("/reels", async (req, res): Promise<void> => {
     shares: reelsTable.shares as unknown as typeof reelsTable.createdAt,
   };
 
-  const sortColumn = columnMap[sortBy] ?? reelsTable.createdAt;
+  const sortColumn = columnMap[sortBy] ?? reelsTable.postedAt;
   const orderFn = sortOrder === "asc" ? asc : desc;
 
   let baseQuery = db.select().from(reelsTable).$dynamic();

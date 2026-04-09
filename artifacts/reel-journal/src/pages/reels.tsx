@@ -10,7 +10,7 @@ import { PlaySquare, Filter } from "lucide-react";
 import { ListReelsSortBy, ListReelsSortOrder } from "@workspace/api-zod";
 
 export default function ReelsLog() {
-  const [sortBy, setSortBy] = useState<ListReelsSortBy>("createdAt");
+  const [sortBy, setSortBy] = useState<ListReelsSortBy>("postedAt");
   const [sortOrder, setSortOrder] = useState<ListReelsSortOrder>("desc");
 
   const { data, isLoading } = useListReels({ sortBy, sortOrder }, {

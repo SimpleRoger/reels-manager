@@ -157,7 +157,7 @@ export const GetDashboardSummaryResponse = zod.object({
 /**
  * @summary List all stored Reels
  */
-export const listReelsQuerySortByDefault = `createdAt`;
+export const listReelsQuerySortByDefault = `postedAt`;
 export const listReelsQuerySortOrderDefault = `desc`;
 export const listReelsQueryLimitDefault = 20;
 export const listReelsQueryOffsetDefault = 0;
@@ -165,6 +165,7 @@ export const listReelsQueryOffsetDefault = 0;
 export const ListReelsQueryParams = zod.object({
   sortBy: zod
     .enum([
+      "postedAt",
       "createdAt",
       "likeCount",
       "commentsCount",

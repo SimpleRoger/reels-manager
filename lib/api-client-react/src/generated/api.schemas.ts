@@ -308,6 +308,7 @@ export type ListReelsSortBy =
   (typeof ListReelsSortBy)[keyof typeof ListReelsSortBy];
 
 export const ListReelsSortBy = {
+  postedAt: "postedAt",
   createdAt: "createdAt",
   likeCount: "likeCount",
   commentsCount: "commentsCount",
