@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { avg, isNotNull, desc } from "drizzle-orm";
+import { avg, isNotNull, desc, gte } from "drizzle-orm";
 import { db, instagramAccountsTable, reelsTable } from "@workspace/db";
 import { fetchUserProfile } from "../lib/instagram";
 
@@ -71,6 +71,92 @@ router.get("/profile", async (req, res): Promise<void> => {
     reachToFollowerRatio,
     estimatedActiveAudience: avgReach,
     topReels,
+  });
+});
+
+router.get("/profile/growth-forecast", async (req, res): Promise<void> => {
+  const accounts = await db.select().from(instagramAccountsTable).limit(1);
+  if (accounts.length === 0) {
+    res.status(404).json({ error: "No Instagram account connected" });
+    return;
+  }
+  const account = accounts[0];
+  const profile = await fetchUserProfile(account.accessToken);
+  const currentFollowers = profile?.followersCount ?? 0;
+
+  // Use last 90 days to gauge recent cadence & reach
+  const since90 = new Date();
+  since90.setDate(since90.getDate() - 90);
+
+  const recentReels = await db
+    .select({ postedAt: reelsTable.postedAt, reach: reelsTable.reach })
+    .from(reelsTable)
+    .where(gte(reelsTable.postedAt, since90));
+
+  const totalRecentReels = recentReels.length;
+  const monthsOfData = 3;
+  const postsPerMonth = totalRecentReels > 0 ? totalRecentReels / monthsOfData : 4;
+
+  const reachValues = recentReels.map((r) => r.reach ?? 0).filter((v) => v > 0);
+  const avgReach = reachValues.length > 0
+    ? reachValues.reduce((s, v) => s + v, 0) / reachValues.length
+    : 0;
+
+  // Conversion rates: % of reach that converts to a follow per reel
+  const rates = { conservative: 0.0015, expected: 0.004, optimistic: 0.009 };
+
+  const MONTHS_AHEAD = 6;
+  const today = new Date();
+
+  interface ForecastPoint {
+    month: string;
+    conservative: number;
+    expected: number;
+    optimistic: number;
+    isProjection: boolean;
+  }
+
+  const points: ForecastPoint[] = [];
+
+  // Seed with current month as the baseline (actual)
+  points.push({
+    month: today.toLocaleDateString("en-AU", { month: "short", year: "2-digit" }),
+    conservative: currentFollowers,
+    expected: currentFollowers,
+    optimistic: currentFollowers,
+    isProjection: false,
+  });
+
+  let cons = currentFollowers;
+  let exp  = currentFollowers;
+  let opt  = currentFollowers;
+
+  for (let i = 1; i <= MONTHS_AHEAD; i++) {
+    const d = new Date(today);
+    d.setMonth(d.getMonth() + i);
+
+    const monthlyGainCons = postsPerMonth * avgReach * rates.conservative;
+    const monthlyGainExp  = postsPerMonth * avgReach * rates.expected;
+    const monthlyGainOpt  = postsPerMonth * avgReach * rates.optimistic;
+
+    cons = Math.round(cons + monthlyGainCons);
+    exp  = Math.round(exp  + monthlyGainExp);
+    opt  = Math.round(opt  + monthlyGainOpt);
+
+    points.push({
+      month: d.toLocaleDateString("en-AU", { month: "short", year: "2-digit" }),
+      conservative: cons,
+      expected: exp,
+      optimistic: opt,
+      isProjection: true,
+    });
+  }
+
+  res.json({
+    currentFollowers,
+    avgReach: Math.round(avgReach),
+    postsPerMonth: Math.round(postsPerMonth * 10) / 10,
+    points,
   });
 });
 

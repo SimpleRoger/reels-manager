@@ -8,7 +8,7 @@ import { Users, Eye, Heart, MessageCircle, Share2, Bookmark, Sparkles, Wand2, Tr
 import { useToast } from "@/hooks/use-toast";
 import {
   AreaChart, Area, BarChart, Bar, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine, ResponsiveContainer,
 } from "recharts";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -306,6 +306,125 @@ function PostingTimesChart({ hours, bestHour }: { hours: HourStat[]; bestHour: H
   );
 }
 
+interface ForecastPoint {
+  month: string;
+  conservative: number;
+  expected: number;
+  optimistic: number;
+  isProjection: boolean;
+}
+
+interface GrowthForecast {
+  currentFollowers: number;
+  avgReach: number;
+  postsPerMonth: number;
+  points: ForecastPoint[];
+}
+
+function FollowerForecastChart({ data }: { data: GrowthForecast }) {
+  const { points, currentFollowers, avgReach, postsPerMonth } = data;
+  const todayMonth = points[0]?.month ?? "";
+
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (!active || !payload?.length) return null;
+    const isNow = label === todayMonth;
+    return (
+      <div className="bg-[#111827] border border-[#1f2937] rounded-lg p-3 text-xs space-y-1.5 min-w-[160px]">
+        <p className="font-mono text-white font-semibold">{label}{isNow ? " (now)" : " (projected)"}</p>
+        {payload.map((p: any) => (
+          <div key={p.name} className="flex justify-between gap-4" style={{ color: p.color }}>
+            <span className="capitalize">{p.name}</span>
+            <span className="font-mono font-semibold">{formatShort(p.value)}</span>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const sixMonthExpected = points[points.length - 1]?.expected ?? currentFollowers;
+  const gain = sixMonthExpected - currentFollowers;
+
+  return (
+    <Card className="bg-card border-card-border">
+      <CardHeader className="flex flex-row items-start justify-between gap-4">
+        <div>
+          <CardTitle className="flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-primary" /> Follower Growth Forecast
+          </CardTitle>
+          <CardDescription>
+            6-month projection based on {postsPerMonth} posts/month at {formatShort(avgReach)} avg reach
+          </CardDescription>
+        </div>
+        <div className="text-right shrink-0">
+          <div className="text-2xl font-bold text-primary">+{formatShort(gain)}</div>
+          <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">expected in 6 mo</div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-3 gap-3 text-center">
+          {[
+            { label: "Conservative", key: "conservative" as const, color: "#7c3aed", desc: "Lower engagement / fewer posts" },
+            { label: "Expected", key: "expected" as const, color: "#f97316", desc: "Based on recent performance" },
+            { label: "Optimistic", key: "optimistic" as const, color: "#22c55e", desc: "Viral potential / more posts" },
+          ].map(({ label, key, color, desc }) => (
+            <div key={key} className="bg-background border rounded-lg p-3 space-y-1">
+              <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">{label}</div>
+              <div className="text-xl font-bold" style={{ color }}>{formatShort(points[points.length - 1]?.[key] ?? 0)}</div>
+              <div className="text-[10px] text-muted-foreground leading-snug">{desc}</div>
+            </div>
+          ))}
+        </div>
+
+        <ResponsiveContainer width="100%" height={260}>
+          <AreaChart data={points} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+            <defs>
+              <linearGradient id="gOpt" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%"  stopColor="#22c55e" stopOpacity={0.2} />
+                <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id="gExp" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%"  stopColor="#f97316" stopOpacity={0.25} />
+                <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id="gCons" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%"  stopColor="#7c3aed" stopOpacity={0.2} />
+                <stop offset="95%" stopColor="#7c3aed" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+            <XAxis
+              dataKey="month"
+              tick={{ fontSize: 10, fill: "#6b7280", fontFamily: "monospace" }}
+              tickLine={false}
+              axisLine={false}
+            />
+            <YAxis
+              tickFormatter={formatShort}
+              tick={{ fontSize: 10, fill: "#6b7280", fontFamily: "monospace" }}
+              tickLine={false}
+              axisLine={false}
+              width={42}
+            />
+            <Tooltip content={<CustomTooltip />} />
+            <ReferenceLine x={todayMonth} stroke="#374151" strokeDasharray="4 2" label={{ value: "Today", position: "top", fontSize: 9, fill: "#6b7280", fontFamily: "monospace" }} />
+            <Area type="monotone" dataKey="optimistic"   name="Optimistic"   stroke="#22c55e" strokeWidth={1.5} fill="url(#gOpt)"  dot={false} strokeDasharray="4 2" />
+            <Area type="monotone" dataKey="expected"     name="Expected"     stroke="#f97316" strokeWidth={2}   fill="url(#gExp)"  dot={{ r: 3, fill: "#f97316" }} />
+            <Area type="monotone" dataKey="conservative" name="Conservative" stroke="#7c3aed" strokeWidth={1.5} fill="url(#gCons)" dot={false} strokeDasharray="4 2" />
+            <Legend
+              iconType="circle"
+              iconSize={8}
+              wrapperStyle={{ fontSize: 11, fontFamily: "monospace", textTransform: "uppercase", letterSpacing: "0.05em" }}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+        <p className="text-[10px] text-muted-foreground font-mono text-center">
+          Projection based on reach-to-follow conversion rates. Post more consistently or go viral to outpace the optimistic line.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function Profile() {
   const { toast } = useToast();
   const [tips, setTips] = useState<AITips | null>(null);
@@ -333,6 +452,15 @@ export default function Profile() {
     queryFn: async () => {
       const resp = await fetch(`${BASE}/api/profile/posting-times`);
       if (!resp.ok) throw new Error("Failed to load posting times");
+      return resp.json();
+    },
+  });
+
+  const { data: growthForecast } = useQuery<GrowthForecast>({
+    queryKey: ["growth-forecast"],
+    queryFn: async () => {
+      const resp = await fetch(`${BASE}/api/profile/growth-forecast`);
+      if (!resp.ok) throw new Error("Failed to load growth forecast");
       return resp.json();
     },
   });
@@ -465,6 +593,10 @@ export default function Profile() {
 
       {reelsData && reelsData.reels.length > 0 && (
         <PerformanceChart reels={reelsData.reels} />
+      )}
+
+      {growthForecast && (
+        <FollowerForecastChart data={growthForecast} />
       )}
 
       {postingTimesData && postingTimesData.hours.length > 0 && (
