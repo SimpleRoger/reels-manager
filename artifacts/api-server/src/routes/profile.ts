@@ -187,7 +187,11 @@ Respond ONLY with a JSON object. All values must be plain readable strings. Use 
     return;
   }
 
-  const parsed = JSON.parse(content);
+  let clean = content.trim();
+  if (clean.startsWith("```")) {
+    clean = clean.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "").trim();
+  }
+  const parsed = JSON.parse(clean);
   res.json(parsed);
 });
 

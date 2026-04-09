@@ -6,6 +6,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Users, Eye, Heart, MessageCircle, Share2, Bookmark, Sparkles, Wand2, TrendingUp, UserPlus, Lightbulb, Target } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+} from "recharts";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -31,6 +34,16 @@ interface AITips {
   contentStrategy: string;
   followerGrowthTips: string;
   retentionTips: string;
+}
+
+interface ReelPoint {
+  id: number;
+  postedAt: string | null;
+  plays: number | null;
+  likeCount: number | null;
+  reach: number | null;
+  shares: number | null;
+  saves: number | null;
 }
 
 function TipsBlock({ label, text, icon: Icon, numbered = false }: { label: string; text: string; icon: React.ElementType; numbered?: boolean }) {
@@ -63,6 +76,115 @@ function TipsBlock({ label, text, icon: Icon, numbered = false }: { label: strin
   );
 }
 
+const ORANGE = "#f97316";
+const AMBER  = "#f59e0b";
+const MUTED  = "#6b7280";
+
+function formatShort(n: number) {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
+  if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
+  return String(Math.round(n));
+}
+
+function PerformanceChart({ reels }: { reels: ReelPoint[] }) {
+  const [range, setRange] = useState<1 | 2>(1);
+
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - range);
+
+  const filtered = reels
+    .filter(r => r.postedAt && new Date(r.postedAt) >= cutoff)
+    .sort((a, b) => new Date(a.postedAt!).getTime() - new Date(b.postedAt!).getTime());
+
+  const chartData = filtered.map(r => ({
+    date: new Date(r.postedAt!).toLocaleDateString("en-AU", { day: "numeric", month: "short" }),
+    Views: r.plays ?? 0,
+    Reach: r.reach ?? 0,
+    Likes: r.likeCount ?? 0,
+  }));
+
+  return (
+    <Card className="bg-card border-card-border">
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+          <CardTitle className="flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-primary" /> Performance Over Time
+          </CardTitle>
+          <CardDescription>Views, reach, and likes per post — sorted by date</CardDescription>
+        </div>
+        <div className="flex gap-1 bg-background rounded-md p-1 border">
+          {([1, 2] as const).map(m => (
+            <button
+              key={m}
+              onClick={() => setRange(m)}
+              className={`px-3 py-1 rounded text-xs font-mono uppercase tracking-wider transition-colors ${
+                range === m ? "bg-primary text-black" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {m}mo
+            </button>
+          ))}
+        </div>
+      </CardHeader>
+      <CardContent>
+        {chartData.length === 0 ? (
+          <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">
+            No posts in the last {range} month{range > 1 ? "s" : ""}.
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={280}>
+            <AreaChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id="gViews" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%"  stopColor={ORANGE} stopOpacity={0.25} />
+                  <stop offset="95%" stopColor={ORANGE} stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="gReach" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%"  stopColor={AMBER} stopOpacity={0.2} />
+                  <stop offset="95%" stopColor={AMBER} stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="gLikes" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%"  stopColor={MUTED} stopOpacity={0.15} />
+                  <stop offset="95%" stopColor={MUTED} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+              <XAxis
+                dataKey="date"
+                tick={{ fontSize: 10, fill: "#6b7280", fontFamily: "monospace" }}
+                tickLine={false}
+                axisLine={false}
+                interval="preserveStartEnd"
+              />
+              <YAxis
+                tickFormatter={formatShort}
+                tick={{ fontSize: 10, fill: "#6b7280", fontFamily: "monospace" }}
+                tickLine={false}
+                axisLine={false}
+                width={40}
+              />
+              <Tooltip
+                contentStyle={{ background: "#111827", border: "1px solid #1f2937", borderRadius: 6, fontSize: 12 }}
+                labelStyle={{ color: "#f9fafb", fontFamily: "monospace", marginBottom: 4 }}
+                itemStyle={{ color: "#d1d5db" }}
+                formatter={(v: number) => formatShort(v)}
+              />
+              <Legend
+                iconType="circle"
+                iconSize={8}
+                wrapperStyle={{ fontSize: 11, fontFamily: "monospace", textTransform: "uppercase", letterSpacing: "0.05em" }}
+              />
+              <Area type="monotone" dataKey="Views" stroke={ORANGE} strokeWidth={2} fill="url(#gViews)" dot={{ r: 3, fill: ORANGE }} />
+              <Area type="monotone" dataKey="Reach" stroke={AMBER}  strokeWidth={2} fill="url(#gReach)" dot={{ r: 3, fill: AMBER }} />
+              <Area type="monotone" dataKey="Likes" stroke={MUTED}  strokeWidth={1.5} fill="url(#gLikes)" dot={false} />
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function Profile() {
   const { toast } = useToast();
   const [tips, setTips] = useState<AITips | null>(null);
@@ -72,6 +194,15 @@ export default function Profile() {
     queryFn: async () => {
       const resp = await fetch(`${BASE}/api/profile`);
       if (!resp.ok) throw new Error("Failed to load profile");
+      return resp.json();
+    },
+  });
+
+  const { data: reelsData } = useQuery<{ reels: ReelPoint[] }>({
+    queryKey: ["reels-for-chart"],
+    queryFn: async () => {
+      const resp = await fetch(`${BASE}/api/reels?sortBy=postedAt&sortOrder=asc&limit=200`);
+      if (!resp.ok) throw new Error("Failed to load reels");
       return resp.json();
     },
   });
@@ -201,6 +332,10 @@ export default function Profile() {
           </Card>
         ))}
       </div>
+
+      {reelsData && reelsData.reels.length > 0 && (
+        <PerformanceChart reels={reelsData.reels} />
+      )}
 
       <Card className="bg-card border-card-border">
         <CardHeader className="flex flex-row items-center justify-between">

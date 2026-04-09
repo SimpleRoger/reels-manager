@@ -131,9 +131,9 @@ export default function ReelDetail() {
 
   function handleAnalyze() {
     analyzeMutation.mutate({ id: reelId }, {
-      onSuccess: () => {
+      onSuccess: (data) => {
         toast({ title: "Analysis complete", description: "AI has processed this reel." });
-        queryClient.invalidateQueries({ queryKey: getGetReelAnalysisQueryKey(reelId) });
+        queryClient.setQueryData(getGetReelAnalysisQueryKey(reelId), data);
       },
       onError: () => toast({ title: "Analysis failed", variant: "destructive" })
     });
