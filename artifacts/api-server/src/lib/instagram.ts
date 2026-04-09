@@ -52,28 +52,44 @@ export async function fetchUserMedia(accessToken: string, limit = 30): Promise<I
   return data.data ?? [];
 }
 
+type InsightMetric = { name: string; value?: number; values?: Array<{ value: number }> };
+type InsightResponse = { data?: InsightMetric[]; error?: { message?: string; code?: number } };
+
+// Fetch insights metrics for a media item.
+// NOTE: Requires `instagram_manage_insights` permission on the access token.
+// Without this permission Meta returns 400 errors or silently empty data for all insight metrics.
 export async function fetchMediaInsights(mediaId: string, accessToken: string): Promise<IGInsights> {
-  const metrics = "reach,saved,shares,plays,video_views";
+  // Request all key Reel insight metrics in a single call
+  const metrics = "reach,saved,shares,plays";
   const url = `${INSTAGRAM_GRAPH_API}/${mediaId}/insights?metric=${metrics}&access_token=${accessToken}`;
-  
+
   try {
     const resp = await fetch(url);
-    if (!resp.ok) return {};
-    
-    const data = await resp.json() as { data?: Array<{ name: string; values: Array<{ value: number }> }> };
-    const insights: IGInsights = {};
-    
-    for (const metric of data.data ?? []) {
-      const value = metric.values?.[0]?.value ?? 0;
-      if (metric.name === "reach") insights.reach = value;
-      if (metric.name === "saved") insights.saved = value;
-      if (metric.name === "shares") insights.shares = value;
-      if (metric.name === "plays") insights.plays = value;
-      if (metric.name === "video_views") insights.video_views = value;
+    if (!resp.ok) {
+      const body = await resp.json().catch(() => ({})) as InsightResponse;
+      logger.warn(
+        { mediaId, status: resp.status, error: body?.error },
+        "Insights fetch failed — token likely missing instagram_manage_insights permission"
+      );
+      return {};
     }
-    
+
+    const data = await resp.json() as InsightResponse;
+    const insights: IGInsights = {};
+
+    for (const m of data.data ?? []) {
+      // Meta API may return `value` (newer) or `values[0].value` (older period-based format)
+      const v = m.value ?? m.values?.[0]?.value;
+      if (v === undefined) continue;
+      if (m.name === "reach") insights.reach = v;
+      if (m.name === "saved") insights.saved = v;
+      if (m.name === "shares") insights.shares = v;
+      if (m.name === "plays") insights.plays = v;
+    }
+
     return insights;
-  } catch {
+  } catch (err) {
+    logger.error({ err, mediaId }, "Exception fetching insights");
     return {};
   }
 }
