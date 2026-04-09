@@ -8,7 +8,7 @@ import {
   useAnalyzeReel,
   useUpdateReelTags
 } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -25,7 +25,57 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { PlaySquare, Heart, MessageCircle, Share2, Bookmark, Eye, ArrowLeft, Wand2, Sparkles, Tag as TagIcon, ExternalLink } from "lucide-react";
+import { PlaySquare, Heart, MessageCircle, Share2, Bookmark, Eye, ArrowLeft, Wand2, Sparkles, Tag as TagIcon, ExternalLink, Video, Star } from "lucide-react";
+
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+interface VideoAnalysis {
+  id: number;
+  reelId: number;
+  hookRating: string;
+  hookFeedback: string;
+  pacing: string;
+  pacingFeedback: string;
+  audio: string;
+  audioFeedback: string;
+  onScreenText: string;
+  onScreenTextFeedback: string;
+  contentType: string;
+  contentTypeFeedback: string;
+  overallScore: string;
+  suggestions: string;
+  createdAt: string;
+}
+
+function RatingBadge({ value }: { value: string }) {
+  const v = value.toLowerCase();
+  const isStrong = v.includes("strong") || v.includes("fast") || v.includes("present") || v.includes("trending") || v.includes("mixed");
+  const isWeak = v.includes("weak") || v.includes("slow") || v.includes("none") || v.includes("silent");
+  return (
+    <span className={`inline-block px-2 py-0.5 rounded text-xs font-mono font-semibold ${
+      isStrong ? "bg-green-900/50 text-green-300 border border-green-700/50" :
+      isWeak ? "bg-red-900/40 text-red-300 border border-red-700/50" :
+      "bg-orange-900/40 text-orange-300 border border-orange-700/50"
+    }`}>
+      {value}
+    </span>
+  );
+}
+
+function VideoAnalysisDimension({ icon, label, rating, feedback }: { icon: string; label: string; rating: string; feedback: string }) {
+  return (
+    <div className="bg-background rounded-lg border p-4 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-base">{icon}</span>
+          <span className="text-xs font-mono uppercase tracking-wider text-muted-foreground">{label}</span>
+        </div>
+        <RatingBadge value={rating} />
+      </div>
+      <p className="text-sm text-card-foreground leading-relaxed">{feedback}</p>
+    </div>
+  );
+}
 
 const notesSchema = z.object({
   hook: z.string().optional().nullable(),
@@ -89,6 +139,36 @@ export default function ReelDetail() {
   const saveNotesMutation = useSaveReelNotes();
   const analyzeMutation = useAnalyzeReel();
   const updateTagsMutation = useUpdateReelTags();
+
+  const { data: videoAnalysis, isLoading: isVideoAnalysisLoading } = useQuery<VideoAnalysis>({
+    queryKey: ["video-analysis", reelId],
+    queryFn: async () => {
+      const resp = await fetch(`${BASE}/api/reels/${reelId}/video-analysis`);
+      if (resp.status === 404) return null as any;
+      if (!resp.ok) throw new Error("Failed to load video analysis");
+      return resp.json();
+    },
+    enabled: !!reelId,
+    retry: false,
+  });
+
+  const videoAnalyzeMutation = useMutation({
+    mutationFn: async () => {
+      const resp = await fetch(`${BASE}/api/reels/${reelId}/video-analyze`, { method: "POST" });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ error: "Analysis failed" }));
+        throw new Error(err.error ?? "Analysis failed");
+      }
+      return resp.json() as Promise<VideoAnalysis>;
+    },
+    onSuccess: (data) => {
+      toast({ title: "Video analysis complete", description: "Gemini has analysed your reel." });
+      queryClient.setQueryData(["video-analysis", reelId], data);
+    },
+    onError: (err: Error) => {
+      toast({ title: "Video analysis failed", description: err.message, variant: "destructive" });
+    },
+  });
 
   const form = useForm<z.infer<typeof notesSchema>>({
     resolver: zodResolver(notesSchema),
@@ -297,10 +377,13 @@ export default function ReelDetail() {
         {/* Right Column: Journal & Analysis */}
         <div className="lg:col-span-2">
           <Tabs defaultValue="journal" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-4">
-              <TabsTrigger value="journal" className="font-mono uppercase text-xs tracking-wider">Creator Journal</TabsTrigger>
-              <TabsTrigger value="analysis" className="font-mono uppercase text-xs tracking-wider flex items-center gap-2">
+            <TabsList className="grid w-full grid-cols-3 mb-4">
+              <TabsTrigger value="journal" className="font-mono uppercase text-xs tracking-wider">Journal</TabsTrigger>
+              <TabsTrigger value="analysis" className="font-mono uppercase text-xs tracking-wider flex items-center gap-1.5">
                 <Sparkles className="w-3 h-3" /> AI Analysis
+              </TabsTrigger>
+              <TabsTrigger value="video" className="font-mono uppercase text-xs tracking-wider flex items-center gap-1.5">
+                <Video className="w-3 h-3" /> Video AI
               </TabsTrigger>
             </TabsList>
             
@@ -414,6 +497,95 @@ export default function ReelDetail() {
                     <div className="flex flex-col items-center justify-center py-12 text-center">
                       <Sparkles className="w-12 h-12 text-muted mb-4" />
                       <p className="text-muted-foreground max-w-sm">No analysis has been generated for this reel yet. Run an analysis to uncover performance drivers and patterns.</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="video" className="space-y-4">
+              <Card className="bg-card border-card-border min-h-[400px]">
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <Video className="w-4 h-4 text-primary" /> Gemini Video Analysis
+                    </CardTitle>
+                    <CardDescription>AI watches your actual reel and breaks down hook, pacing, audio, text, and content type.</CardDescription>
+                  </div>
+                  {!reel.mediaUrl ? null : (
+                    <Button
+                      onClick={() => videoAnalyzeMutation.mutate()}
+                      disabled={videoAnalyzeMutation.isPending}
+                      className="font-mono uppercase tracking-wider text-xs shrink-0"
+                    >
+                      <Video className="w-4 h-4 mr-2" />
+                      {videoAnalyzeMutation.isPending ? "Analysing..." : videoAnalysis ? "Re-analyse" : "Analyse Video"}
+                    </Button>
+                  )}
+                </CardHeader>
+                <CardContent>
+                  {!reel.mediaUrl && (
+                    <div className="flex flex-col items-center justify-center py-12 text-center gap-3">
+                      <Video className="w-10 h-10 text-muted-foreground/30" />
+                      <p className="text-sm text-muted-foreground max-w-sm">No video URL available for this reel. Re-sync your Instagram account to refresh CDN links.</p>
+                    </div>
+                  )}
+
+                  {reel.mediaUrl && (isVideoAnalysisLoading || videoAnalyzeMutation.isPending) && (
+                    <div className="space-y-3">
+                      <Skeleton className="h-4 w-1/4" />
+                      <Skeleton className="h-24 w-full" />
+                      <Skeleton className="h-24 w-full" />
+                      <Skeleton className="h-24 w-full" />
+                      {videoAnalyzeMutation.isPending && (
+                        <p className="text-xs text-muted-foreground font-mono text-center pt-2 animate-pulse">
+                          Gemini is watching your reel — this takes 15–30 seconds...
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {reel.mediaUrl && !isVideoAnalysisLoading && !videoAnalyzeMutation.isPending && videoAnalysis && (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+                        <Star className="w-4 h-4 text-primary shrink-0" />
+                        <p className="text-sm font-semibold text-foreground">{videoAnalysis.overallScore}</p>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-3">
+                        <VideoAnalysisDimension icon="🎣" label="Hook (First 3 Seconds)" rating={videoAnalysis.hookRating} feedback={videoAnalysis.hookFeedback} />
+                        <VideoAnalysisDimension icon="⚡" label="Pacing & Edit Rhythm" rating={videoAnalysis.pacing} feedback={videoAnalysis.pacingFeedback} />
+                        <VideoAnalysisDimension icon="🎵" label="Audio" rating={videoAnalysis.audio} feedback={videoAnalysis.audioFeedback} />
+                        <VideoAnalysisDimension icon="📝" label="On-Screen Text" rating={videoAnalysis.onScreenText} feedback={videoAnalysis.onScreenTextFeedback} />
+                        <VideoAnalysisDimension icon="🎬" label="Content Type" rating={videoAnalysis.contentType} feedback={videoAnalysis.contentTypeFeedback} />
+                      </div>
+
+                      <div className="bg-background rounded-lg border p-4 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">💡</span>
+                          <span className="text-xs font-mono uppercase tracking-wider text-muted-foreground">Improvement Suggestions</span>
+                        </div>
+                        <ul className="space-y-2">
+                          {videoAnalysis.suggestions.split(/\\n|\n/).map((s, i) => s.trim()).filter(Boolean).map((suggestion, i) => (
+                            <li key={i} className="flex gap-2 text-sm text-card-foreground leading-relaxed">
+                              <span className="text-primary font-mono shrink-0">{i + 1}.</span>
+                              <span>{suggestion}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      <p className="text-[10px] text-muted-foreground font-mono text-center">
+                        Analysed by Gemini 2.5 Flash · {new Date(videoAnalysis.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                  )}
+
+                  {reel.mediaUrl && !isVideoAnalysisLoading && !videoAnalyzeMutation.isPending && !videoAnalysis && (
+                    <div className="flex flex-col items-center justify-center py-12 text-center gap-3">
+                      <Video className="w-12 h-12 text-muted-foreground/30" />
+                      <p className="text-muted-foreground max-w-sm text-sm">Click "Analyse Video" and Gemini will watch this reel and give you a detailed breakdown of hook, pacing, audio, text overlays, and content type.</p>
+                      <p className="text-[10px] text-muted-foreground font-mono">Analysis takes ~15–30 seconds</p>
                     </div>
                   )}
                 </CardContent>

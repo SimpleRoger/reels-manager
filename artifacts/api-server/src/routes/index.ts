@@ -8,6 +8,7 @@ import playbookRouter from "./playbook";
 import referencesRouter from "./references";
 import profileRouter from "./profile";
 import viralFinderRouter from "./viral-finder";
+import videoAnalysisRouter from "./video-analysis";
 
 const router: IRouter = Router();
 
@@ -20,5 +21,6 @@ router.use(playbookRouter);
 router.use(referencesRouter);
 router.use(profileRouter);
 router.use(viralFinderRouter);
+router.use(videoAnalysisRouter);
 
 export default router;
