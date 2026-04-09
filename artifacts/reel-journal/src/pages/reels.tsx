@@ -66,9 +66,9 @@ export default function ReelsLog() {
   const [sortOrder, setSortOrder] = useState<ListReelsSortOrder>("desc");
   const [playingReel, setPlayingReel] = useState<ReelItem | null>(null);
 
-  const { data, isLoading } = useListReels({ sortBy, sortOrder }, {
+  const { data, isLoading } = useListReels({ sortBy, sortOrder, limit: 500 }, {
     query: {
-      queryKey: getListReelsQueryKey({ sortBy, sortOrder })
+      queryKey: getListReelsQueryKey({ sortBy, sortOrder, limit: 500 })
     }
   });
 
