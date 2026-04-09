@@ -1,141 +1,242 @@
 import { useState } from "react";
-import { useSearchHashtag, useCreateReference, getSearchHashtagQueryKey, getListReferencesQueryKey } from "@workspace/api-client-react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useCreateReference, getListReferencesQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatNumber } from "@/lib/format";
-import { Search, Heart, MessageCircle, ExternalLink, BookmarkPlus } from "lucide-react";
+import {
+  Hash, TrendingUp, Eye, Heart, Sparkles, Wand2, BookmarkPlus, MessageCircle, Lightbulb, AlertTriangle
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-export default function ViralFinder() {
-  const [hashtag, setHashtag] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  
-  const { data, isLoading, error } = useSearchHashtag(
-    { hashtag: searchQuery },
-    { query: { enabled: !!searchQuery, queryKey: getSearchHashtagQueryKey({ hashtag: searchQuery }) } }
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+interface HashtagStat {
+  tag: string;
+  count: number;
+  avgReach: number;
+  avgLikes: number;
+  avgComments: number;
+  overperformingCount: number;
+}
+
+interface AISuggestions {
+  niche: string;
+  strategy: string;
+  newHashtags: string;
+  hashtagsToDropOrReduce: string;
+}
+
+function AiBlock({ label, text, icon: Icon, numbered = false }: { label: string; text: string; icon: React.ElementType; numbered?: boolean }) {
+  const lines = text.split(/\\n|\n/).map(l => l.trim()).filter(Boolean);
+  return (
+    <div>
+      <h4 className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-2">
+        <Icon className="w-3 h-3 text-primary" /> {label}
+      </h4>
+      <div className="text-sm bg-background p-3 rounded-md border space-y-1">
+        {lines.length > 1 ? (
+          <ul className="space-y-1">
+            {lines.map((l, i) => (
+              <li key={i} className="flex gap-2 leading-relaxed">
+                {numbered ? <span className="text-primary font-mono shrink-0">{i + 1}.</span> : <span className="text-primary shrink-0 mt-0.5">›</span>}
+                <span>{l}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="leading-relaxed">{text}</p>
+        )}
+      </div>
+    </div>
   );
+}
+
+export default function ViralFinder() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [aiSuggestions, setAiSuggestions] = useState<AISuggestions | null>(null);
+  const [view, setView] = useState<"reach" | "likes" | "comments">("reach");
+
+  const { data, isLoading } = useQuery<{ hashtags: HashtagStat[] }>({
+    queryKey: ["viral-finder-hashtags"],
+    queryFn: async () => {
+      const resp = await fetch(`${BASE}/api/viral-finder/hashtags`);
+      if (!resp.ok) throw new Error("Failed to load hashtag data");
+      return resp.json();
+    },
+  });
+
+  const aiMutation = useMutation({
+    mutationFn: async () => {
+      const resp = await fetch(`${BASE}/api/viral-finder/ai-suggestions`, { method: "POST" });
+      if (!resp.ok) throw new Error("AI request failed");
+      return resp.json() as Promise<AISuggestions>;
+    },
+    onSuccess: (d) => setAiSuggestions(d),
+    onError: () => toast({ title: "Failed to generate suggestions", variant: "destructive" }),
+  });
 
   const createRefMutation = useCreateReference();
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
 
-  function handleSearch(e: React.FormEvent) {
-    e.preventDefault();
-    if (!hashtag.trim()) return;
-    setSearchQuery(hashtag.replace(/^#/, '').trim());
-  }
-
-  function handleSaveReference(media: any) {
-    if (!media.permalink) return;
-    
-    createRefMutation.mutate({ 
-      data: {
-        url: media.permalink,
-        caption: media.caption,
-        likeCount: media.likeCount,
-        commentsCount: media.commentsCount
-      } 
+  function saveHashtagAsRef(tag: string) {
+    createRefMutation.mutate({
+      data: { url: `https://www.instagram.com/explore/tags/${tag.replace("#", "")}/`, caption: `Hashtag to study: ${tag}` }
     }, {
       onSuccess: () => {
-        toast({ title: "Saved to Remake List" });
+        toast({ title: `${tag} saved to Remake List` });
         queryClient.invalidateQueries({ queryKey: getListReferencesQueryKey() });
       },
-      onError: () => {
-        toast({ title: "Failed to save reference", variant: "destructive" });
-      }
+      onError: () => toast({ title: "Failed to save", variant: "destructive" }),
     });
   }
+
+  const sorted = [...(data?.hashtags ?? [])].sort((a, b) => {
+    if (view === "likes") return b.avgLikes - a.avgLikes;
+    if (view === "comments") return b.avgComments - a.avgComments;
+    return b.avgReach - a.avgReach;
+  });
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="space-y-1">
         <h1 className="text-3xl font-bold tracking-tight">Viral Finder</h1>
-        <p className="text-muted-foreground text-sm">Search Instagram hashtags to find top performing content.</p>
+        <p className="text-muted-foreground text-sm">Hashtag intelligence built from your own content performance.</p>
       </div>
 
       <Card className="bg-card border-card-border">
-        <CardContent className="p-4">
-          <form onSubmit={handleSearch} className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input 
-                placeholder="Search hashtag (e.g. contentcreator)" 
-                value={hashtag}
-                onChange={(e) => setHashtag(e.target.value)}
-                className="pl-9 bg-background font-mono"
-              />
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Hash className="w-5 h-5 text-primary" /> Your Hashtag Performance
+            </CardTitle>
+            <CardDescription>Every hashtag from your captions, ranked by average metrics across posts that used it</CardDescription>
+          </div>
+          <div className="flex gap-1 bg-background rounded-md p-1 border text-xs font-mono">
+            {(["reach", "likes", "comments"] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className={`px-3 py-1 rounded uppercase tracking-wider transition-colors ${
+                  view === v ? "bg-primary text-black" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {[...Array(8)].map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}
             </div>
-            <Button type="submit" disabled={isLoading} className="font-mono uppercase tracking-wider text-xs">
-              Search
-            </Button>
-          </form>
+          ) : sorted.length === 0 ? (
+            <div className="py-16 text-center text-muted-foreground border border-dashed rounded-xl">
+              <Hash className="w-10 h-10 mx-auto mb-3 opacity-30" />
+              <p>No hashtags found. Sync your reels first — hashtags are extracted from your captions.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+              {sorted.map((h) => (
+                <Card
+                  key={h.tag}
+                  className={`bg-background border group hover-elevate cursor-pointer transition-colors ${
+                    h.overperformingCount > 0 ? "border-primary/30" : ""
+                  }`}
+                >
+                  <CardContent className="p-3 flex flex-col gap-2 h-full">
+                    <div className="flex items-start justify-between gap-1">
+                      <span className="text-primary font-mono text-sm font-semibold break-all leading-snug">{h.tag}</span>
+                      {h.overperformingCount > 0 && (
+                        <span className="shrink-0 text-[9px] font-mono uppercase tracking-wider bg-primary/20 text-primary px-1.5 py-0.5 rounded">
+                          🔥 {h.overperformingCount}×
+                        </span>
+                      )}
+                    </div>
+                    <div className="space-y-1 text-[11px] font-mono text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <Eye className="w-3 h-3 text-primary/70" />
+                        <span>{formatNumber(h.avgReach)} avg reach</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Heart className="w-3 h-3 text-primary/70" />
+                        <span>{formatNumber(h.avgLikes)} avg likes</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-muted-foreground/60">
+                        <Hash className="w-3 h-3" />
+                        <span>used in {h.count} reel{h.count !== 1 ? "s" : ""}</span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => saveHashtagAsRef(h.tag)}
+                      className="mt-auto text-[10px] font-mono uppercase tracking-wider text-muted-foreground hover:text-primary flex items-center gap-1 transition-colors opacity-0 group-hover:opacity-100"
+                    >
+                      <BookmarkPlus className="w-3 h-3" /> Save to list
+                    </button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {error && (
-        <div className="p-4 bg-destructive/10 text-destructive border border-destructive/20 rounded-md text-sm">
-          {error.error || "Failed to search hashtag. Make sure your Instagram account is connected."}
-        </div>
-      )}
-
-      {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {[...Array(8)].map((_, i) => (
-            <Skeleton key={i} className="aspect-square w-full rounded-xl" />
-          ))}
-        </div>
-      ) : data ? (
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
-            Results for #{data.hashtag}
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {data.media.map((item, i) => (
-              <Card key={item.id || i} className="overflow-hidden bg-card hover-elevate group flex flex-col h-full">
-                <div className="p-4 flex-1 flex flex-col">
-                  <p className="text-xs text-card-foreground line-clamp-4 mb-4 flex-1">
-                    {item.caption || "No caption"}
-                  </p>
-                  <div className="flex justify-between items-center text-xs font-mono text-muted-foreground mb-4 border-t pt-2">
-                    <span className="flex items-center gap-1"><Heart className="w-3 h-3" /> {formatNumber(item.likeCount)}</span>
-                    <span className="flex items-center gap-1"><MessageCircle className="w-3 h-3" /> {formatNumber(item.commentsCount)}</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 mt-auto">
-                    {item.permalink && (
-                      <a href={item.permalink} target="_blank" rel="noopener noreferrer" className="w-full">
-                        <Button variant="outline" size="sm" className="w-full font-mono text-[10px] uppercase h-8">
-                          <ExternalLink className="w-3 h-3 mr-1" /> View
-                        </Button>
-                      </a>
-                    )}
-                    <Button 
-                      variant="secondary" 
-                      size="sm" 
-                      className="w-full font-mono text-[10px] uppercase h-8"
-                      onClick={() => handleSaveReference(item)}
-                    >
-                      <BookmarkPlus className="w-3 h-3 mr-1" /> Save
-                    </Button>
-                  </div>
-                </div>
-              </Card>
-            ))}
-            {data.media.length === 0 && (
-              <div className="col-span-full py-12 text-center text-muted-foreground border border-dashed rounded-xl bg-card">
-                No results found for this hashtag.
-              </div>
-            )}
+      <Card className="bg-card border-card-border">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-primary" /> AI Hashtag Strategy
+            </CardTitle>
+            <CardDescription>New hashtags to try + which ones to retire, based on your actual performance data</CardDescription>
           </div>
-        </div>
-      ) : (
-        <div className="flex flex-col items-center justify-center py-20 text-center border rounded-xl bg-card border-dashed">
-          <Search className="w-12 h-12 text-muted-foreground/50 mb-4" />
-          <p className="text-muted-foreground">Enter a hashtag to discover trending content.</p>
-        </div>
-      )}
+          <Button
+            onClick={() => aiMutation.mutate()}
+            disabled={aiMutation.isPending}
+            className="font-mono uppercase tracking-wider text-xs"
+          >
+            <Wand2 className="w-4 h-4 mr-2" />
+            {aiMutation.isPending ? "Analysing..." : aiSuggestions ? "Regenerate" : "Analyse"}
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {aiMutation.isPending ? (
+            <div className="space-y-4">
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="h-24 w-full" />
+              <Skeleton className="h-24 w-full" />
+            </div>
+          ) : aiSuggestions ? (
+            <div className="space-y-5">
+              <div>
+                <h4 className="text-xs font-mono uppercase tracking-wider text-primary mb-2 flex items-center gap-2">
+                  <TrendingUp className="w-3 h-3" /> Niche Assessment
+                </h4>
+                <p className="text-sm leading-relaxed bg-background p-3 rounded-md border">{aiSuggestions.niche}</p>
+              </div>
+              <div>
+                <h4 className="text-xs font-mono uppercase tracking-wider text-primary mb-2 flex items-center gap-2">
+                  <TrendingUp className="w-3 h-3" /> Strategy
+                </h4>
+                <p className="text-sm leading-relaxed bg-background p-3 rounded-md border">{aiSuggestions.strategy}</p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <AiBlock label="New Hashtags to Try" text={aiSuggestions.newHashtags} icon={Lightbulb} />
+                <AiBlock label="Hashtags to Drop or Reduce" text={aiSuggestions.hashtagsToDropOrReduce} icon={AlertTriangle} />
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <MessageCircle className="w-12 h-12 text-muted mb-4" />
+              <p className="text-muted-foreground max-w-sm">
+                Click Analyse to get new hashtag ideas and retirement suggestions based on what's actually working in your reels.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
