@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Users, Eye, Heart, MessageCircle, Share2, Bookmark, Sparkles, Wand2, TrendingUp, UserPlus, Lightbulb, Target, Clock, Star } from "lucide-react";
+import { Users, Eye, Heart, MessageCircle, Share2, Bookmark, Sparkles, Wand2, TrendingUp, UserPlus, Lightbulb, Target, Clock, Star, Radio } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   AreaChart, Area, BarChart, Bar, Cell,
@@ -425,6 +425,124 @@ function FollowerForecastChart({ data }: { data: GrowthForecast }) {
   );
 }
 
+interface AudienceDay {
+  dayOfWeek: number;
+  dayLabel: string;
+  date: string;
+  count: number;
+  normalized: number;
+}
+
+interface AudienceOnlineData {
+  available: boolean;
+  reason?: string;
+  type?: string;
+  days?: AudienceDay[];
+  best?: AudienceDay;
+  maxCount?: number;
+  timezone?: string;
+  note?: string;
+}
+
+function AudienceOnlineChart({ data }: { data: AudienceOnlineData }) {
+  if (!data.available) {
+    return (
+      <Card className="bg-card border-card-border">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Radio className="w-5 h-5 text-primary" /> Audience Online Activity
+          </CardTitle>
+          <CardDescription>Daily online follower counts from Instagram</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-lg border border-dashed border-[#1f2937] bg-background p-6 text-center space-y-2">
+            <p className="text-sm text-muted-foreground font-mono">Metric unavailable</p>
+            <p className="text-xs text-muted-foreground max-w-md mx-auto">{data.reason}</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const days = data.days ?? [];
+  const best = data.best;
+
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (!active || !payload?.length) return null;
+    return (
+      <div className="bg-[#111827] border border-[#1f2937] rounded-lg p-3 text-xs space-y-1 min-w-[160px]">
+        <p className="font-mono text-white font-semibold">{label}</p>
+        <div className="flex justify-between gap-4 text-orange-400">
+          <span>Online followers</span>
+          <span className="font-mono font-semibold">{payload[0]?.value?.toLocaleString()}</span>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <Card className="bg-card border-card-border">
+      <CardHeader className="flex flex-row items-start justify-between gap-4">
+        <div>
+          <CardTitle className="flex items-center gap-2">
+            <Radio className="w-5 h-5 text-primary" /> Audience Online Activity
+          </CardTitle>
+          <CardDescription>How many of your followers were online each day — {data.timezone}</CardDescription>
+        </div>
+        {best && (
+          <div className="text-right shrink-0">
+            <div className="text-lg font-bold text-primary">{best.dayLabel} {best.date}</div>
+            <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">most active day</div>
+          </div>
+        )}
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {best && (
+          <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+            <Star className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+            <p className="text-sm text-foreground">
+              <span className="font-semibold text-primary">{best.dayLabel} {best.date}</span> had the highest online follower count at <span className="font-semibold text-primary">{best.count.toLocaleString()}</span>. Posting on this day gives you the largest potential audience.
+            </p>
+          </div>
+        )}
+
+        <ResponsiveContainer width="100%" height={220}>
+          <BarChart data={days} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
+            <XAxis
+              dataKey="dayLabel"
+              tick={{ fontSize: 11, fill: "#6b7280", fontFamily: "monospace" }}
+              tickLine={false}
+              axisLine={false}
+            />
+            <YAxis
+              tickFormatter={(v) => formatShort(v)}
+              tick={{ fontSize: 10, fill: "#6b7280", fontFamily: "monospace" }}
+              tickLine={false}
+              axisLine={false}
+              width={44}
+            />
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(249,115,22,0.05)" }} />
+            <Bar dataKey="count" radius={[3, 3, 0, 0]}>
+              {days.map((d, i) => (
+                <Cell
+                  key={i}
+                  fill={d.date === best?.date ? "#f97316" : "#7c3aed"}
+                  opacity={d.date === best?.date ? 1 : 0.65}
+                />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+
+        {data.note && (
+          <p className="text-[10px] text-muted-foreground font-mono text-center">{data.note}</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function Profile() {
   const { toast } = useToast();
   const [tips, setTips] = useState<AITips | null>(null);
@@ -461,6 +579,15 @@ export default function Profile() {
     queryFn: async () => {
       const resp = await fetch(`${BASE}/api/profile/growth-forecast`);
       if (!resp.ok) throw new Error("Failed to load growth forecast");
+      return resp.json();
+    },
+  });
+
+  const { data: audienceOnline } = useQuery<AudienceOnlineData>({
+    queryKey: ["audience-online"],
+    queryFn: async () => {
+      const resp = await fetch(`${BASE}/api/profile/audience-online`);
+      if (!resp.ok) throw new Error("Failed to load audience online data");
       return resp.json();
     },
   });
@@ -601,6 +728,10 @@ export default function Profile() {
 
       {postingTimesData && postingTimesData.hours.length > 0 && (
         <PostingTimesChart hours={postingTimesData.hours} bestHour={postingTimesData.bestHour} />
+      )}
+
+      {audienceOnline && (
+        <AudienceOnlineChart data={audienceOnline} />
       )}
 
       <Card className="bg-card border-card-border">

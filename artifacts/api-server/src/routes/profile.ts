@@ -339,4 +339,90 @@ Respond ONLY with a JSON object. All values must be plain readable strings. Use 
   res.json(parsed);
 });
 
+router.get("/profile/audience-online", async (req, res): Promise<void> => {
+  const accounts = await db.select().from(instagramAccountsTable).limit(1);
+  if (accounts.length === 0) {
+    res.status(404).json({ error: "No Instagram account connected" });
+    return;
+  }
+
+  const { accessToken, accountId } = accounts[0];
+
+  // online_followers: fetch the last 7 days (period=day), one request per day is expensive
+  // so we request 7 days of data at once using since/until
+  const now = Math.floor(Date.now() / 1000);
+  const sevenDaysAgo = now - 7 * 24 * 60 * 60;
+  const url = `https://graph.instagram.com/v21.0/${accountId}/insights?metric=online_followers&period=day&since=${sevenDaysAgo}&until=${now}&access_token=${accessToken}`;
+
+  let apiResp: Response;
+  try {
+    apiResp = await fetch(url);
+  } catch (err) {
+    req.log.error({ err }, "Network error fetching audience online data");
+    res.status(502).json({ error: "Network error contacting Instagram API" });
+    return;
+  }
+
+  const raw = await apiResp.json() as {
+    data?: Array<{ name: string; values: Array<{ value: Record<string, number>; end_time: string }> }>;
+    error?: { message: string; code: number; type?: string };
+  };
+
+  req.log.info({ raw: JSON.stringify(raw).slice(0, 500) }, "audience online raw response");
+
+  if (!apiResp.ok || raw.error) {
+    req.log.warn({ error: raw.error }, "Instagram online_followers unavailable");
+    res.status(200).json({
+      available: false,
+      reason: raw.error?.message ?? "This metric is not available for your account type or API version.",
+    });
+    return;
+  }
+
+  // online_followers returns a daily total count — not per-hour.
+  // The old hourly metric (audience_online_followers) was deprecated by Meta.
+  // We use the daily data to show which days of the week followers are most active.
+  const metric = raw.data?.find((d) => d.name === "online_followers");
+  const values = metric?.values;
+
+  if (!values || values.length === 0) {
+    res.status(200).json({ available: false, reason: "No data returned from Instagram." });
+    return;
+  }
+
+  const SYDNEY_OFFSET = 11;
+  const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+  // Build day-of-week entries, skipping days with 0 (incomplete data)
+  const days: Array<{ dayOfWeek: number; dayLabel: string; date: string; count: number; normalized: number }> = [];
+  let maxCount = 0;
+
+  for (const dayVal of values) {
+    const count = typeof dayVal.value === "number" ? dayVal.value : 0;
+    if (count === 0) continue;
+
+    const endTime = new Date(dayVal.end_time);
+    const sydneyMs = endTime.getTime() + SYDNEY_OFFSET * 3600 * 1000;
+    const sydneyDate = new Date(sydneyMs);
+    const dayOfWeek = sydneyDate.getUTCDay();
+    const dateStr = sydneyDate.toISOString().slice(0, 10);
+
+    if (count > maxCount) maxCount = count;
+    days.push({ dayOfWeek, dayLabel: DAY_NAMES[dayOfWeek] ?? String(dayOfWeek), date: dateStr, count, normalized: 0 });
+  }
+
+  const result = days.map((d) => ({ ...d, normalized: maxCount > 0 ? d.count / maxCount : 0 }));
+  const best = result.length > 0 ? result.reduce((a, b) => (b.count > a.count ? b : a), result[0]) : null;
+
+  res.json({
+    available: true,
+    type: "daily",
+    days: result,
+    best: best ?? null,
+    maxCount,
+    timezone: "AEDT (UTC+11)",
+    note: "Instagram provides daily online follower counts. Hourly breakdowns were deprecated by Meta in 2024.",
+  });
+});
+
 export default router;
