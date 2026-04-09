@@ -8,7 +8,7 @@ import { Users, Eye, Heart, MessageCircle, Share2, Bookmark, Sparkles, Wand2, Tr
 import { useToast } from "@/hooks/use-toast";
 import {
   AreaChart, Area, BarChart, Bar, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");

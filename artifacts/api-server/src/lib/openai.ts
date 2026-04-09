@@ -122,6 +122,10 @@ Use line breaks (\\n) to separate multiple points within a single field.
   const content = data.choices[0]?.message?.content;
   if (!content) throw new Error("No content from OpenAI");
 
-  const parsed = JSON.parse(content) as AIAnalysisResult;
+  let clean = content.trim();
+  if (clean.startsWith("```")) {
+    clean = clean.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "").trim();
+  }
+  const parsed = JSON.parse(clean) as AIAnalysisResult;
   return parsed;
 }
