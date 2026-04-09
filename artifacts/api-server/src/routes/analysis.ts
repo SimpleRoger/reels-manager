@@ -22,12 +22,6 @@ router.post("/reels/:id/analyze", async (req, res): Promise<void> => {
     return;
   }
 
-  const openaiKey = process.env["OPENAI_API_KEY"];
-  if (!openaiKey) {
-    res.status(400).json({ error: "OpenAI API key not configured. Add OPENAI_API_KEY to environment." });
-    return;
-  }
-
   const [reel] = await db.select().from(reelsTable).where(eq(reelsTable.id, params.data.id)).limit(1);
   if (!reel) {
     res.status(404).json({ error: "Reel not found" });
@@ -68,7 +62,7 @@ router.post("/reels/:id/analyze", async (req, res): Promise<void> => {
     performanceStatus: reel.performanceStatus,
     notes: notes ?? null,
     recentAverages,
-  }, openaiKey);
+  });
 
   const existing = await db.select().from(reelAnalysisTable).where(eq(reelAnalysisTable.reelId, reel.id)).limit(1);
 

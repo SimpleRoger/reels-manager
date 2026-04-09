@@ -1,7 +1,5 @@
 import { logger } from "./logger";
 
-const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
-
 interface ReelForAnalysis {
   caption?: string | null;
   postedAt?: string | null;
@@ -43,7 +41,16 @@ export interface AIAnalysisResult {
   variablesToRepeat: string;
 }
 
-export async function analyzeReelWithAI(reel: ReelForAnalysis, apiKey: string): Promise<AIAnalysisResult> {
+export async function analyzeReelWithAI(reel: ReelForAnalysis): Promise<AIAnalysisResult> {
+  const baseUrl = process.env["AI_INTEGRATIONS_OPENAI_BASE_URL"];
+  const apiKey = process.env["AI_INTEGRATIONS_OPENAI_API_KEY"];
+
+  if (!baseUrl || !apiKey) {
+    throw new Error("AI integration not configured");
+  }
+
+  const apiUrl = `${baseUrl}/chat/completions`;
+
   const prompt = `You are a professional Instagram content strategist analyzing a Reel's performance for a creator.
 
 Reel data:
@@ -86,17 +93,16 @@ Respond ONLY with a JSON object in this exact structure (no markdown, no code bl
   "variablesToRepeat": "Specific elements, formats, or approaches that should be repeated in future Reels"
 }`;
 
-  const resp = await fetch(OPENAI_API_URL, {
+  const resp = await fetch(apiUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: "gpt-4o-mini",
+      model: "gpt-4o",
       messages: [{ role: "user", content: prompt }],
-      temperature: 0.7,
-      max_tokens: 1500,
+      max_completion_tokens: 1500,
     }),
   });
 
