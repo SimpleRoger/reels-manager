@@ -1,5 +1,7 @@
 import { logger } from "./logger";
 
+const MAX_INLINE_BYTES = 7.5 * 1024 * 1024; // 7.5 MB — stay under the 8 MB proxy limit
+
 export interface VideoAnalysisResult {
   hookRating: string;
   hookFeedback: string;
@@ -15,6 +17,41 @@ export interface VideoAnalysisResult {
   suggestions: string;
 }
 
+async function downloadVideoAsBase64(url: string): Promise<{ data: string; mimeType: string; sizeBytes: number }> {
+  const resp = await fetch(url, {
+    headers: {
+      // Instagram CDN respects these headers — appear as a browser, not a bot
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "Accept": "video/mp4,video/*;q=0.9,*/*;q=0.8",
+      "Accept-Language": "en-US,en;q=0.5",
+      "Referer": "https://www.instagram.com/",
+    },
+  });
+
+  if (!resp.ok) {
+    throw new Error(`Failed to download video: HTTP ${resp.status}. The CDN URL may have expired — try re-syncing your Instagram account.`);
+  }
+
+  const contentType = resp.headers.get("content-type") ?? "video/mp4";
+  const mimeType = contentType.split(";")[0]?.trim() ?? "video/mp4";
+
+  const arrayBuffer = await resp.arrayBuffer();
+  const sizeBytes = arrayBuffer.byteLength;
+
+  if (sizeBytes === 0) {
+    throw new Error("Downloaded video is empty. The CDN URL may have expired — try re-syncing your Instagram account.");
+  }
+
+  if (sizeBytes > MAX_INLINE_BYTES) {
+    // Trim to the limit — Gemini can still analyse the first portion of the video
+    logger.warn({ sizeBytes, limit: MAX_INLINE_BYTES }, "Video exceeds inline limit, trimming to first 7.5 MB");
+    const trimmed = arrayBuffer.slice(0, MAX_INLINE_BYTES);
+    return { data: Buffer.from(trimmed).toString("base64"), mimeType, sizeBytes };
+  }
+
+  return { data: Buffer.from(arrayBuffer).toString("base64"), mimeType, sizeBytes };
+}
+
 export async function analyzeReelVideo(mediaUrl: string, caption?: string | null): Promise<VideoAnalysisResult> {
   const baseUrl = process.env["AI_INTEGRATIONS_GEMINI_BASE_URL"];
   const apiKey = process.env["AI_INTEGRATIONS_GEMINI_API_KEY"];
@@ -22,6 +59,11 @@ export async function analyzeReelVideo(mediaUrl: string, caption?: string | null
   if (!baseUrl || !apiKey) {
     throw new Error("Gemini AI integration not configured");
   }
+
+  // Step 1: Download the video on our server (Instagram blocks Vertex AI's crawler)
+  logger.info({ mediaUrl: mediaUrl.slice(0, 80) }, "Downloading reel for Gemini analysis");
+  const { data: videoBase64, mimeType, sizeBytes } = await downloadVideoAsBase64(mediaUrl);
+  logger.info({ sizeBytes, mimeType }, "Video downloaded, sending to Gemini");
 
   const model = "gemini-2.5-flash";
   const apiUrl = `${baseUrl}/models/${model}:generateContent`;
@@ -55,9 +97,9 @@ Respond ONLY with a JSON object. No markdown, no code blocks, just raw JSON.
         role: "user",
         parts: [
           {
-            fileData: {
-              mimeType: "video/mp4",
-              fileUri: mediaUrl,
+            inlineData: {
+              mimeType,
+              data: videoBase64,
             },
           },
           {
@@ -67,7 +109,6 @@ Respond ONLY with a JSON object. No markdown, no code blocks, just raw JSON.
       },
     ],
     generationConfig: {
-      responseMimeType: "application/json",
       maxOutputTokens: 8192,
     },
   };
@@ -83,7 +124,7 @@ Respond ONLY with a JSON object. No markdown, no code blocks, just raw JSON.
 
   if (!resp.ok) {
     const errText = await resp.text();
-    logger.error({ status: resp.status, errText }, "Gemini API error");
+    logger.error({ status: resp.status, errText: errText.slice(0, 300) }, "Gemini API error");
     throw new Error(`Gemini API error: ${resp.status} — ${errText.slice(0, 200)}`);
   }
 
