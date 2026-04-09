@@ -74,6 +74,64 @@ router.get("/profile", async (req, res): Promise<void> => {
   });
 });
 
+router.get("/profile/posting-times", async (req, res): Promise<void> => {
+  const reels = await db
+    .select({
+      postedAt: reelsTable.postedAt,
+      reach: reelsTable.reach,
+      likeCount: reelsTable.likeCount,
+      commentsCount: reelsTable.commentsCount,
+      plays: reelsTable.plays,
+      performanceStatus: reelsTable.performanceStatus,
+    })
+    .from(reelsTable)
+    .where(isNotNull(reelsTable.postedAt));
+
+  // Aggregate by hour (UTC+11 offset for AEDT — Sydney)
+  const TZ_OFFSET_HOURS = 11;
+
+  const hourMap = new Map<number, { totalReach: number; totalLikes: number; totalPlays: number; count: number; overperforming: number }>();
+
+  for (let h = 0; h < 24; h++) {
+    hourMap.set(h, { totalReach: 0, totalLikes: 0, totalPlays: 0, count: 0, overperforming: 0 });
+  }
+
+  for (const reel of reels) {
+    if (!reel.postedAt) continue;
+    const localHour = (reel.postedAt.getUTCHours() + TZ_OFFSET_HOURS) % 24;
+    const entry = hourMap.get(localHour)!;
+    entry.count++;
+    entry.totalReach += reel.reach ?? 0;
+    entry.totalLikes += reel.likeCount ?? 0;
+    entry.totalPlays += reel.plays ?? 0;
+    if (reel.performanceStatus === "overperforming") entry.overperforming++;
+  }
+
+  const hours = Array.from(hourMap.entries()).map(([hour, stats]) => ({
+    hour,
+    label: formatHourLabel(hour),
+    count: stats.count,
+    avgReach: stats.count > 0 ? Math.round(stats.totalReach / stats.count) : 0,
+    avgLikes: stats.count > 0 ? Math.round(stats.totalLikes / stats.count) : 0,
+    avgPlays: stats.count > 0 ? Math.round(stats.totalPlays / stats.count) : 0,
+    overperformingCount: stats.overperforming,
+  }));
+
+  const withData = hours.filter((h) => h.count > 0);
+  const maxReach = Math.max(...withData.map((h) => h.avgReach), 1);
+
+  const bestHour = withData.reduce((best, h) => (h.avgReach > best.avgReach ? h : best), withData[0] ?? hours[0]);
+
+  res.json({ hours, bestHour: bestHour ?? null, totalReels: reels.length });
+});
+
+function formatHourLabel(h: number): string {
+  if (h === 0) return "12am";
+  if (h < 12) return `${h}am`;
+  if (h === 12) return "12pm";
+  return `${h - 12}pm`;
+}
+
 router.post("/profile/ai-tips", async (req, res): Promise<void> => {
   const baseUrl = process.env["AI_INTEGRATIONS_OPENAI_BASE_URL"];
   const apiKey = process.env["AI_INTEGRATIONS_OPENAI_API_KEY"];

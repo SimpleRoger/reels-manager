@@ -4,10 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Users, Eye, Heart, MessageCircle, Share2, Bookmark, Sparkles, Wand2, TrendingUp, UserPlus, Lightbulb, Target } from "lucide-react";
+import { Users, Eye, Heart, MessageCircle, Share2, Bookmark, Sparkles, Wand2, TrendingUp, UserPlus, Lightbulb, Target, Clock, Star } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  AreaChart, Area, BarChart, Bar, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -34,6 +35,16 @@ interface AITips {
   contentStrategy: string;
   followerGrowthTips: string;
   retentionTips: string;
+}
+
+interface HourStat {
+  hour: number;
+  label: string;
+  count: number;
+  avgReach: number;
+  avgLikes: number;
+  avgPlays: number;
+  overperformingCount: number;
 }
 
 interface ReelPoint {
@@ -185,6 +196,116 @@ function PerformanceChart({ reels }: { reels: ReelPoint[] }) {
   );
 }
 
+function PostingTimesChart({ hours, bestHour }: { hours: HourStat[]; bestHour: HourStat | null }) {
+  const [metric, setMetric] = useState<"avgReach" | "avgLikes" | "avgPlays">("avgReach");
+  const maxVal = Math.max(...hours.map((h) => h[metric]), 1);
+
+  const labelMap = { avgReach: "Avg Reach", avgLikes: "Avg Likes", avgPlays: "Avg Views" };
+
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (!active || !payload?.length) return null;
+    const h = hours.find((x) => x.label === label);
+    return (
+      <div className="bg-[#111827] border border-[#1f2937] rounded-lg p-3 text-xs space-y-1">
+        <p className="font-mono text-white font-semibold">{label}</p>
+        <p className="text-orange-400">{labelMap[metric]}: {formatShort(payload[0].value)}</p>
+        {h && h.count > 0 && (
+          <>
+            <p className="text-gray-400">{h.count} reel{h.count !== 1 ? "s" : ""} posted</p>
+            {h.overperformingCount > 0 && (
+              <p className="text-yellow-400">🔥 {h.overperformingCount} overperforming</p>
+            )}
+          </>
+        )}
+        {h && h.count === 0 && <p className="text-gray-500">No posts at this hour</p>}
+      </div>
+    );
+  };
+
+  return (
+    <Card className="bg-card border-card-border">
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="w-5 h-5 text-primary" /> Best Posting Times
+          </CardTitle>
+          <CardDescription>
+            Average performance by hour you post — based on your actual reel history (Sydney time)
+          </CardDescription>
+        </div>
+        <div className="flex gap-1 bg-background rounded-md p-1 border">
+          {(["avgReach", "avgLikes", "avgPlays"] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => setMetric(m)}
+              className={`px-2.5 py-1 rounded text-[10px] font-mono uppercase tracking-wider transition-colors ${
+                metric === m ? "bg-primary text-black" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {m === "avgReach" ? "Reach" : m === "avgLikes" ? "Likes" : "Views"}
+            </button>
+          ))}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {bestHour && bestHour.count > 0 && (
+          <div className="flex items-center gap-3 bg-primary/10 border border-primary/30 rounded-lg px-4 py-3">
+            <Star className="w-5 h-5 text-primary shrink-0" />
+            <div className="text-sm">
+              <span className="font-semibold text-primary">{bestHour.label}</span>
+              {" "}is your best performing time —{" "}
+              <span className="font-mono">{formatShort(bestHour.avgReach)}</span> avg reach from{" "}
+              <span className="font-mono">{bestHour.count}</span> reel{bestHour.count !== 1 ? "s" : ""}
+              {bestHour.overperformingCount > 0 && `, ${bestHour.overperformingCount} overperforming`}.
+            </div>
+          </div>
+        )}
+        <ResponsiveContainer width="100%" height={240}>
+          <BarChart data={hours} margin={{ top: 4, right: 8, left: 0, bottom: 0 }} barSize={14}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} />
+            <XAxis
+              dataKey="label"
+              tick={{ fontSize: 9, fill: "#6b7280", fontFamily: "monospace" }}
+              tickLine={false}
+              axisLine={false}
+              interval={1}
+            />
+            <YAxis
+              tickFormatter={formatShort}
+              tick={{ fontSize: 9, fill: "#6b7280", fontFamily: "monospace" }}
+              tickLine={false}
+              axisLine={false}
+              width={38}
+            />
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(249,115,22,0.08)" }} />
+            <Bar dataKey={metric} radius={[3, 3, 0, 0]}>
+              {hours.map((h) => (
+                <Cell
+                  key={h.hour}
+                  fill={
+                    h.count === 0
+                      ? "#1f2937"
+                      : h.hour === bestHour?.hour
+                      ? "#f97316"
+                      : h[metric] / maxVal > 0.75
+                      ? "#fb923c"
+                      : h[metric] / maxVal > 0.4
+                      ? "#c2410c"
+                      : "#7c2d12"
+                  }
+                />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+        <p className="text-[10px] text-muted-foreground font-mono text-center">
+          Hours with no bar = no posts recorded at that time yet. Post more at different times to get more data.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function Profile() {
   const { toast } = useToast();
   const [tips, setTips] = useState<AITips | null>(null);
@@ -203,6 +324,15 @@ export default function Profile() {
     queryFn: async () => {
       const resp = await fetch(`${BASE}/api/reels?sortBy=postedAt&sortOrder=asc&limit=200`);
       if (!resp.ok) throw new Error("Failed to load reels");
+      return resp.json();
+    },
+  });
+
+  const { data: postingTimesData } = useQuery<{ hours: HourStat[]; bestHour: HourStat | null; totalReels: number }>({
+    queryKey: ["posting-times"],
+    queryFn: async () => {
+      const resp = await fetch(`${BASE}/api/profile/posting-times`);
+      if (!resp.ok) throw new Error("Failed to load posting times");
       return resp.json();
     },
   });
@@ -335,6 +465,10 @@ export default function Profile() {
 
       {reelsData && reelsData.reels.length > 0 && (
         <PerformanceChart reels={reelsData.reels} />
+      )}
+
+      {postingTimesData && postingTimesData.hours.length > 0 && (
+        <PostingTimesChart hours={postingTimesData.hours} bestHour={postingTimesData.bestHour} />
       )}
 
       <Card className="bg-card border-card-border">
