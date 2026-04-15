@@ -31,21 +31,38 @@ router.get("/dm-importer/debug", async (req, res): Promise<void> => {
 
   const results: Record<string, unknown> = {};
 
-  // Try /me/conversations
-  for (const path of [`/me/conversations`, `/${accountId}/conversations`]) {
-    for (const platform of ["instagram", "messenger"]) {
-      const key = `${path}?platform=${platform}`;
-      try {
-        const url = new URL(`${GRAPH_BASE}${path}`);
-        url.searchParams.set("platform", platform);
-        url.searchParams.set("access_token", accessToken);
-        url.searchParams.set("limit", "5");
-        const r = await fetch(url.toString());
-        results[key] = await r.json();
-      } catch (e) {
-        results[key] = { fetchError: String(e) };
-      }
-    }
+  // Step 1: Get linked Facebook Pages (needed to get Page access token)
+  const fbBase = "https://graph.facebook.com/v21.0";
+  try {
+    const meUrl = new URL(`${fbBase}/me`);
+    meUrl.searchParams.set("fields", "id,name,accounts");
+    meUrl.searchParams.set("access_token", accessToken);
+    const meRes = await fetch(meUrl.toString());
+    results["fb_me"] = await meRes.json();
+  } catch (e) { results["fb_me"] = { fetchError: String(e) }; }
+
+  // Step 2: Try /me/conversations on graph.facebook.com
+  for (const platform of ["instagram", "messenger"]) {
+    try {
+      const url = new URL(`${fbBase}/me/conversations`);
+      url.searchParams.set("platform", platform);
+      url.searchParams.set("access_token", accessToken);
+      url.searchParams.set("limit", "5");
+      const r = await fetch(url.toString());
+      results[`fb_me_conversations?platform=${platform}`] = await r.json();
+    } catch (e) { results[`fb_me_conversations?platform=${platform}`] = { fetchError: String(e) }; }
+  }
+
+  // Step 3: Try with Instagram account ID on graph.facebook.com
+  for (const platform of ["instagram"]) {
+    try {
+      const url = new URL(`${fbBase}/${accountId}/conversations`);
+      url.searchParams.set("platform", platform);
+      url.searchParams.set("access_token", accessToken);
+      url.searchParams.set("limit", "5");
+      const r = await fetch(url.toString());
+      results[`fb_accountId_conversations?platform=${platform}`] = await r.json();
+    } catch (e) { results[`fb_accountId_conversations?platform=${platform}`] = { fetchError: String(e) }; }
   }
 
   res.json(results);
