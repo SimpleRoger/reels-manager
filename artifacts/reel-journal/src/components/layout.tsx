@@ -7,6 +7,7 @@ import {
   ListChecks,
   Settings,
   UserCircle2,
+  MessageSquare,
 } from "lucide-react";
 
 const navigation = [
@@ -16,6 +17,7 @@ const navigation = [
   { name: "Playbook", href: "/playbook", icon: BookOpen },
   { name: "Viral Finder", href: "/viral-finder", icon: Search },
   { name: "Remake List", href: "/remake-list", icon: ListChecks },
+  { name: "DM Importer", href: "/dm-importer", icon: MessageSquare },
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {

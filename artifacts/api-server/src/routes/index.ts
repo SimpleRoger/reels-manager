@@ -9,6 +9,7 @@ import referencesRouter from "./references";
 import profileRouter from "./profile";
 import viralFinderRouter from "./viral-finder";
 import videoAnalysisRouter from "./video-analysis";
+import dmImporterRouter from "./dm-importer";
 
 const router: IRouter = Router();
 
@@ -22,5 +23,6 @@ router.use(referencesRouter);
 router.use(profileRouter);
 router.use(viralFinderRouter);
 router.use(videoAnalysisRouter);
+router.use(dmImporterRouter);
 
 export default router;

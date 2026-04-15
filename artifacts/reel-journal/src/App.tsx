@@ -11,6 +11,7 @@ import ViralFinder from "@/pages/viral-finder";
 import RemakeList from "@/pages/remake-list";
 import Profile from "@/pages/profile";
 import Settings from "@/pages/settings";
+import DmImporter from "@/pages/dm-importer";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -27,6 +28,7 @@ function Router() {
         <Route path="/remake-list" component={RemakeList} />
         <Route path="/profile" component={Profile} />
         <Route path="/settings" component={Settings} />
+        <Route path="/dm-importer" component={DmImporter} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
