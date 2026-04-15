@@ -23,6 +23,34 @@ async function igGet(path: string, token: string, params: Record<string, string>
   return data;
 }
 
+// GET /api/dm-importer/debug — raw Instagram API response for debugging
+router.get("/dm-importer/debug", async (req, res): Promise<void> => {
+  const accounts = await db.select().from(instagramAccountsTable).limit(1);
+  if (accounts.length === 0) { res.status(400).json({ error: "No account" }); return; }
+  const { accessToken, accountId } = accounts[0];
+
+  const results: Record<string, unknown> = {};
+
+  // Try /me/conversations
+  for (const path of [`/me/conversations`, `/${accountId}/conversations`]) {
+    for (const platform of ["instagram", "messenger"]) {
+      const key = `${path}?platform=${platform}`;
+      try {
+        const url = new URL(`${GRAPH_BASE}${path}`);
+        url.searchParams.set("platform", platform);
+        url.searchParams.set("access_token", accessToken);
+        url.searchParams.set("limit", "5");
+        const r = await fetch(url.toString());
+        results[key] = await r.json();
+      } catch (e) {
+        results[key] = { fetchError: String(e) };
+      }
+    }
+  }
+
+  res.json(results);
+});
+
 // GET /api/dm-importer/conversations — list DM conversations
 // API: GET /me/conversations?platform=instagram
 router.get("/dm-importer/conversations", async (req, res): Promise<void> => {
