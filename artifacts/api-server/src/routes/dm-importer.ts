@@ -13,12 +13,10 @@ async function igGet(path: string, token: string, params: Record<string, string>
   for (const [k, v] of Object.entries(params)) {
     url.searchParams.set(k, v);
   }
-  const res = await fetch(url.toString(), {
-    headers: {
-      "Authorization": `Bearer ${token}`,
-    },
-  });
-  const data = await res.json() as { error?: { message: string; code: number }; [k: string]: unknown };
+  // Support both query param and Authorization header — try header first (new API)
+  url.searchParams.set("access_token", token);
+  const res = await fetch(url.toString());
+  const data = await res.json() as { error?: { message: string; code: number; type?: string }; [k: string]: unknown };
   if (!res.ok || data.error) {
     throw new Error(data.error?.message ?? `Instagram API error ${res.status}`);
   }
@@ -26,6 +24,7 @@ async function igGet(path: string, token: string, params: Record<string, string>
 }
 
 // GET /api/dm-importer/conversations — list DM conversations
+// API: GET /me/conversations?platform=instagram
 router.get("/dm-importer/conversations", async (req, res): Promise<void> => {
   const accounts = await db.select().from(instagramAccountsTable).limit(1);
   if (accounts.length === 0) {
@@ -38,43 +37,33 @@ router.get("/dm-importer/conversations", async (req, res): Promise<void> => {
   try {
     const data = await igGet(`/me/conversations`, accessToken, {
       platform: "instagram",
-      fields: "id,name,updated_time,participants",
       limit: "20",
     }) as {
-      data?: Array<{
-        id: string;
-        name?: string;
-        updated_time: string;
-        participants?: { data: Array<{ name: string; id: string }> };
-      }>;
+      data?: Array<{ id: string; updated_time: string }>;
     };
 
-    const conversations = (data.data ?? []).map((c) => {
-      const participants = c.participants?.data ?? [];
-      const otherParticipants = participants.filter((p) => p.id !== accountId);
-      const displayName =
-        c.name ||
-        (otherParticipants.length > 0
-          ? otherParticipants.map((p) => p.name).join(", ")
-          : "Direct Message");
-
-      return {
-        id: c.id,
-        name: displayName,
-        updatedTime: c.updated_time,
-        participantCount: participants.length,
-      };
-    });
+    const conversations = (data.data ?? []).map((c) => ({
+      id: c.id,
+      name: `Conversation ${c.id.slice(-6)}`,
+      updatedTime: c.updated_time,
+    }));
 
     res.json({ conversations });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     req.log.error({ err }, "Failed to fetch DM conversations");
 
-    if (message.includes("instagram_manage_messages") || message.includes("permission")) {
+    if (
+      message.toLowerCase().includes("permission") ||
+      message.toLowerCase().includes("instagram_business_manage_messages") ||
+      message.toLowerCase().includes("instagram_manage_messages") ||
+      message.includes("OAuthException") ||
+      message.includes("190") ||
+      message.includes("200")
+    ) {
       res.status(403).json({
         error: "Missing permission",
-        details: "Your access token needs the instagram_manage_messages permission. Please follow the steps in Settings to generate a new token with this permission added.",
+        details: "Your access token needs the instagram_business_manage_messages permission. Please generate a new token in Graph API Explorer with this permission checked, then update it in Settings.",
       });
     } else {
       res.status(500).json({ error: message });
@@ -82,7 +71,9 @@ router.get("/dm-importer/conversations", async (req, res): Promise<void> => {
   }
 });
 
-// GET /api/dm-importer/conversations/:id/messages — get messages + extract reel URLs
+// GET /api/dm-importer/conversations/:id/messages
+// Step 1: GET /<CONVERSATION_ID>?fields=messages → get list of message IDs
+// Step 2: GET /<MESSAGE_ID>?fields=id,created_time,from,to,message → get content for each (max 20)
 router.get("/dm-importer/conversations/:id/messages", async (req, res): Promise<void> => {
   const accounts = await db.select().from(instagramAccountsTable).limit(1);
   if (accounts.length === 0) {
@@ -94,44 +85,58 @@ router.get("/dm-importer/conversations/:id/messages", async (req, res): Promise<
   const conversationId = req.params["id"];
 
   try {
-    const data = await igGet(`/${conversationId}/messages`, accessToken, {
-      fields: "id,message,created_time,from",
-      limit: "200",
+    // Step 1: get message IDs from the conversation
+    const convoData = await igGet(`/${conversationId}`, accessToken, {
+      fields: "messages",
     }) as {
-      data?: Array<{
-        id: string;
-        message?: string;
-        created_time: string;
-        from?: { name: string; id: string };
-      }>;
+      messages?: {
+        data: Array<{ id: string; created_time: string }>;
+      };
+      id?: string;
     };
 
-    const messages = data.data ?? [];
+    const messageIds = convoData.messages?.data ?? [];
 
-    // Extract all Instagram reel/post URLs from message text
+    // Step 2: fetch content for each message (API only supports last 20)
     const reelUrls: Array<{ url: string; messageId: string; createdTime: string; from?: string }> = [];
+    let totalMessages = messageIds.length;
 
-    for (const msg of messages) {
-      if (!msg.message) continue;
-      const matches = msg.message.match(REEL_URL_RE);
-      if (matches) {
-        for (const url of matches) {
-          // Normalise URL — strip tracking params after the shortcode
-          const cleanUrl = url.replace(/\?.*$/, "").replace(/\/$/, "");
-          reelUrls.push({
-            url: cleanUrl,
-            messageId: msg.id,
-            createdTime: msg.created_time,
-            from: msg.from?.name,
-          });
+    await Promise.all(
+      messageIds.map(async (msg) => {
+        try {
+          const msgData = await igGet(`/${msg.id}`, accessToken, {
+            fields: "id,created_time,from,to,message",
+          }) as {
+            id: string;
+            created_time: string;
+            from?: { username?: string; id: string };
+            message?: string;
+          };
+
+          if (!msgData.message) return;
+
+          const matches = msgData.message.match(REEL_URL_RE);
+          if (matches) {
+            for (const url of matches) {
+              const cleanUrl = url.replace(/\?.*$/, "").replace(/\/$/, "");
+              reelUrls.push({
+                url: cleanUrl,
+                messageId: msg.id,
+                createdTime: msgData.created_time,
+                from: msgData.from?.username,
+              });
+            }
+          }
+        } catch {
+          // Individual message fetch can fail if message is older than 20 — skip it
         }
-      }
-    }
+      })
+    );
 
-    res.json({
-      totalMessages: messages.length,
-      reelUrls,
-    });
+    // Sort by most recent first
+    reelUrls.sort((a, b) => new Date(b.createdTime).getTime() - new Date(a.createdTime).getTime());
+
+    res.json({ totalMessages, reelUrls });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     req.log.error({ err }, "Failed to fetch conversation messages");
@@ -157,9 +162,7 @@ router.post("/dm-importer/import", async (req, res): Promise<void> => {
   for (const url of urls) {
     if (!url || typeof url !== "string") continue;
 
-    const isDuplicate = existingUrls.has(url);
-
-    if (isDuplicate) {
+    if (existingUrls.has(url)) {
       skipped++;
       continue;
     }
@@ -174,6 +177,7 @@ router.post("/dm-importer/import", async (req, res): Promise<void> => {
       commentsCount: null,
       likeCount: null,
     });
+    existingUrls.add(url); // prevent duplicates within the same import batch
     imported++;
   }
 

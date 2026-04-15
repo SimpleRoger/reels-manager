@@ -26,12 +26,12 @@ const STEPS = [
   {
     n: 2,
     title: "Add required permissions",
-    body: "In the left sidebar: App Settings \u2192 Permissions & Features. Add both instagram_manage_insights (for Reels analytics) and instagram_manage_messages (for DM Importer). In Development mode both are available for your own account without App Review.",
+    body: "In the left sidebar: App Settings \u2192 Permissions & Features. Add all three: instagram_manage_insights (Reels analytics), instagram_business_basic, and instagram_business_manage_messages (DM Importer). In Development mode all are available for your own account without App Review.",
   },
   {
     n: 3,
     title: "Generate a new User Access Token",
-    body: "Go to Tools → Graph API Explorer. In the top-right dropdown, select your app. Click Generate Access Token and check the boxes for instagram_basic, instagram_manage_insights, and instagram_manage_messages.",
+    body: "Go to Tools → Graph API Explorer. In the top-right dropdown, select your app. Click Generate Access Token and check: instagram_basic, instagram_manage_insights, instagram_business_basic, and instagram_business_manage_messages.",
     link: "https://developers.facebook.com/tools/explorer",
     linkLabel: "Open Graph API Explorer",
   },

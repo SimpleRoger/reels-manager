@@ -150,7 +150,7 @@ export default function DmImporter() {
             <ol className="list-decimal list-inside text-sm text-muted-foreground space-y-1.5 ml-8">
               <li>Go to <a href="https://developers.facebook.com/tools/explorer" target="_blank" rel="noreferrer" className="text-orange-400 underline">Graph API Explorer</a></li>
               <li>Select your app and click <strong>Generate Access Token</strong></li>
-              <li>Check both <code className="bg-muted px-1 rounded">instagram_manage_insights</code> <em>and</em> <code className="bg-muted px-1 rounded">instagram_manage_messages</code></li>
+              <li>Check <code className="bg-muted px-1 rounded">instagram_business_basic</code> and <code className="bg-muted px-1 rounded">instagram_business_manage_messages</code></li>
               <li>Exchange for a long-lived token (see Settings for the exact command)</li>
               <li>Paste the new token in <a href="/settings" className="text-orange-400 underline">Settings → Update Token</a></li>
             </ol>
