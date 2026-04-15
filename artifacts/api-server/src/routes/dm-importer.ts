@@ -1,142 +1,137 @@
 import { Router, type IRouter } from "express";
+import { eq } from "drizzle-orm";
 import { db, instagramAccountsTable, savedReferencesTable } from "@workspace/db";
 
 const router: IRouter = Router();
 
-const GRAPH_BASE = "https://graph.instagram.com/v21.0";
+const FB_BASE = "https://graph.facebook.com/v21.0";
 
 // Regex to find Instagram reel/post URLs in message text
 const REEL_URL_RE = /https?:\/\/(?:www\.)?instagram\.com\/(?:reel|p)\/[\w-]+\/?(?:\?[^\s]*)*/gi;
 
-async function igGet(path: string, token: string, params: Record<string, string> = {}) {
-  const url = new URL(`${GRAPH_BASE}${path}`);
+async function fbGet(path: string, token: string, params: Record<string, string> = {}) {
+  const url = new URL(`${FB_BASE}${path}`);
   for (const [k, v] of Object.entries(params)) {
     url.searchParams.set(k, v);
   }
-  // Support both query param and Authorization header — try header first (new API)
   url.searchParams.set("access_token", token);
   const res = await fetch(url.toString());
   const data = await res.json() as { error?: { message: string; code: number; type?: string }; [k: string]: unknown };
   if (!res.ok || data.error) {
-    throw new Error(data.error?.message ?? `Instagram API error ${res.status}`);
+    throw new Error(data.error?.message ?? `Facebook API error ${res.status}`);
   }
   return data;
 }
 
-// GET /api/dm-importer/debug — raw Instagram API response for debugging
-router.get("/dm-importer/debug", async (req, res): Promise<void> => {
+async function getPageToken(): Promise<{ token: string; accountId: string } | null> {
   const accounts = await db.select().from(instagramAccountsTable).limit(1);
-  if (accounts.length === 0) { res.status(400).json({ error: "No account" }); return; }
-  const { accessToken, accountId } = accounts[0];
+  if (accounts.length === 0) return null;
+  const token = accounts[0].pageAccessToken;
+  if (!token) return null;
+  return { token, accountId: accounts[0].accountId };
+}
 
-  const results: Record<string, unknown> = {};
-
-  // Step 1: Get linked Facebook Pages (needed to get Page access token)
-  const fbBase = "https://graph.facebook.com/v21.0";
-  try {
-    const meUrl = new URL(`${fbBase}/me`);
-    meUrl.searchParams.set("fields", "id,name,accounts");
-    meUrl.searchParams.set("access_token", accessToken);
-    const meRes = await fetch(meUrl.toString());
-    results["fb_me"] = await meRes.json();
-  } catch (e) { results["fb_me"] = { fetchError: String(e) }; }
-
-  // Step 2: Try /me/conversations on graph.facebook.com
-  for (const platform of ["instagram", "messenger"]) {
-    try {
-      const url = new URL(`${fbBase}/me/conversations`);
-      url.searchParams.set("platform", platform);
-      url.searchParams.set("access_token", accessToken);
-      url.searchParams.set("limit", "5");
-      const r = await fetch(url.toString());
-      results[`fb_me_conversations?platform=${platform}`] = await r.json();
-    } catch (e) { results[`fb_me_conversations?platform=${platform}`] = { fetchError: String(e) }; }
-  }
-
-  // Step 3: Try with Instagram account ID on graph.facebook.com
-  for (const platform of ["instagram"]) {
-    try {
-      const url = new URL(`${fbBase}/${accountId}/conversations`);
-      url.searchParams.set("platform", platform);
-      url.searchParams.set("access_token", accessToken);
-      url.searchParams.set("limit", "5");
-      const r = await fetch(url.toString());
-      results[`fb_accountId_conversations?platform=${platform}`] = await r.json();
-    } catch (e) { results[`fb_accountId_conversations?platform=${platform}`] = { fetchError: String(e) }; }
-  }
-
-  res.json(results);
-});
-
-// GET /api/dm-importer/conversations — list DM conversations
-// API: GET /me/conversations?platform=instagram
-router.get("/dm-importer/conversations", async (req, res): Promise<void> => {
-  const accounts = await db.select().from(instagramAccountsTable).limit(1);
-  if (accounts.length === 0) {
-    res.status(400).json({ error: "No Instagram account connected" });
+// POST /api/dm-importer/page-token — save Facebook Page access token
+router.post("/dm-importer/page-token", async (req, res): Promise<void> => {
+  const { pageAccessToken } = req.body as { pageAccessToken?: string };
+  if (!pageAccessToken || typeof pageAccessToken !== "string" || pageAccessToken.trim().length < 10) {
+    res.status(400).json({ error: "pageAccessToken is required" });
     return;
   }
 
-  const { accessToken } = accounts[0];
+  // Verify the token works
+  try {
+    const url = new URL(`${FB_BASE}/me`);
+    url.searchParams.set("fields", "id,name");
+    url.searchParams.set("access_token", pageAccessToken.trim());
+    const r = await fetch(url.toString());
+    const data = await r.json() as { error?: { message: string }; id?: string; name?: string };
+    if (data.error) {
+      res.status(400).json({ error: `Token verification failed: ${data.error.message}` });
+      return;
+    }
+    req.log.info({ pageId: data.id, name: data.name }, "Page token verified");
+  } catch (err) {
+    res.status(400).json({ error: "Could not verify token" });
+    return;
+  }
+
+  const accounts = await db.select().from(instagramAccountsTable).limit(1);
+  if (accounts.length === 0) {
+    res.status(400).json({ error: "No Instagram account connected yet — connect your account first" });
+    return;
+  }
+
+  await db
+    .update(instagramAccountsTable)
+    .set({ pageAccessToken: pageAccessToken.trim() })
+    .where(eq(instagramAccountsTable.id, accounts[0].id));
+
+  res.json({ success: true });
+});
+
+// GET /api/dm-importer/status — check if page token is configured
+router.get("/dm-importer/status", async (req, res): Promise<void> => {
+  const accounts = await db.select().from(instagramAccountsTable).limit(1);
+  if (accounts.length === 0) {
+    res.json({ hasPageToken: false });
+    return;
+  }
+  res.json({ hasPageToken: !!accounts[0].pageAccessToken });
+});
+
+// GET /api/dm-importer/conversations — list DM conversations using Page token
+router.get("/dm-importer/conversations", async (req, res): Promise<void> => {
+  const tokenInfo = await getPageToken();
+  if (!tokenInfo) {
+    res.status(400).json({
+      error: "No Facebook Page token",
+      details: "Add your Facebook Page access token in Settings → DM Importer to use this feature.",
+    });
+    return;
+  }
 
   try {
-    const data = await igGet(`/me/conversations`, accessToken, {
+    const data = await fbGet(`/me/conversations`, tokenInfo.token, {
       platform: "instagram",
+      fields: "id,updated_time,participants",
       limit: "20",
     }) as {
-      data?: Array<{ id: string; updated_time: string }>;
+      data?: Array<{ id: string; updated_time: string; participants?: { data: Array<{ name?: string; username?: string; id: string }> } }>;
     };
 
-    const conversations = (data.data ?? []).map((c) => ({
-      id: c.id,
-      name: `Conversation ${c.id.slice(-6)}`,
-      updatedTime: c.updated_time,
-    }));
+    const conversations = (data.data ?? []).map((c) => {
+      const others = (c.participants?.data ?? []).filter((p) => p.id !== tokenInfo.accountId);
+      const name = others[0]?.username
+        ? `@${others[0].username}`
+        : others[0]?.name ?? `Conversation ${c.id.slice(-6)}`;
+      return { id: c.id, name, updatedTime: c.updated_time };
+    });
 
     res.json({ conversations });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     req.log.error({ err }, "Failed to fetch DM conversations");
-
-    if (
-      message.toLowerCase().includes("permission") ||
-      message.toLowerCase().includes("instagram_business_manage_messages") ||
-      message.toLowerCase().includes("instagram_manage_messages") ||
-      message.includes("OAuthException") ||
-      message.includes("190") ||
-      message.includes("200")
-    ) {
-      res.status(403).json({
-        error: "Missing permission",
-        details: "Your access token needs the instagram_business_manage_messages permission. Please generate a new token in Graph API Explorer with this permission checked, then update it in Settings.",
-      });
-    } else {
-      res.status(500).json({ error: message });
-    }
+    res.status(500).json({ error: message });
   }
 });
 
 // GET /api/dm-importer/conversations/:id/messages
-// Step 1: GET /<CONVERSATION_ID>?fields=messages → get list of message IDs
-// Step 2: GET /<MESSAGE_ID>?fields=id,created_time,from,to,message → get content for each (max 20)
 router.get("/dm-importer/conversations/:id/messages", async (req, res): Promise<void> => {
-  const accounts = await db.select().from(instagramAccountsTable).limit(1);
-  if (accounts.length === 0) {
-    res.status(400).json({ error: "No Instagram account connected" });
+  const tokenInfo = await getPageToken();
+  if (!tokenInfo) {
+    res.status(400).json({ error: "No Facebook Page token configured" });
     return;
   }
 
-  const { accessToken } = accounts[0];
   const conversationId = req.params["id"];
 
   try {
     // Step 1: get message IDs from the conversation
-    const convoData = await igGet(`/${conversationId}`, accessToken, {
+    const convoData = await fbGet(`/${conversationId}`, tokenInfo.token, {
       fields: "messages",
     }) as {
-      messages?: {
-        data: Array<{ id: string; created_time: string }>;
-      };
+      messages?: { data: Array<{ id: string; created_time: string }> };
       id?: string;
     };
 
@@ -144,12 +139,12 @@ router.get("/dm-importer/conversations/:id/messages", async (req, res): Promise<
 
     // Step 2: fetch content for each message (API only supports last 20)
     const reelUrls: Array<{ url: string; messageId: string; createdTime: string; from?: string }> = [];
-    let totalMessages = messageIds.length;
+    const totalMessages = messageIds.length;
 
     await Promise.all(
       messageIds.map(async (msg) => {
         try {
-          const msgData = await igGet(`/${msg.id}`, accessToken, {
+          const msgData = await fbGet(`/${msg.id}`, tokenInfo.token, {
             fields: "id,created_time,from,to,message",
           }) as {
             id: string;
@@ -173,12 +168,11 @@ router.get("/dm-importer/conversations/:id/messages", async (req, res): Promise<
             }
           }
         } catch {
-          // Individual message fetch can fail if message is older than 20 — skip it
+          // Individual message fetch can fail for old messages — skip
         }
       })
     );
 
-    // Sort by most recent first
     reelUrls.sort((a, b) => new Date(b.createdTime).getTime() - new Date(a.createdTime).getTime());
 
     res.json({ totalMessages, reelUrls });
@@ -200,7 +194,6 @@ router.post("/dm-importer/import", async (req, res): Promise<void> => {
   let imported = 0;
   let skipped = 0;
 
-  // Fetch all existing URLs once upfront to avoid N+1 queries
   const existingRefs = await db.select({ url: savedReferencesTable.url }).from(savedReferencesTable);
   const existingUrls = new Set(existingRefs.map((r) => r.url));
 
@@ -222,7 +215,7 @@ router.post("/dm-importer/import", async (req, res): Promise<void> => {
       commentsCount: null,
       likeCount: null,
     });
-    existingUrls.add(url); // prevent duplicates within the same import batch
+    existingUrls.add(url);
     imported++;
   }
 

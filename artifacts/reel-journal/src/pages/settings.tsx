@@ -2,6 +2,7 @@ import { useGetInstagramStatus, useSyncReels, useConnectInstagram, getGetInstagr
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { useState } from "react";
 import { formatDateTime } from "@/lib/format";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,10 +10,16 @@ import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Instagram, RefreshCw, AlertCircle, Key, ExternalLink, Info } from "lucide-react";
+import { CheckCircle2, Instagram, RefreshCw, AlertCircle, Key, ExternalLink, Info, MessageSquare } from "lucide-react";
+
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 const connectSchema = z.object({
   accessToken: z.string().min(1, "Access token is required"),
+});
+
+const pageTokenSchema = z.object({
+  pageAccessToken: z.string().min(10, "Token is required"),
 });
 
 const STEPS = [
@@ -51,6 +58,8 @@ const STEPS = [
 export default function Settings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [pageTokenSaved, setPageTokenSaved] = useState(false);
+  const [pageTokenLoading, setPageTokenLoading] = useState(false);
 
   const { data: status, isLoading: isStatusLoading } = useGetInstagramStatus({
     query: { queryKey: getGetInstagramStatusQueryKey() }
@@ -63,6 +72,33 @@ export default function Settings() {
     resolver: zodResolver(connectSchema),
     defaultValues: { accessToken: "" },
   });
+
+  const pageTokenForm = useForm<z.infer<typeof pageTokenSchema>>({
+    resolver: zodResolver(pageTokenSchema),
+    defaultValues: { pageAccessToken: "" },
+  });
+
+  async function onPageTokenSubmit(values: z.infer<typeof pageTokenSchema>) {
+    setPageTokenLoading(true);
+    try {
+      const r = await fetch(`${BASE}/api/dm-importer/page-token`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pageAccessToken: values.pageAccessToken }),
+      });
+      const data = await r.json() as { success?: boolean; error?: string };
+      if (!r.ok || !data.success) {
+        throw new Error(data.error ?? "Failed to save token");
+      }
+      setPageTokenSaved(true);
+      pageTokenForm.reset();
+      toast({ title: "Facebook Page token saved — DM Importer is ready" });
+    } catch (err) {
+      toast({ title: "Failed to save token", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
+    } finally {
+      setPageTokenLoading(false);
+    }
+  }
 
   function onSubmit(values: z.infer<typeof connectSchema>) {
     connectMutation.mutate({ data: { accessToken: values.accessToken } }, {
@@ -177,6 +213,58 @@ export default function Settings() {
                 className="font-mono text-xs uppercase tracking-wider"
               >
                 {status?.connected ? "Update Token" : "Connect Account"}
+              </Button>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-card border-card-border">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MessageSquare className="w-5 h-5 text-blue-400" /> DM Importer — Facebook Page Token
+          </CardTitle>
+          <CardDescription>
+            The DM Importer uses a separate Facebook Page access token to read Instagram conversations.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {pageTokenSaved && (
+            <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 flex items-center gap-3">
+              <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
+              <p className="text-sm text-foreground">Page token saved — DM Importer is ready to use.</p>
+            </div>
+          )}
+          <Form {...pageTokenForm}>
+            <form onSubmit={pageTokenForm.handleSubmit(onPageTokenSubmit)} className="space-y-4">
+              <FormField
+                control={pageTokenForm.control}
+                name="pageAccessToken"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Facebook Page Access Token</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="EAAh85pxg5vE..."
+                        type="password"
+                        {...field}
+                        className="font-mono text-xs bg-background"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="rounded-lg border border-blue-400/20 bg-blue-400/5 p-3 flex items-start gap-2">
+                <Info className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" />
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Go to <strong className="text-foreground">Graph API Explorer</strong> → select your app → click <strong className="text-foreground">User or Page</strong> dropdown → choose your Facebook Page → add permissions <code className="text-blue-400 bg-blue-400/10 px-1 rounded">instagram_manage_messages</code> + <code className="text-blue-400 bg-blue-400/10 px-1 rounded">pages_manage_metadata</code> → Generate Token.{" "}
+                  <a href="https://developers.facebook.com/tools/explorer" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">Open Explorer <ExternalLink className="w-3 h-3" /></a>
+                </p>
+              </div>
+              <Button type="submit" disabled={pageTokenLoading} className="font-mono text-xs uppercase tracking-wider">
+                {pageTokenLoading ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : null}
+                Save Page Token
               </Button>
             </form>
           </Form>

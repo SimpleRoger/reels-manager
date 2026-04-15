@@ -7,6 +7,7 @@ export const instagramAccountsTable = pgTable("instagram_accounts", {
   accountId: text("account_id").notNull().unique(),
   username: text("username").notNull(),
   accessToken: text("access_token").notNull(),
+  pageAccessToken: text("page_access_token"),
   lastSynced: timestamp("last_synced", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
