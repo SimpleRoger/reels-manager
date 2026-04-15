@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiClient } from "@workspace/api-client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { MessageSquare, Download, CheckCircle2, AlertCircle, ChevronRight, ExternalLink, RefreshCw, Loader2 } from "lucide-react";
+
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 interface Conversation {
   id: string;
@@ -57,7 +58,7 @@ export default function DmImporter() {
   const conversationsQuery = useQuery<ConversationsResponse>({
     queryKey: ["dm-importer-conversations"],
     queryFn: async () => {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/dm-importer/conversations`);
+      const res = await fetch(`${BASE}/api/dm-importer/conversations`);
       const data = await res.json();
       if (!res.ok) throw data;
       return data;
@@ -68,7 +69,7 @@ export default function DmImporter() {
   const messagesQuery = useQuery<MessagesResponse>({
     queryKey: ["dm-importer-messages", selectedConvo?.id],
     queryFn: async () => {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/dm-importer/conversations/${selectedConvo!.id}/messages`);
+      const res = await fetch(`${BASE}/api/dm-importer/conversations/${selectedConvo!.id}/messages`);
       const data = await res.json();
       if (!res.ok) throw data;
       return data;
@@ -79,7 +80,7 @@ export default function DmImporter() {
 
   const importMutation = useMutation<ImportResponse>({
     mutationFn: async () => {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/dm-importer/import`, {
+      const res = await fetch(`${BASE}/api/dm-importer/import`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ urls: Array.from(selectedUrls) }),

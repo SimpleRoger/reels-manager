@@ -3,18 +3,21 @@ import { db, instagramAccountsTable, savedReferencesTable } from "@workspace/db"
 
 const router: IRouter = Router();
 
-const GRAPH_BASE = "https://graph.facebook.com/v21.0";
+const GRAPH_BASE = "https://graph.instagram.com/v21.0";
 
 // Regex to find Instagram reel/post URLs in message text
 const REEL_URL_RE = /https?:\/\/(?:www\.)?instagram\.com\/(?:reel|p)\/[\w-]+\/?(?:\?[^\s]*)*/gi;
 
 async function igGet(path: string, token: string, params: Record<string, string> = {}) {
   const url = new URL(`${GRAPH_BASE}${path}`);
-  url.searchParams.set("access_token", token);
   for (const [k, v] of Object.entries(params)) {
     url.searchParams.set(k, v);
   }
-  const res = await fetch(url.toString());
+  const res = await fetch(url.toString(), {
+    headers: {
+      "Authorization": `Bearer ${token}`,
+    },
+  });
   const data = await res.json() as { error?: { message: string; code: number }; [k: string]: unknown };
   if (!res.ok || data.error) {
     throw new Error(data.error?.message ?? `Instagram API error ${res.status}`);
@@ -30,10 +33,10 @@ router.get("/dm-importer/conversations", async (req, res): Promise<void> => {
     return;
   }
 
-  const { accessToken, accountId } = accounts[0];
+  const { accessToken } = accounts[0];
 
   try {
-    const data = await igGet(`/${accountId}/conversations`, accessToken, {
+    const data = await igGet(`/me/conversations`, accessToken, {
       platform: "instagram",
       fields: "id,name,updated_time,participants",
       limit: "20",
@@ -147,18 +150,14 @@ router.post("/dm-importer/import", async (req, res): Promise<void> => {
   let imported = 0;
   let skipped = 0;
 
+  // Fetch all existing URLs once upfront to avoid N+1 queries
+  const existingRefs = await db.select({ url: savedReferencesTable.url }).from(savedReferencesTable);
+  const existingUrls = new Set(existingRefs.map((r) => r.url));
+
   for (const url of urls) {
     if (!url || typeof url !== "string") continue;
 
-    // Check for duplicates
-    const existing = await db
-      .select({ id: savedReferencesTable.id })
-      .from(savedReferencesTable)
-      .limit(1);
-
-    // Simple duplicate check by URL — find matching URL
-    const all = await db.select({ id: savedReferencesTable.id, url: savedReferencesTable.url }).from(savedReferencesTable);
-    const isDuplicate = all.some((r) => r.url === url);
+    const isDuplicate = existingUrls.has(url);
 
     if (isDuplicate) {
       skipped++;
