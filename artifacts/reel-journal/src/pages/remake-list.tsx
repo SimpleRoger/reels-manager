@@ -271,11 +271,11 @@ export default function RemakeList() {
             return (
             <Card
               key={ref.id}
-              className="bg-card hover-elevate border-card-border overflow-hidden flex flex-row group"
+              className="bg-card hover-elevate border-card-border overflow-hidden flex flex-col group"
             >
-              {/* ── Portrait thumbnail / player (left) ── */}
+              {/* ── Portrait thumbnail / player — same aspect as Reels Log ── */}
               <div
-                className="relative w-[120px] shrink-0 bg-muted border-r border-border cursor-pointer overflow-hidden"
+                className="relative aspect-[9/16] w-full bg-muted cursor-pointer overflow-hidden shrink-0"
                 onClick={() => setPlayingId(isPlaying ? null : ref.id)}
               >
                 {isPlaying ? (
@@ -292,149 +292,136 @@ export default function RemakeList() {
                       <img
                         src={ref.thumbnailUrl}
                         alt="thumbnail"
-                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center min-h-[200px]">
-                        <Play className="w-8 h-8 text-muted-foreground/30" />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Play className="w-10 h-10 text-muted-foreground/30" />
                       </div>
                     )}
-                    <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <div className="w-10 h-10 rounded-full bg-primary/90 flex items-center justify-center shadow-xl">
-                        <Play className="w-4 h-4 text-black fill-black ml-0.5" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="w-14 h-14 rounded-full bg-primary/90 flex items-center justify-center shadow-xl">
+                        <Play className="w-6 h-6 text-black fill-black ml-1" />
                       </div>
                     </div>
+                    {/* Stats overlay at bottom */}
+                    <div className="absolute bottom-2 left-3 right-3 flex items-center justify-between">
+                      <a
+                        href={ref.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-white/90 hover:text-primary font-mono text-[10px] truncate flex items-center gap-1 drop-shadow"
+                      >
+                        <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                        {ref.accountName ? `@${ref.accountName}` : "View"}
+                      </a>
+                      <div className="flex items-center gap-2 text-[10px] font-mono text-white/80 drop-shadow shrink-0">
+                        {ref.viewCount == null && ref.likeCount == null ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <>
+                            {ref.viewCount != null && (
+                              <span className="flex items-center gap-0.5"><Eye className="w-3 h-3" />{ref.viewCount.toLocaleString()}</span>
+                            )}
+                            {ref.likeCount != null && (
+                              <span className="flex items-center gap-0.5"><Heart className="w-3 h-3" />{ref.likeCount.toLocaleString()}</span>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute top-2 right-2 h-7 w-7 text-white/70 hover:text-white hover:bg-black/50 z-10"
+                      onClick={(e) => { e.stopPropagation(); handleDelete(ref.id); }}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
                   </>
                 )}
               </div>
 
-              {/* ── Right: header + notes ── */}
-              <div className="flex-1 flex flex-col min-w-0">
-                {/* Header */}
-                <div className="px-4 py-3 bg-muted/30 border-b border-border space-y-1.5 shrink-0">
-                  <div className="flex justify-between items-center gap-2">
-                    <a
-                      href={ref.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline font-mono text-xs truncate flex items-center gap-1 min-w-0"
-                    >
-                      <ExternalLink className="w-3 h-3 flex-shrink-0" />
-                      {ref.accountName ? `@${ref.accountName}` : ref.url}
-                    </a>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 text-muted-foreground hover:text-destructive shrink-0"
-                      onClick={() => handleDelete(ref.id)}
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
+              {/* ── Notes ── */}
+              <CardContent className="p-4 flex-1 flex flex-col">
+                {ref.caption && (
+                  <div className="text-xs text-muted-foreground line-clamp-2 mb-3 bg-background p-2 rounded border">
+                    {ref.caption}
                   </div>
-                  {ref.viewCount == null && ref.likeCount == null && ref.commentsCount == null ? (
-                    <div className="flex items-center gap-1 text-[10px] font-mono text-muted-foreground/60">
-                      <Loader2 className="w-3 h-3 animate-spin" /> Fetching stats...
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-3 text-[11px] font-mono">
-                      {ref.viewCount != null && (
-                        <span className="flex items-center gap-1 text-muted-foreground">
-                          <Eye className="w-3 h-3" />{ref.viewCount.toLocaleString()}
-                        </span>
-                      )}
-                      {ref.likeCount != null && (
-                        <span className="flex items-center gap-1 text-muted-foreground">
-                          <Heart className="w-3 h-3" />{ref.likeCount.toLocaleString()}
-                        </span>
-                      )}
-                      {ref.commentsCount != null && (
-                        <span className="flex items-center gap-1 text-muted-foreground">
-                          <MessageCircle className="w-3 h-3" />{ref.commentsCount.toLocaleString()}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </div>
+                )}
 
-                {/* Caption + notes */}
-                <CardContent className="p-4 flex-1 flex flex-col overflow-y-auto">
-                  {ref.caption && (
-                    <div className="text-xs text-muted-foreground line-clamp-2 mb-3 bg-background p-2 rounded border">
-                      {ref.caption}
-                    </div>
-                  )}
-
-                  {editingId === ref.id ? (
-                    <div className="space-y-3 flex-1 flex flex-col">
-                      {(
-                        [
-                          { key: "whyItsgood", label: "Why It's Good" },
-                          { key: "whatToChange", label: "What to Change" },
-                          { key: "howToRemake", label: "How to Remake" },
-                        ] as const
-                      ).map(({ key, label }) => (
-                        <div key={key} className="space-y-1">
-                          <label className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
-                            {label}
-                          </label>
-                          <Textarea
-                            value={editValues[key]}
-                            onChange={(e) =>
-                              setEditValues((prev) => ({ ...prev, [key]: e.target.value }))
-                            }
-                            className="h-16 text-xs resize-none bg-background"
-                          />
-                        </div>
-                      ))}
-                      <div className="flex gap-2 pt-1">
-                        <Button
-                          size="sm"
-                          onClick={() => handleSave(ref.id)}
-                          className="flex-1 font-mono uppercase text-[10px] tracking-wider h-7"
-                        >
-                          <Check className="w-3 h-3 mr-1" /> Save
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setEditingId(null)}
-                          className="font-mono uppercase text-[10px] tracking-wider h-7"
-                        >
-                          Cancel
-                        </Button>
+                {editingId === ref.id ? (
+                  <div className="space-y-3 flex-1 flex flex-col">
+                    {(
+                      [
+                        { key: "whyItsgood", label: "Why It's Good" },
+                        { key: "whatToChange", label: "What to Change" },
+                        { key: "howToRemake", label: "How to Remake" },
+                      ] as const
+                    ).map(({ key, label }) => (
+                      <div key={key} className="space-y-1">
+                        <label className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+                          {label}
+                        </label>
+                        <Textarea
+                          value={editValues[key]}
+                          onChange={(e) =>
+                            setEditValues((prev) => ({ ...prev, [key]: e.target.value }))
+                          }
+                          className="h-16 text-xs resize-none bg-background"
+                        />
                       </div>
+                    ))}
+                    <div className="flex gap-2 pt-1">
+                      <Button
+                        size="sm"
+                        onClick={() => handleSave(ref.id)}
+                        className="flex-1 font-mono uppercase text-[10px] tracking-wider h-7"
+                      >
+                        <Check className="w-3 h-3 mr-1" /> Save
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setEditingId(null)}
+                        className="font-mono uppercase text-[10px] tracking-wider h-7"
+                      >
+                        Cancel
+                      </Button>
                     </div>
-                  ) : (
-                    <div
-                      className="space-y-3 flex-1 flex flex-col cursor-pointer"
-                      onClick={() => startEditing(ref)}
-                    >
-                      {(
-                        [
-                          { key: "whyItsgood", label: "Why It's Good" },
-                          { key: "whatToChange", label: "What to Change" },
-                          { key: "howToRemake", label: "How to Remake", accent: true },
-                        ] as const
-                      ).map(({ key, label, accent }) => (
-                        <div key={key}>
-                          <h4
-                            className={`text-[10px] font-mono uppercase tracking-wider mb-0.5 ${
-                              accent ? "text-primary" : "text-muted-foreground"
-                            }`}
-                          >
-                            {label}
-                          </h4>
-                          <p className="text-xs">
-                            {(ref as any)[key] || (
-                              <span className="text-muted-foreground italic">Click to add notes...</span>
-                            )}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </div>
+                  </div>
+                ) : (
+                  <div
+                    className="space-y-3 flex-1 flex flex-col cursor-pointer"
+                    onClick={() => startEditing(ref)}
+                  >
+                    {(
+                      [
+                        { key: "whyItsgood", label: "Why It's Good" },
+                        { key: "whatToChange", label: "What to Change" },
+                        { key: "howToRemake", label: "How to Remake", accent: true },
+                      ] as const
+                    ).map(({ key, label, accent }) => (
+                      <div key={key}>
+                        <h4
+                          className={`text-[10px] font-mono uppercase tracking-wider mb-0.5 ${
+                            accent ? "text-primary" : "text-muted-foreground"
+                          }`}
+                        >
+                          {label}
+                        </h4>
+                        <p className="text-xs">
+                          {(ref as any)[key] || (
+                            <span className="text-muted-foreground italic">Click to add notes...</span>
+                          )}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
             </Card>
             );
           })}
