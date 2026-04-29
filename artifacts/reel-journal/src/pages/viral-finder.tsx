@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatNumber } from "@/lib/format";
 import {
   Hash, TrendingUp, Eye, Heart, Sparkles, Wand2, BookmarkPlus, MessageCircle, Lightbulb,
-  AlertTriangle, Search, Loader2, ExternalLink, Play, Check, Send
+  AlertTriangle, Search, Loader2, ExternalLink, Play, Check, Send, Flame, RefreshCw, Tag
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -322,6 +322,310 @@ function SearchTab() {
   );
 }
 
+// ─── Trending Tab ─────────────────────────────────────────────────────────────
+
+interface TrendingReel {
+  url: string | null;
+  shortcode: string;
+  accountName: string;
+  section: string | null;
+  topic: string | null;
+  type: string | null;
+  isVideo: boolean;
+  caption: string | null;
+  date: string | null;
+  thumbnailUrl: string | null;
+  videoUrl: string | null;
+  viewCount: number | null;
+  likeCount: number | null;
+  commentsCount: number | null;
+}
+
+type TrendSortKey = "views" | "likes" | "comments";
+
+function TrendingTab() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [results, setResults] = useState<TrendingReel[]>([]);
+  const [hasFetched, setHasFetched] = useState(false);
+  const [sort, setSort] = useState<TrendSortKey>("views");
+  const [sectionFilter, setSectionFilter] = useState<string | null>(null);
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [failedThumbs, setFailedThumbs] = useState<Set<string>>(new Set());
+
+  const fetchMutation = useMutation({
+    mutationFn: async () => {
+      const resp = await fetch(`${BASE}/api/trending-reels`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ limit: 50 }),
+      });
+      if (!resp.ok) throw new Error((await resp.json())?.error ?? "Failed to fetch trending");
+      return resp.json() as Promise<{ results: TrendingReel[] }>;
+    },
+    onSuccess: (data) => {
+      setResults(data.results);
+      setHasFetched(true);
+      setFailedThumbs(new Set());
+      setSectionFilter(null);
+    },
+    onError: (e: Error) => toast({ title: e.message, variant: "destructive" }),
+  });
+
+  const createRefMutation = useCreateReference();
+
+  function handleSave(r: TrendingReel) {
+    if (!r.url) return;
+    createRefMutation.mutate(
+      {
+        data: {
+          url: r.url,
+          accountName: r.accountName,
+          caption: r.caption ?? null,
+          thumbnailUrl: r.thumbnailUrl ?? null,
+          mediaUrl: r.videoUrl ?? null,
+          viewCount: r.viewCount ?? null,
+          likeCount: r.likeCount ?? null,
+          commentsCount: r.commentsCount ?? null,
+        },
+      },
+      {
+        onSuccess: () => {
+          setSavedIds((prev) => new Set([...prev, r.shortcode]));
+          toast({ title: `@${r.accountName}'s reel saved to Remake List` });
+          queryClient.invalidateQueries({ queryKey: getListReferencesQueryKey() });
+        },
+        onError: () => toast({ title: "Failed to save", variant: "destructive" }),
+      }
+    );
+  }
+
+  // Unique sections for filter pills
+  const sections = Array.from(new Set(results.map((r) => r.section).filter(Boolean))) as string[];
+
+  const filtered = sectionFilter ? results.filter((r) => r.section === sectionFilter) : results;
+  const sorted = [...filtered].sort((a, b) => {
+    if (sort === "likes") return (b.likeCount ?? 0) - (a.likeCount ?? 0);
+    if (sort === "comments") return (b.commentsCount ?? 0) - (a.commentsCount ?? 0);
+    return (b.viewCount ?? 0) - (a.viewCount ?? 0);
+  });
+
+  return (
+    <div className="space-y-4">
+      {/* Fetch control card */}
+      <Card className="bg-card border-card-border">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Flame className="w-5 h-5 text-primary" /> Instagram Trending Now
+          </CardTitle>
+          <CardDescription>
+            Pulls the current Instagram Explore feed — reels and posts trending across all niches right now. Takes 30–90 seconds.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-3">
+            <Button
+              onClick={() => fetchMutation.mutate()}
+              disabled={fetchMutation.isPending}
+              className="font-mono uppercase tracking-wider text-xs"
+            >
+              {fetchMutation.isPending ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Fetching...</>
+              ) : hasFetched ? (
+                <><RefreshCw className="w-4 h-4 mr-2" /> Refresh Trending</>
+              ) : (
+                <><Flame className="w-4 h-4 mr-2" /> Fetch Trending</>
+              )}
+            </Button>
+            {fetchMutation.isPending && (
+              <p className="text-xs text-muted-foreground font-mono">
+                Scraping Instagram Explore — this usually takes 30–90 seconds...
+              </p>
+            )}
+            {hasFetched && !fetchMutation.isPending && (
+              <p className="text-xs text-muted-foreground font-mono">
+                {results.length} trending posts fetched
+              </p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Results */}
+      {(hasFetched || fetchMutation.isPending) && (
+        <Card className="bg-card border-card-border">
+          <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-3 pb-3">
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Section filter pills */}
+              {sections.length > 0 && (
+                <>
+                  <button
+                    onClick={() => setSectionFilter(null)}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-mono uppercase tracking-wider border transition-colors ${
+                      !sectionFilter
+                        ? "bg-primary text-black border-primary"
+                        : "text-muted-foreground border-card-border hover:text-foreground"
+                    }`}
+                  >
+                    All
+                  </button>
+                  {sections.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => setSectionFilter(sectionFilter === s ? null : s)}
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-mono uppercase tracking-wider border transition-colors ${
+                        sectionFilter === s
+                          ? "bg-primary text-black border-primary"
+                          : "text-muted-foreground border-card-border hover:text-foreground"
+                      }`}
+                    >
+                      <Tag className="w-2.5 h-2.5" /> {s}
+                    </button>
+                  ))}
+                </>
+              )}
+            </div>
+            {/* Sort buttons */}
+            {results.length > 0 && (
+              <div className="flex gap-1 bg-background rounded-md p-1 border text-xs font-mono shrink-0">
+                {(["views", "likes", "comments"] as TrendSortKey[]).map((v) => (
+                  <button
+                    key={v}
+                    onClick={() => setSort(v)}
+                    className={`px-3 py-1 rounded uppercase tracking-wider transition-colors ${
+                      sort === v ? "bg-primary text-black" : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
+            )}
+          </CardHeader>
+          <CardContent>
+            {fetchMutation.isPending && results.length === 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="space-y-2">
+                    <Skeleton className="aspect-[9/16] w-full rounded-xl" />
+                    <Skeleton className="h-4 w-2/3" />
+                  </div>
+                ))}
+              </div>
+            ) : sorted.length === 0 ? (
+              <div className="py-12 text-center text-muted-foreground border border-dashed rounded-xl">
+                <Flame className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                <p>No results for this filter.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {sorted.map((result, idx) => {
+                  const saved = savedIds.has(result.shortcode);
+                  const thumbFailed = result.thumbnailUrl ? failedThumbs.has(result.thumbnailUrl) : true;
+                  return (
+                    <div key={result.shortcode || idx} className="flex flex-col rounded-xl border border-card-border overflow-hidden bg-background hover-elevate group">
+                      {/* Thumbnail */}
+                      <div className="relative aspect-[9/16] bg-zinc-900">
+                        {result.thumbnailUrl && !thumbFailed ? (
+                          <img
+                            key={result.thumbnailUrl}
+                            src={result.thumbnailUrl}
+                            alt={`@${result.accountName}`}
+                            className="w-full h-full object-cover"
+                            onError={() => setFailedThumbs((p) => new Set([...p, result.thumbnailUrl!]))}
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-muted-foreground/30">
+                            <Play className="w-8 h-8" />
+                          </div>
+                        )}
+
+                        {/* Topic badge */}
+                        {(result.topic || result.section) && (
+                          <div className="absolute top-2 left-2 right-2">
+                            <span className="inline-flex items-center gap-1 bg-black/70 backdrop-blur-sm text-white/90 text-[10px] font-mono px-2 py-0.5 rounded-full max-w-full truncate">
+                              <Tag className="w-2.5 h-2.5 shrink-0 text-primary" />
+                              {result.topic ?? result.section}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Stats overlay */}
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent px-3 py-2">
+                          <div className="flex items-center gap-3 text-[11px] font-mono text-white/90">
+                            {result.viewCount != null && (
+                              <span className="flex items-center gap-1">
+                                <Eye className="w-3 h-3" />
+                                {formatNumber(result.viewCount)}
+                              </span>
+                            )}
+                            {result.likeCount != null && (
+                              <span className="flex items-center gap-1">
+                                <Heart className="w-3 h-3" />
+                                {formatNumber(result.likeCount)}
+                              </span>
+                            )}
+                            {result.commentsCount != null && (
+                              <span className="flex items-center gap-1">
+                                <MessageCircle className="w-3 h-3" />
+                                {formatNumber(result.commentsCount)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Info */}
+                      <div className="p-3 flex flex-col gap-2 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <a
+                            href={result.url ?? "#"}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary font-mono text-xs hover:underline flex items-center gap-1 truncate"
+                          >
+                            <ExternalLink className="w-3 h-3 shrink-0" />
+                            @{result.accountName}
+                          </a>
+                          {result.section && result.topic && (
+                            <span className="text-[10px] font-mono text-muted-foreground/60 shrink-0 truncate max-w-[90px]">
+                              {result.section}
+                            </span>
+                          )}
+                        </div>
+
+                        {result.caption && (
+                          <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                            {result.caption}
+                          </p>
+                        )}
+
+                        <Button
+                          size="sm"
+                          variant={saved ? "outline" : "default"}
+                          className="mt-auto font-mono uppercase tracking-wider text-[10px] h-7 w-full"
+                          onClick={() => !saved && handleSave(result)}
+                          disabled={saved || createRefMutation.isPending}
+                        >
+                          {saved ? (
+                            <><Check className="w-3 h-3 mr-1" /> Saved</>
+                          ) : (
+                            <><BookmarkPlus className="w-3 h-3 mr-1" /> Save to Remake List</>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ViralFinder() {
@@ -329,7 +633,7 @@ export default function ViralFinder() {
   const queryClient = useQueryClient();
   const [aiSuggestions, setAiSuggestions] = useState<AISuggestions | null>(null);
   const [view, setView] = useState<"reach" | "likes" | "comments">("reach");
-  const [tab, setTab] = useState<"hashtags" | "search">("search");
+  const [tab, setTab] = useState<"hashtags" | "search" | "trending">("search");
 
   const { data, isLoading } = useQuery<{ hashtags: HashtagStat[] }>({
     queryKey: ["viral-finder-hashtags"],
@@ -378,9 +682,10 @@ export default function ViralFinder() {
       </div>
 
       {/* Tab switcher */}
-      <div className="flex gap-1 bg-card border border-card-border rounded-lg p-1 w-fit">
+      <div className="flex gap-1 bg-card border border-card-border rounded-lg p-1 w-fit flex-wrap">
         {([
           { id: "search", label: "Search Reels", icon: Search },
+          { id: "trending", label: "Trending Now", icon: Flame },
           { id: "hashtags", label: "My Hashtags", icon: Hash },
         ] as const).map(({ id, label, icon: Icon }) => (
           <button
@@ -400,6 +705,9 @@ export default function ViralFinder() {
 
       {/* Search tab */}
       {tab === "search" && <SearchTab />}
+
+      {/* Trending tab */}
+      {tab === "trending" && <TrendingTab />}
 
       {/* Hashtag analytics tab */}
       {tab === "hashtags" && (

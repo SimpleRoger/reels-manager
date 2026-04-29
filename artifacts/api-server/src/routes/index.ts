@@ -11,6 +11,7 @@ import viralFinderRouter from "./viral-finder";
 import videoAnalysisRouter from "./video-analysis";
 import dmImporterRouter from "./dm-importer";
 import reelSearchRouter from "./reel-search";
+import trendingReelsRouter from "./trending-reels";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(viralFinderRouter);
 router.use(videoAnalysisRouter);
 router.use(dmImporterRouter);
 router.use(reelSearchRouter);
+router.use(trendingReelsRouter);
 
 export default router;
