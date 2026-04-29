@@ -271,12 +271,83 @@ export default function RemakeList() {
             return (
             <Card
               key={ref.id}
-              className="bg-card hover-elevate border-card-border overflow-hidden flex flex-col h-full group"
+              className="bg-card hover-elevate border-card-border overflow-hidden flex flex-col group"
             >
-              {/* Inline player — shown when playing */}
+              {/* ── Header row: thumbnail strip + account/stats + delete ── */}
+              <div className="flex border-b border-border">
+                {/* Thumbnail strip */}
+                <div
+                  className="relative w-[72px] shrink-0 bg-muted overflow-hidden cursor-pointer border-r border-border"
+                  onClick={() => setPlayingId(isPlaying ? null : ref.id)}
+                >
+                  {ref.thumbnailUrl ? (
+                    <img
+                      src={ref.thumbnailUrl}
+                      alt="thumbnail"
+                      className="w-full h-full object-cover min-h-[80px]"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center min-h-[80px]">
+                      <Play className="w-4 h-4 text-muted-foreground/40" />
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Play className="w-5 h-5 text-white fill-white drop-shadow-md" />
+                  </div>
+                </div>
+
+                {/* Account + stats */}
+                <div className="flex-1 px-4 py-3 space-y-1.5 bg-muted/30 min-w-0">
+                  <div className="flex justify-between items-center gap-3">
+                    <a
+                      href={ref.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline font-mono text-xs truncate flex items-center gap-1 min-w-0"
+                    >
+                      <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                      {ref.accountName ? `@${ref.accountName}` : ref.url}
+                    </a>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-muted-foreground hover:text-destructive shrink-0"
+                      onClick={() => handleDelete(ref.id)}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
+                  {ref.viewCount == null && ref.likeCount == null && ref.commentsCount == null ? (
+                    <div className="flex items-center gap-1 text-[10px] font-mono text-muted-foreground/60">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      Fetching stats...
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-4 text-[11px] font-mono">
+                      {ref.viewCount != null && (
+                        <span className="flex items-center gap-1 text-muted-foreground">
+                          <Eye className="w-3 h-3" />{ref.viewCount.toLocaleString()}
+                        </span>
+                      )}
+                      {ref.likeCount != null && (
+                        <span className="flex items-center gap-1 text-muted-foreground">
+                          <Heart className="w-3 h-3" />{ref.likeCount.toLocaleString()}
+                        </span>
+                      )}
+                      {ref.commentsCount != null && (
+                        <span className="flex items-center gap-1 text-muted-foreground">
+                          <MessageCircle className="w-3 h-3" />{ref.commentsCount.toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* ── Inline player: slides open below header when playing ── */}
               {isPlaying && (
-                <div className="flex justify-center bg-black border-b border-border">
-                  <div className="relative w-[148px] aspect-[9/16]">
+                <div className="flex justify-center bg-black border-b border-border py-2">
+                  <div className="w-[148px] aspect-[9/16] relative">
                     <InlinePlayer
                       mediaUrl={ref.mediaUrl}
                       thumbnailUrl={ref.thumbnailUrl}
@@ -288,79 +359,7 @@ export default function RemakeList() {
                 </div>
               )}
 
-              <div className="flex gap-0 flex-1">
-                {/* Thumbnail strip — hidden while playing */}
-                {!isPlaying && (
-                  <div
-                    className="relative w-[72px] shrink-0 bg-muted overflow-hidden cursor-pointer border-r border-border"
-                    onClick={() => setPlayingId(ref.id)}
-                  >
-                    {ref.thumbnailUrl ? (
-                      <img
-                        src={ref.thumbnailUrl}
-                        alt="thumbnail"
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center min-h-[120px]">
-                        <Play className="w-4 h-4 text-muted-foreground/40" />
-                      </div>
-                    )}
-                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Play className="w-6 h-6 text-white fill-white drop-shadow-md" />
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex-1 flex flex-col min-w-0">
-                  <div className="px-4 py-3 bg-muted/30 border-b border-border space-y-1.5">
-                    <div className="flex justify-between items-center gap-3">
-                      <a
-                        href={ref.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary hover:underline font-mono text-xs truncate flex items-center gap-1 min-w-0"
-                      >
-                        <ExternalLink className="w-3 h-3 flex-shrink-0" />
-                        {ref.accountName ? `@${ref.accountName}` : ref.url}
-                      </a>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 text-muted-foreground hover:text-destructive shrink-0"
-                        onClick={() => handleDelete(ref.id)}
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
-                    </div>
-
-                    {/* Stats row */}
-                    {ref.viewCount == null && ref.likeCount == null && ref.commentsCount == null ? (
-                      <div className="flex items-center gap-1 text-[10px] font-mono text-muted-foreground/60">
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                        Fetching stats...
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-4 text-[11px] font-mono">
-                        {ref.viewCount != null && (
-                          <span className="flex items-center gap-1 text-muted-foreground">
-                            <Eye className="w-3 h-3" />{ref.viewCount.toLocaleString()}
-                          </span>
-                        )}
-                        {ref.likeCount != null && (
-                          <span className="flex items-center gap-1 text-muted-foreground">
-                            <Heart className="w-3 h-3" />{ref.likeCount.toLocaleString()}
-                          </span>
-                        )}
-                        {ref.commentsCount != null && (
-                          <span className="flex items-center gap-1 text-muted-foreground">
-                            <MessageCircle className="w-3 h-3" />{ref.commentsCount.toLocaleString()}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
+              {/* ── Caption + notes (always visible) ── */}
               <CardContent className="p-4 flex-1 flex flex-col">
                 {ref.caption && (
                   <div className="text-xs text-muted-foreground line-clamp-2 mb-4 bg-background p-2 rounded border">
@@ -413,7 +412,7 @@ export default function RemakeList() {
                   </div>
                 ) : (
                   <div
-                    className="space-y-4 flex-1 flex flex-col cursor-pointer group"
+                    className="space-y-4 flex-1 flex flex-col cursor-pointer"
                     onClick={() => startEditing(ref)}
                   >
                     {(
@@ -448,8 +447,6 @@ export default function RemakeList() {
                   </div>
                 )}
               </CardContent>
-                </div>{/* flex-1 col */}
-              </div>{/* flex row */}
             </Card>
             );
           })}
