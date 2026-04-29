@@ -6,7 +6,9 @@ import {
   useSaveReelNotes,
   useGetReelAnalysis, getGetReelAnalysisQueryKey,
   useAnalyzeReel,
-  useUpdateReelTags
+  useUpdateReelTags,
+  useCreatePlaybookLesson,
+  useUpdatePlaybookLesson,
 } from "@workspace/api-client-react";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -25,7 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { PlaySquare, Heart, MessageCircle, Share2, Bookmark, Eye, ArrowLeft, Wand2, Sparkles, Tag as TagIcon, ExternalLink, Video, Star } from "lucide-react";
+import { PlaySquare, Heart, MessageCircle, Share2, Bookmark, Eye, ArrowLeft, Wand2, Sparkles, Tag as TagIcon, ExternalLink, Video, Star, BookOpen, Plus, X, Check, ChevronDown } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -180,6 +182,51 @@ export default function ReelDetail() {
 
   const [tagInput, setTagInput] = useState("");
   const initializedForId = useRef<number | null>(null);
+
+  // ── Add to Playbook ──────────────────────────────────────────────────────────
+  const createLessonMutation = useCreatePlaybookLesson();
+  const updateLessonMutation = useUpdatePlaybookLesson();
+  const [playbookOpen, setPlaybookOpen] = useState(false);
+  const [playbookLesson, setPlaybookLesson] = useState("");
+  const [playbookCategory, setPlaybookCategory] = useState("");
+  const [playbookSaved, setPlaybookSaved] = useState(false);
+
+  function handleAddToPlaybook() {
+    if (!playbookLesson.trim() || !reel) return;
+    createLessonMutation.mutate(
+      {
+        data: {
+          lesson: playbookLesson.trim(),
+          category: playbookCategory.trim() || undefined,
+          proofUrl: reel.permalink ?? undefined,
+        },
+      },
+      {
+        onSuccess: (created) => {
+          const lessonId = (created as any).id as number | undefined;
+          // Pre-fill stats from reel data so we don't wait for Apify
+          if (lessonId && reel) {
+            updateLessonMutation.mutate({
+              id: lessonId,
+              data: {
+                proofViewCount: reel.plays ?? undefined,
+                proofLikeCount: reel.likeCount ?? undefined,
+                proofCommentsCount: reel.commentsCount ?? undefined,
+                proofThumbnailUrl: reel.thumbnailUrl ?? undefined,
+                proofMediaUrl: reel.mediaUrl ?? undefined,
+              },
+            });
+          }
+          setPlaybookSaved(true);
+          setPlaybookLesson("");
+          setPlaybookCategory("");
+          toast({ title: "Added to Playbook", description: "Lesson saved with this reel as proof." });
+          setTimeout(() => { setPlaybookSaved(false); setPlaybookOpen(false); }, 2000);
+        },
+        onError: () => toast({ title: "Failed to add to Playbook", variant: "destructive" }),
+      }
+    );
+  }
 
   useEffect(() => {
     if (notes && initializedForId.current !== reelId) {
@@ -371,6 +418,79 @@ export default function ReelDetail() {
                 <Button size="sm" onClick={handleAddTag} className="h-8 font-mono text-[10px] uppercase tracking-wider" disabled={updateTagsMutation.isPending}>Add</Button>
               </div>
             </CardContent>
+          </Card>
+          {/* Add to Playbook */}
+          <Card className="bg-card border-card-border overflow-hidden">
+            <button
+              onClick={() => { setPlaybookOpen((v) => !v); setPlaybookSaved(false); }}
+              className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/30 transition-colors"
+            >
+              <span className="flex items-center gap-2 text-sm font-mono uppercase tracking-wider text-muted-foreground">
+                <BookOpen className="w-4 h-4 text-primary" /> Add to Playbook
+              </span>
+              <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${playbookOpen ? "rotate-180" : ""}`} />
+            </button>
+
+            {playbookOpen && (
+              <div className="px-4 pb-4 space-y-3 border-t border-border pt-3">
+                {playbookSaved ? (
+                  <div className="flex items-center justify-center gap-2 py-4 text-green-400 font-mono text-sm">
+                    <Check className="w-4 h-4" /> Lesson added to Playbook
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+                        What did this reel teach you?
+                      </label>
+                      <Textarea
+                        placeholder="e.g. Crowd-reaction hooks drive 3× more shares..."
+                        value={playbookLesson}
+                        onChange={(e) => setPlaybookLesson(e.target.value)}
+                        className="resize-none h-20 bg-background text-sm"
+                        autoFocus
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+                        Category (optional)
+                      </label>
+                      <Input
+                        placeholder="Hook, Format, Strategy..."
+                        value={playbookCategory}
+                        onChange={(e) => setPlaybookCategory(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && handleAddToPlaybook()}
+                        className="h-8 text-xs bg-background"
+                      />
+                    </div>
+                    {/* Proof preview */}
+                    <div className="flex items-center gap-2 rounded-md bg-muted/40 border px-3 py-2 text-[11px] font-mono text-muted-foreground">
+                      <BookOpen className="w-3 h-3 shrink-0 text-primary" />
+                      <span className="truncate">Proof: this reel · {reel.plays ? `${(reel.plays / 1000).toFixed(0)}K plays` : "no stats yet"}</span>
+                    </div>
+                    <div className="flex gap-2 pt-1">
+                      <Button
+                        size="sm"
+                        className="flex-1 font-mono text-[10px] uppercase tracking-wider"
+                        onClick={handleAddToPlaybook}
+                        disabled={createLessonMutation.isPending || !playbookLesson.trim()}
+                      >
+                        <Plus className="w-3 h-3 mr-1" />
+                        {createLessonMutation.isPending ? "Saving..." : "Add Rule"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="font-mono text-[10px] uppercase tracking-wider"
+                        onClick={() => setPlaybookOpen(false)}
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </Card>
         </div>
 

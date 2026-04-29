@@ -24,6 +24,26 @@ async function enrichProofUrl(lessonId: number, proofUrl: string): Promise<void>
   try {
     const result = await scrapeInstagramReel(proofUrl);
     if (!result) return;
+
+    // Check if stats were already pre-filled (e.g. from reel data) — don't overwrite them
+    const [existing] = await db
+      .select({ proofViewCount: playbookLessonsTable.proofViewCount })
+      .from(playbookLessonsTable)
+      .where(eq(playbookLessonsTable.id, lessonId));
+
+    if (existing?.proofViewCount != null) {
+      // Stats already set — only fill in missing fields like accountName/thumbnailUrl
+      await db
+        .update(playbookLessonsTable)
+        .set({
+          proofThumbnailUrl: result.thumbnailUrl ?? undefined,
+          proofAccountName: result.accountName ?? undefined,
+        })
+        .where(eq(playbookLessonsTable.id, lessonId));
+      logger.info({ lessonId }, "Proof URL partial-enriched via Apify (stats pre-filled)");
+      return;
+    }
+
     await db
       .update(playbookLessonsTable)
       .set({
