@@ -4,7 +4,7 @@ import { logger } from "../lib/logger";
 const router: IRouter = Router();
 
 const APIFY_TOKEN = process.env["APIFY_API_TOKEN"];
-const ACTOR_ID = "agentx/instagram-trending-scraper";
+const ACTOR_ID = "agentx~instagram-trending-scraper";
 
 interface TrendingItem {
   id?: string;

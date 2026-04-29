@@ -4,7 +4,7 @@ import { logger } from "../lib/logger";
 const router: IRouter = Router();
 
 const APIFY_TOKEN = process.env["APIFY_API_TOKEN"];
-const ACTOR_ID = "patient_discovery/instagram-search-reels";
+const ACTOR_ID = "patient_discovery~instagram-search-reels";
 
 interface SearchReelItem {
   id?: string;
