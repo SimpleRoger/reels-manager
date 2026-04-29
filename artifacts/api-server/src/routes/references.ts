@@ -79,6 +79,18 @@ router.patch("/references/:id", async (req, res): Promise<void> => {
   res.json(formatReference(ref));
 });
 
+// Re-run Apify on ALL saved references to refresh expired CDN URLs
+router.post("/references/refresh-all", async (req, res): Promise<void> => {
+  const refs = await db.select({ id: savedReferencesTable.id, url: savedReferencesTable.url }).from(savedReferencesTable);
+  // Fire all in background — respond immediately
+  (async () => {
+    for (const ref of refs) {
+      await enrichReferenceWithApify(ref.id, ref.url).catch(() => {});
+    }
+  })();
+  res.json({ queued: refs.length });
+});
+
 router.delete("/references/:id", async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const params = DeleteReferenceParams.safeParse({ id: parseInt(raw, 10) });

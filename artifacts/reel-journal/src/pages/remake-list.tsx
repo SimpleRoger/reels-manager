@@ -28,6 +28,8 @@ export default function RemakeList() {
   const { toast } = useToast();
 
   const [playingId, setPlayingId] = useState<number | null>(null);
+  const [failedThumbs, setFailedThumbs] = useState<Set<string>>(new Set());
+  const [refreshing, setRefreshing] = useState(false);
   const [addMode, setAddMode] = useState<"single" | "batch" | null>(null);
   const [singleUrl, setSingleUrl] = useState("");
   const [batchUrls, setBatchUrls] = useState("");
@@ -53,6 +55,7 @@ export default function RemakeList() {
     const timer = setInterval(invalidate, 8_000);
     return () => clearInterval(timer);
   }, [data?.references]);
+
 
   function startEditing(ref: any) {
     setEditingId(ref.id);
@@ -137,6 +140,24 @@ export default function RemakeList() {
     });
   }
 
+  async function handleRefreshThumbnails() {
+    setRefreshing(true);
+    try {
+      await fetch("/api/references/refresh-all", { method: "POST" });
+      toast({ title: "Refreshing thumbnails in background — check back in ~2 min" });
+      // Poll aggressively for the next 3 minutes to pick up fresh URLs as they come in
+      const start = Date.now();
+      const poll = setInterval(() => {
+        invalidate();
+        if (Date.now() - start > 180_000) clearInterval(poll);
+      }, 10_000);
+    } catch {
+      toast({ title: "Failed to start refresh", variant: "destructive" });
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex items-start justify-between gap-4">
@@ -146,7 +167,22 @@ export default function RemakeList() {
             Save reels you want to study, remake, or reference.
           </p>
         </div>
-        <div className="flex gap-2 shrink-0">
+        <div className="flex gap-2 shrink-0 flex-wrap justify-end">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="font-mono text-xs uppercase tracking-wider text-muted-foreground"
+            onClick={handleRefreshThumbnails}
+            disabled={refreshing}
+            title="Re-scrape all saved reels to get fresh thumbnail URLs"
+          >
+            {refreshing ? (
+              <Loader2 className="w-3 h-3 animate-spin mr-1" />
+            ) : (
+              <Play className="w-3 h-3 mr-1" />
+            )}
+            Refresh Thumbs
+          </Button>
           <Button
             size="sm"
             variant={addMode === "single" ? "secondary" : "outline"}
@@ -288,14 +324,18 @@ export default function RemakeList() {
                   />
                 ) : (
                   <>
-                    {ref.thumbnailUrl ? (
+                    {ref.thumbnailUrl && !failedThumbs.has(ref.thumbnailUrl) ? (
                       <img
+                        key={ref.thumbnailUrl}
                         src={ref.thumbnailUrl}
                         alt="thumbnail"
                         className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        onError={() =>
+                          setFailedThumbs((prev) => new Set([...prev, ref.thumbnailUrl!]))
+                        }
                       />
                     ) : (
-                      <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="absolute inset-0 flex items-center justify-center bg-zinc-900">
                         <Play className="w-10 h-10 text-muted-foreground/30" />
                       </div>
                     )}
