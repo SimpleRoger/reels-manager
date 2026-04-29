@@ -6,6 +6,9 @@ const router: IRouter = Router();
 const APIFY_TOKEN = process.env["APIFY_API_TOKEN"];
 const ACTOR_ID = "agentx~instagram-trending-scraper";
 
+// Minimum likes for a result to be considered "viral"
+const MIN_LIKES = 1_000;
+
 interface TrendingItem {
   id?: string;
   code?: string;
@@ -18,6 +21,11 @@ interface TrendingItem {
   caption?: string;
   timestamp?: number;
   date?: string;
+  // Actual field names returned by agentx~instagram-trending-scraper
+  likes?: number;
+  comments?: number;
+  plays?: number;
+  // Legacy / alternate field names (fallbacks)
   like_count?: number;
   likesCount?: number;
   comment_count?: number;
@@ -28,13 +36,17 @@ interface TrendingItem {
   thumbnail_url?: string;
   display_url?: string;
   thumbnailUrl?: string;
+  image_url?: string;
   video_url?: string;
   videoUrl?: string;
 }
 
 function mapItem(item: TrendingItem) {
+  const likeCount = item.likes ?? item.like_count ?? item.likesCount ?? null;
+  const commentsCount = item.comments ?? item.comment_count ?? item.commentsCount ?? null;
+  const viewCount = item.plays ?? item.play_count ?? item.video_play_count ?? item.videoViewCount ?? null;
   return {
-    url: item.url ?? (item.code ? `https://www.instagram.com/reel/${item.code}/` : null),
+    url: item.url ?? (item.code ? `https://www.instagram.com/p/${item.code}/` : null),
     shortcode: item.code ?? item.id ?? "",
     accountName: item.username ?? "unknown",
     section: item.section ?? null,
@@ -43,11 +55,11 @@ function mapItem(item: TrendingItem) {
     isVideo: item.is_video ?? false,
     caption: item.caption ?? null,
     date: item.date ?? (item.timestamp ? new Date(item.timestamp * 1000).toISOString() : null),
-    thumbnailUrl: item.thumbnail_url ?? item.display_url ?? item.thumbnailUrl ?? null,
+    thumbnailUrl: item.thumbnail_url ?? item.thumbnailUrl ?? item.display_url ?? item.image_url ?? null,
     videoUrl: item.video_url ?? item.videoUrl ?? null,
-    viewCount: item.play_count ?? item.video_play_count ?? item.videoViewCount ?? null,
-    likeCount: item.like_count ?? item.likesCount ?? null,
-    commentsCount: item.comment_count ?? item.commentsCount ?? null,
+    likeCount,
+    commentsCount,
+    viewCount,
   };
 }
 
