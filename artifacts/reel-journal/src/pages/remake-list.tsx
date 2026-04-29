@@ -271,11 +271,11 @@ export default function RemakeList() {
             return (
             <Card
               key={ref.id}
-              className="bg-card hover-elevate border-card-border overflow-hidden flex flex-col group"
+              className="bg-card hover-elevate border-card-border overflow-hidden flex flex-row group"
             >
-              {/* ── Thumbnail / player banner ── */}
+              {/* ── Portrait thumbnail / player (left) ── */}
               <div
-                className="relative w-full h-[140px] bg-muted border-b border-border cursor-pointer overflow-hidden shrink-0"
+                className="relative w-[120px] shrink-0 bg-muted border-r border-border cursor-pointer overflow-hidden"
                 onClick={() => setPlayingId(isPlaying ? null : ref.id)}
               >
                 {isPlaying ? (
@@ -295,146 +295,146 @@ export default function RemakeList() {
                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center">
+                      <div className="w-full h-full flex items-center justify-center min-h-[200px]">
                         <Play className="w-8 h-8 text-muted-foreground/30" />
                       </div>
                     )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
-                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <div className="w-12 h-12 rounded-full bg-primary/90 flex items-center justify-center shadow-xl">
-                        <Play className="w-5 h-5 text-black fill-black ml-0.5" />
+                    <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="w-10 h-10 rounded-full bg-primary/90 flex items-center justify-center shadow-xl">
+                        <Play className="w-4 h-4 text-black fill-black ml-0.5" />
                       </div>
                     </div>
-                    {/* Account name + stats overlay at bottom */}
-                    <div className="absolute bottom-0 left-0 right-0 px-3 py-2 flex items-center justify-between gap-2">
-                      <a
-                        href={ref.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="text-white hover:text-primary font-mono text-xs truncate flex items-center gap-1 min-w-0 drop-shadow"
-                      >
-                        <ExternalLink className="w-3 h-3 flex-shrink-0" />
-                        {ref.accountName ? `@${ref.accountName}` : ref.url}
-                      </a>
-                      <div className="flex items-center gap-3 text-[11px] font-mono text-white/80 shrink-0 drop-shadow">
-                        {ref.viewCount == null && ref.likeCount == null && ref.commentsCount == null ? (
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                        ) : (
-                          <>
-                            {ref.viewCount != null && (
-                              <span className="flex items-center gap-1"><Eye className="w-3 h-3" />{ref.viewCount.toLocaleString()}</span>
-                            )}
-                            {ref.likeCount != null && (
-                              <span className="flex items-center gap-1"><Heart className="w-3 h-3" />{ref.likeCount.toLocaleString()}</span>
-                            )}
-                            {ref.commentsCount != null && (
-                              <span className="flex items-center gap-1"><MessageCircle className="w-3 h-3" />{ref.commentsCount.toLocaleString()}</span>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="absolute top-2 right-2 h-6 w-6 text-white/70 hover:text-white hover:bg-black/40 z-10"
-                      onClick={(e) => { e.stopPropagation(); handleDelete(ref.id); }}
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
                   </>
                 )}
               </div>
 
-              {/* ── Caption + notes (always visible) ── */}
-              <CardContent className="p-4 flex-1 flex flex-col">
-                {ref.caption && (
-                  <div className="text-xs text-muted-foreground line-clamp-2 mb-4 bg-background p-2 rounded border">
-                    {ref.caption}
+              {/* ── Right: header + notes ── */}
+              <div className="flex-1 flex flex-col min-w-0">
+                {/* Header */}
+                <div className="px-4 py-3 bg-muted/30 border-b border-border space-y-1.5 shrink-0">
+                  <div className="flex justify-between items-center gap-2">
+                    <a
+                      href={ref.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline font-mono text-xs truncate flex items-center gap-1 min-w-0"
+                    >
+                      <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                      {ref.accountName ? `@${ref.accountName}` : ref.url}
+                    </a>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-muted-foreground hover:text-destructive shrink-0"
+                      onClick={() => handleDelete(ref.id)}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
                   </div>
-                )}
+                  {ref.viewCount == null && ref.likeCount == null && ref.commentsCount == null ? (
+                    <div className="flex items-center gap-1 text-[10px] font-mono text-muted-foreground/60">
+                      <Loader2 className="w-3 h-3 animate-spin" /> Fetching stats...
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3 text-[11px] font-mono">
+                      {ref.viewCount != null && (
+                        <span className="flex items-center gap-1 text-muted-foreground">
+                          <Eye className="w-3 h-3" />{ref.viewCount.toLocaleString()}
+                        </span>
+                      )}
+                      {ref.likeCount != null && (
+                        <span className="flex items-center gap-1 text-muted-foreground">
+                          <Heart className="w-3 h-3" />{ref.likeCount.toLocaleString()}
+                        </span>
+                      )}
+                      {ref.commentsCount != null && (
+                        <span className="flex items-center gap-1 text-muted-foreground">
+                          <MessageCircle className="w-3 h-3" />{ref.commentsCount.toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
 
-                {editingId === ref.id ? (
-                  <div className="space-y-3 flex-1 flex flex-col">
-                    {(
-                      [
-                        { key: "whyItsgood", label: "Why It's Good" },
-                        { key: "whatToChange", label: "What to Change" },
-                        { key: "howToRemake", label: "How to Remake" },
-                      ] as const
-                    ).map(({ key, label }) => (
-                      <div key={key} className="space-y-1 flex-1">
-                        <label className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
-                          {label}
-                        </label>
-                        <Textarea
-                          value={editValues[key]}
-                          onChange={(e) =>
-                            setEditValues((prev) => ({
-                              ...prev,
-                              [key]: e.target.value,
-                            }))
-                          }
-                          className="h-20 text-xs resize-none bg-background"
-                        />
-                      </div>
-                    ))}
-                    <div className="flex gap-2 pt-2">
-                      <Button
-                        size="sm"
-                        onClick={() => handleSave(ref.id)}
-                        className="flex-1 font-mono uppercase text-[10px] tracking-wider h-8"
-                      >
-                        <Check className="w-3 h-3 mr-1" /> Save Notes
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setEditingId(null)}
-                        className="flex-1 font-mono uppercase text-[10px] tracking-wider h-8"
-                      >
-                        Cancel
-                      </Button>
+                {/* Caption + notes */}
+                <CardContent className="p-4 flex-1 flex flex-col overflow-y-auto">
+                  {ref.caption && (
+                    <div className="text-xs text-muted-foreground line-clamp-2 mb-3 bg-background p-2 rounded border">
+                      {ref.caption}
                     </div>
-                  </div>
-                ) : (
-                  <div
-                    className="space-y-4 flex-1 flex flex-col cursor-pointer"
-                    onClick={() => startEditing(ref)}
-                  >
-                    {(
-                      [
-                        { key: "whyItsgood", label: "Why It's Good" },
-                        { key: "whatToChange", label: "What to Change" },
-                        { key: "howToRemake", label: "How to Remake", accent: true },
-                      ] as const
-                    ).map(({ key, label, accent }) => (
-                      <div key={key} className="flex-1">
-                        <h4
-                          className={`text-[10px] font-mono uppercase tracking-wider mb-1 ${
-                            accent ? "text-primary" : "text-muted-foreground"
-                          }`}
+                  )}
+
+                  {editingId === ref.id ? (
+                    <div className="space-y-3 flex-1 flex flex-col">
+                      {(
+                        [
+                          { key: "whyItsgood", label: "Why It's Good" },
+                          { key: "whatToChange", label: "What to Change" },
+                          { key: "howToRemake", label: "How to Remake" },
+                        ] as const
+                      ).map(({ key, label }) => (
+                        <div key={key} className="space-y-1">
+                          <label className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+                            {label}
+                          </label>
+                          <Textarea
+                            value={editValues[key]}
+                            onChange={(e) =>
+                              setEditValues((prev) => ({ ...prev, [key]: e.target.value }))
+                            }
+                            className="h-16 text-xs resize-none bg-background"
+                          />
+                        </div>
+                      ))}
+                      <div className="flex gap-2 pt-1">
+                        <Button
+                          size="sm"
+                          onClick={() => handleSave(ref.id)}
+                          className="flex-1 font-mono uppercase text-[10px] tracking-wider h-7"
                         >
-                          {label}
-                        </h4>
-                        <p className="text-sm">
-                          {(ref as any)[key] || (
-                            <span className="text-muted-foreground italic text-xs">
-                              Click to add notes...
-                            </span>
-                          )}
-                        </p>
+                          <Check className="w-3 h-3 mr-1" /> Save
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setEditingId(null)}
+                          className="font-mono uppercase text-[10px] tracking-wider h-7"
+                        >
+                          Cancel
+                        </Button>
                       </div>
-                    ))}
-                    <div className="pt-2 text-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <span className="text-[10px] font-mono uppercase tracking-wider text-primary">
-                        Click anywhere to edit
-                      </span>
                     </div>
-                  </div>
-                )}
-              </CardContent>
+                  ) : (
+                    <div
+                      className="space-y-3 flex-1 flex flex-col cursor-pointer"
+                      onClick={() => startEditing(ref)}
+                    >
+                      {(
+                        [
+                          { key: "whyItsgood", label: "Why It's Good" },
+                          { key: "whatToChange", label: "What to Change" },
+                          { key: "howToRemake", label: "How to Remake", accent: true },
+                        ] as const
+                      ).map(({ key, label, accent }) => (
+                        <div key={key}>
+                          <h4
+                            className={`text-[10px] font-mono uppercase tracking-wider mb-0.5 ${
+                              accent ? "text-primary" : "text-muted-foreground"
+                            }`}
+                          >
+                            {label}
+                          </h4>
+                          <p className="text-xs">
+                            {(ref as any)[key] || (
+                              <span className="text-muted-foreground italic">Click to add notes...</span>
+                            )}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </div>
             </Card>
             );
           })}
