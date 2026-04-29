@@ -13,9 +13,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { InlinePlayer } from "@/components/inline-player";
 import {
   Trash2, BookOpen, Plus, Link2, Eye, Heart, MessageCircle,
-  Play, X, Loader2, ExternalLink, Pencil, Check
+  Play, X, Loader2, Pencil, Check
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -35,81 +36,13 @@ type Lesson = {
   createdAt: string;
 };
 
-// ─── Proof Video Modal ────────────────────────────────────────────────────────
-
-function ProofModal({ lesson, onClose }: { lesson: Lesson; onClose: () => void }) {
-  const shortcode = lesson.proofUrl?.match(/instagram\.com\/(?:reel|p)\/([A-Za-z0-9_-]+)/)?.[1];
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        className="relative w-full max-w-sm mx-4 rounded-2xl overflow-hidden bg-black shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button
-          onClick={onClose}
-          className="absolute top-3 right-3 z-10 text-white/70 hover:text-white"
-        >
-          <X className="w-5 h-5" />
-        </button>
-        <div className="relative aspect-[9/16] w-full bg-black">
-          {lesson.proofMediaUrl ? (
-            <video
-              src={lesson.proofMediaUrl}
-              controls
-              autoPlay
-              playsInline
-              className="w-full h-full object-contain"
-            />
-          ) : shortcode ? (
-            <iframe
-              src={`https://www.instagram.com/reel/${shortcode}/embed/`}
-              className="w-full h-full"
-              style={{ border: "none" }}
-              allowFullScreen
-              scrolling="no"
-              allow="autoplay; clipboard-write; encrypted-media; picture-in-picture"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-white/40">
-              <Play className="w-12 h-12" />
-            </div>
-          )}
-        </div>
-        {/* Stats bar */}
-        <div className="bg-black/90 px-4 py-3 flex items-center gap-4 text-xs font-mono text-white/70">
-          {lesson.proofAccountName && (
-            <span className="text-primary font-semibold">@{lesson.proofAccountName}</span>
-          )}
-          {lesson.proofViewCount != null && (
-            <span className="flex items-center gap-1"><Eye className="w-3 h-3" />{formatNumber(lesson.proofViewCount)}</span>
-          )}
-          {lesson.proofLikeCount != null && (
-            <span className="flex items-center gap-1"><Heart className="w-3 h-3" />{formatNumber(lesson.proofLikeCount)}</span>
-          )}
-          {lesson.proofCommentsCount != null && (
-            <span className="flex items-center gap-1"><MessageCircle className="w-3 h-3" />{formatNumber(lesson.proofCommentsCount)}</span>
-          )}
-          {lesson.proofUrl && (
-            <a href={lesson.proofUrl} target="_blank" rel="noopener noreferrer" className="ml-auto hover:text-primary">
-              <ExternalLink className="w-3.5 h-3.5" />
-            </a>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── Lesson Card ──────────────────────────────────────────────────────────────
 
 function LessonCard({ lesson, onDelete }: { lesson: Lesson; onDelete: () => void }) {
   const queryClient = useQueryClient();
   const updateMutation = useUpdatePlaybookLesson();
   const { toast } = useToast();
-  const [watchOpen, setWatchOpen] = useState(false);
+  const [playing, setPlaying] = useState(false);
   const [editingProof, setEditingProof] = useState(false);
   const [proofInput, setProofInput] = useState(lesson.proofUrl ?? "");
 
@@ -140,6 +73,7 @@ function LessonCard({ lesson, onDelete }: { lesson: Lesson; onDelete: () => void
       {
         onSuccess: () => {
           setProofInput("");
+          setPlaying(false);
           queryClient.invalidateQueries({ queryKey: getListPlaybookLessonsQueryKey() });
         },
       }
@@ -147,140 +81,148 @@ function LessonCard({ lesson, onDelete }: { lesson: Lesson; onDelete: () => void
   }
 
   return (
-    <>
-      {watchOpen && <ProofModal lesson={lesson} onClose={() => setWatchOpen(false)} />}
+    <Card className="bg-card hover:border-primary/40 transition-colors group border-card-border overflow-hidden">
+      <CardContent className="p-0">
+        {/* Inline video player — expands inside the card when playing */}
+        {playing && lesson.proofUrl && (
+          <div className="flex justify-center bg-black">
+            <div className="relative w-[160px] aspect-[9/16]">
+              <InlinePlayer
+                mediaUrl={lesson.proofMediaUrl}
+                thumbnailUrl={lesson.proofThumbnailUrl}
+                instagramUrl={lesson.proofUrl}
+                onClose={() => setPlaying(false)}
+                className="absolute inset-0"
+              />
+            </div>
+          </div>
+        )}
 
-      <Card className="bg-card hover:border-primary/40 transition-colors group border-card-border overflow-hidden">
-        <CardContent className="p-0">
-          <div className="flex gap-0">
-            {/* Proof thumbnail strip */}
-            {lesson.proofUrl && (
-              <div
-                className="relative w-20 shrink-0 bg-muted overflow-hidden cursor-pointer"
-                onClick={() => setWatchOpen(true)}
+        <div className="flex gap-0">
+          {/* Proof thumbnail strip (only shown when not playing) */}
+          {lesson.proofUrl && !playing && (
+            <div
+              className="relative w-20 shrink-0 bg-muted overflow-hidden cursor-pointer"
+              onClick={() => setPlaying(true)}
+            >
+              {lesson.proofThumbnailUrl ? (
+                <img
+                  src={lesson.proofThumbnailUrl}
+                  alt="proof"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center min-h-[100px]">
+                  {hasPendingStats ? (
+                    <Loader2 className="w-5 h-5 text-muted-foreground/50 animate-spin" />
+                  ) : (
+                    <Play className="w-5 h-5 text-muted-foreground/50" />
+                  )}
+                </div>
+              )}
+              <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <Play className="w-6 h-6 text-white fill-white" />
+              </div>
+            </div>
+          )}
+
+          {/* Content */}
+          <div className="flex-1 p-4 flex flex-col gap-2 min-w-0">
+            {/* Top row: category + date + delete */}
+            <div className="flex items-center gap-2 justify-between">
+              <div className="flex items-center gap-2 min-w-0">
+                {lesson.category && (
+                  <Badge variant="secondary" className="text-[10px] uppercase font-mono tracking-wider py-0 px-1.5 h-4 shrink-0">
+                    {lesson.category}
+                  </Badge>
+                )}
+                <span className="text-[10px] text-muted-foreground font-mono truncate">
+                  {formatDateTime(lesson.createdAt)}
+                </span>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onDelete}
+                className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity h-6 w-6 shrink-0"
               >
-                {lesson.proofThumbnailUrl ? (
-                  <img
-                    src={lesson.proofThumbnailUrl}
-                    alt="proof"
-                    className="w-full h-full object-cover"
-                  />
+                <Trash2 className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+
+            {/* Lesson text */}
+            <p className="text-card-foreground text-sm font-medium leading-relaxed">{lesson.lesson}</p>
+
+            {/* Proof section */}
+            {lesson.proofUrl ? (
+              <div className="flex items-center gap-3 mt-1">
+                {hasPendingStats ? (
+                  <span className="text-[10px] font-mono text-muted-foreground/60 flex items-center gap-1">
+                    <Loader2 className="w-3 h-3 animate-spin" /> Fetching stats...
+                  </span>
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center min-h-[100px]">
-                    {hasPendingStats ? (
-                      <Loader2 className="w-5 h-5 text-muted-foreground/50 animate-spin" />
-                    ) : (
-                      <Play className="w-5 h-5 text-muted-foreground/50" />
+                  <div className="flex items-center gap-3 text-[11px] font-mono text-muted-foreground">
+                    {lesson.proofAccountName && (
+                      <span className="text-primary font-semibold">@{lesson.proofAccountName}</span>
+                    )}
+                    {lesson.proofViewCount != null && (
+                      <span className="flex items-center gap-1">
+                        <Eye className="w-3 h-3" />{formatNumber(lesson.proofViewCount)}
+                      </span>
+                    )}
+                    {lesson.proofLikeCount != null && (
+                      <span className="flex items-center gap-1">
+                        <Heart className="w-3 h-3" />{formatNumber(lesson.proofLikeCount)}
+                      </span>
+                    )}
+                    {lesson.proofCommentsCount != null && (
+                      <span className="flex items-center gap-1">
+                        <MessageCircle className="w-3 h-3" />{formatNumber(lesson.proofCommentsCount)}
+                      </span>
                     )}
                   </div>
                 )}
-                {/* Play overlay */}
-                <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Play className="w-6 h-6 text-white fill-white" />
+                <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => { setProofInput(lesson.proofUrl ?? ""); setEditingProof(true); }}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <Pencil className="w-3 h-3" />
+                  </button>
+                  <button onClick={removeProofUrl} className="text-muted-foreground hover:text-destructive">
+                    <X className="w-3 h-3" />
+                  </button>
                 </div>
               </div>
-            )}
-
-            {/* Content */}
-            <div className="flex-1 p-4 flex flex-col gap-2 min-w-0">
-              {/* Top row: category + date + delete */}
-              <div className="flex items-center gap-2 justify-between">
-                <div className="flex items-center gap-2 min-w-0">
-                  {lesson.category && (
-                    <Badge variant="secondary" className="text-[10px] uppercase font-mono tracking-wider py-0 px-1.5 h-4 shrink-0">
-                      {lesson.category}
-                    </Badge>
-                  )}
-                  <span className="text-[10px] text-muted-foreground font-mono truncate">
-                    {formatDateTime(lesson.createdAt)}
-                  </span>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={onDelete}
-                  className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity h-6 w-6 shrink-0"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
+            ) : editingProof ? (
+              <div className="flex gap-1 mt-1">
+                <Input
+                  value={proofInput}
+                  onChange={(e) => setProofInput(e.target.value)}
+                  placeholder="https://www.instagram.com/reel/..."
+                  className="h-7 text-xs font-mono bg-background flex-1"
+                  autoFocus
+                  onKeyDown={(e) => { if (e.key === "Enter") saveProofUrl(); if (e.key === "Escape") setEditingProof(false); }}
+                />
+                <Button size="icon" className="h-7 w-7 shrink-0" onClick={saveProofUrl} disabled={updateMutation.isPending}>
+                  <Check className="w-3 h-3" />
+                </Button>
+                <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" onClick={() => setEditingProof(false)}>
+                  <X className="w-3 h-3" />
                 </Button>
               </div>
-
-              {/* Lesson text */}
-              <p className="text-card-foreground text-sm font-medium leading-relaxed">{lesson.lesson}</p>
-
-              {/* Proof section */}
-              {lesson.proofUrl ? (
-                <div className="flex items-center gap-3 mt-1">
-                  {/* Stats */}
-                  {hasPendingStats ? (
-                    <span className="text-[10px] font-mono text-muted-foreground/60 flex items-center gap-1">
-                      <Loader2 className="w-3 h-3 animate-spin" /> Fetching stats...
-                    </span>
-                  ) : (
-                    <div className="flex items-center gap-3 text-[11px] font-mono text-muted-foreground">
-                      {lesson.proofAccountName && (
-                        <span className="text-primary font-semibold">@{lesson.proofAccountName}</span>
-                      )}
-                      {lesson.proofViewCount != null && (
-                        <span className="flex items-center gap-1">
-                          <Eye className="w-3 h-3" />{formatNumber(lesson.proofViewCount)}
-                        </span>
-                      )}
-                      {lesson.proofLikeCount != null && (
-                        <span className="flex items-center gap-1">
-                          <Heart className="w-3 h-3" />{formatNumber(lesson.proofLikeCount)}
-                        </span>
-                      )}
-                      {lesson.proofCommentsCount != null && (
-                        <span className="flex items-center gap-1">
-                          <MessageCircle className="w-3 h-3" />{formatNumber(lesson.proofCommentsCount)}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                  {/* Edit / remove proof buttons */}
-                  <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={() => { setProofInput(lesson.proofUrl ?? ""); setEditingProof(true); }}
-                      className="text-muted-foreground hover:text-foreground"
-                    >
-                      <Pencil className="w-3 h-3" />
-                    </button>
-                    <button onClick={removeProofUrl} className="text-muted-foreground hover:text-destructive">
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                </div>
-              ) : editingProof ? (
-                <div className="flex gap-1 mt-1">
-                  <Input
-                    value={proofInput}
-                    onChange={(e) => setProofInput(e.target.value)}
-                    placeholder="https://www.instagram.com/reel/..."
-                    className="h-7 text-xs font-mono bg-background flex-1"
-                    autoFocus
-                    onKeyDown={(e) => { if (e.key === "Enter") saveProofUrl(); if (e.key === "Escape") setEditingProof(false); }}
-                  />
-                  <Button size="icon" className="h-7 w-7 shrink-0" onClick={saveProofUrl} disabled={updateMutation.isPending}>
-                    <Check className="w-3 h-3" />
-                  </Button>
-                  <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" onClick={() => setEditingProof(false)}>
-                    <X className="w-3 h-3" />
-                  </Button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setEditingProof(true)}
-                  className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground/50 hover:text-primary flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all mt-1"
-                >
-                  <Link2 className="w-3 h-3" /> Attach proof reel
-                </button>
-              )}
-            </div>
+            ) : (
+              <button
+                onClick={() => setEditingProof(true)}
+                className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground/50 hover:text-primary flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all mt-1"
+              >
+                <Link2 className="w-3 h-3" /> Attach proof reel
+              </button>
+            )}
           </div>
-        </CardContent>
-      </Card>
-    </>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
