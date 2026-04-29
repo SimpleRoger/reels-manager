@@ -14,72 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Trash2, ExternalLink, Bookmark, Check, Plus, Link2, Loader2, X, Play, Eye, Heart, MessageCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-
-function extractShortcode(url: string): string | null {
-  const match = url.match(/instagram\.com\/(?:reel|p)\/([A-Za-z0-9_-]+)/);
-  return match ? match[1] : null;
-}
-
-interface WatchRef {
-  url: string;
-  mediaUrl?: string | null;
-  thumbnailUrl?: string | null;
-}
-
-function VideoModal({ ref: watchRef, onClose }: { ref: WatchRef; onClose: () => void }) {
-  const shortcode = extractShortcode(watchRef.url);
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div className="relative w-full max-w-sm mx-4" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-3">
-          <button
-            onClick={onClose}
-            className="text-white/70 hover:text-white transition-colors flex items-center gap-1 text-sm font-mono"
-          >
-            <X className="w-4 h-4" /> Close
-          </button>
-          <a
-            href={watchRef.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-white/70 hover:text-white text-xs flex items-center gap-1 font-mono"
-          >
-            Open in Instagram <ExternalLink className="w-3 h-3" />
-          </a>
-        </div>
-        <div className="aspect-[9/16] rounded-xl overflow-hidden bg-black shadow-2xl">
-          {watchRef.mediaUrl ? (
-            <video
-              src={watchRef.mediaUrl}
-              poster={watchRef.thumbnailUrl ?? undefined}
-              controls
-              autoPlay
-              playsInline
-              className="w-full h-full object-contain"
-            />
-          ) : shortcode ? (
-            <iframe
-              src={`https://www.instagram.com/reel/${shortcode}/embed/`}
-              className="w-full h-full"
-              style={{ border: "none" }}
-              allowFullScreen
-              scrolling="no"
-              allow="autoplay; clipboard-write; encrypted-media; picture-in-picture"
-            />
-          ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center text-white/50 gap-3">
-              <Play className="w-12 h-12" />
-              <p className="text-sm">Could not load reel</p>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
+import { InlinePlayer } from "@/components/inline-player";
 
 export default function RemakeList() {
   const { data, isLoading } = useListReferences({
@@ -92,7 +27,7 @@ export default function RemakeList() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const [watchRef, setWatchRef] = useState<WatchRef | null>(null);
+  const [playingId, setPlayingId] = useState<number | null>(null);
   const [addMode, setAddMode] = useState<"single" | "batch" | null>(null);
   const [singleUrl, setSingleUrl] = useState("");
   const [batchUrls, setBatchUrls] = useState("");
@@ -204,9 +139,6 @@ export default function RemakeList() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      {watchRef && (
-        <VideoModal ref={watchRef} onClose={() => setWatchRef(null)} />
-      )}
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
           <h1 className="text-3xl font-bold tracking-tight">Remake List</h1>
@@ -334,73 +266,102 @@ export default function RemakeList() {
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {data?.references.map((ref) => (
+          {data?.references.map((ref) => {
+            const isPlaying = playingId === ref.id;
+            return (
             <Card
               key={ref.id}
-              className="bg-card hover-elevate border-card-border overflow-hidden flex flex-col h-full"
+              className="bg-card hover-elevate border-card-border overflow-hidden flex flex-col h-full group"
             >
-              <div className="p-4 bg-muted/30 border-b border-border space-y-2">
-                <div className="flex justify-between items-start gap-4">
-                  <a
-                    href={ref.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary hover:underline font-mono text-xs truncate flex items-center gap-1 min-w-0"
-                  >
-                    <ExternalLink className="w-3 h-3 flex-shrink-0" />
-                    {ref.accountName ? `@${ref.accountName}` : ref.url}
-                  </a>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 px-2 text-xs font-mono uppercase tracking-wider text-primary hover:text-primary hover:bg-primary/10"
-                      onClick={() => setWatchRef({ url: ref.url, mediaUrl: ref.mediaUrl, thumbnailUrl: ref.thumbnailUrl })}
-                    >
-                      <Play className="w-3 h-3 mr-1" /> Watch
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                      onClick={() => handleDelete(ref.id)}
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
+              {/* Inline player — shown when playing */}
+              {isPlaying && (
+                <div className="flex justify-center bg-black border-b border-border">
+                  <div className="relative w-[148px] aspect-[9/16]">
+                    <InlinePlayer
+                      mediaUrl={ref.mediaUrl}
+                      thumbnailUrl={ref.thumbnailUrl}
+                      instagramUrl={ref.url}
+                      onClose={() => setPlayingId(null)}
+                      className="absolute inset-0"
+                    />
                   </div>
                 </div>
+              )}
 
-                {/* Stats row */}
-                {ref.viewCount == null && ref.likeCount == null && ref.commentsCount == null ? (
-                  <div className="flex items-center gap-1 text-[10px] font-mono text-muted-foreground/60">
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                    Fetching stats...
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-4 text-[11px] font-mono">
-                    {ref.viewCount != null && (
-                      <span className="flex items-center gap-1 text-muted-foreground">
-                        <Eye className="w-3 h-3" />
-                        {ref.viewCount.toLocaleString()}
-                      </span>
+              <div className="flex gap-0 flex-1">
+                {/* Thumbnail strip — hidden while playing */}
+                {!isPlaying && (
+                  <div
+                    className="relative w-[72px] shrink-0 bg-muted overflow-hidden cursor-pointer border-r border-border"
+                    onClick={() => setPlayingId(ref.id)}
+                  >
+                    {ref.thumbnailUrl ? (
+                      <img
+                        src={ref.thumbnailUrl}
+                        alt="thumbnail"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center min-h-[120px]">
+                        <Play className="w-4 h-4 text-muted-foreground/40" />
+                      </div>
                     )}
-                    {ref.likeCount != null && (
-                      <span className="flex items-center gap-1 text-muted-foreground">
-                        <Heart className="w-3 h-3" />
-                        {ref.likeCount.toLocaleString()}
-                      </span>
-                    )}
-                    {ref.commentsCount != null && (
-                      <span className="flex items-center gap-1 text-muted-foreground">
-                        <MessageCircle className="w-3 h-3" />
-                        {ref.commentsCount.toLocaleString()}
-                      </span>
-                    )}
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Play className="w-6 h-6 text-white fill-white drop-shadow-md" />
+                    </div>
                   </div>
                 )}
-              </div>
 
-              <CardContent className="p-5 flex-1 flex flex-col">
+                <div className="flex-1 flex flex-col min-w-0">
+                  <div className="px-4 py-3 bg-muted/30 border-b border-border space-y-1.5">
+                    <div className="flex justify-between items-center gap-3">
+                      <a
+                        href={ref.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline font-mono text-xs truncate flex items-center gap-1 min-w-0"
+                      >
+                        <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                        {ref.accountName ? `@${ref.accountName}` : ref.url}
+                      </a>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-muted-foreground hover:text-destructive shrink-0"
+                        onClick={() => handleDelete(ref.id)}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+
+                    {/* Stats row */}
+                    {ref.viewCount == null && ref.likeCount == null && ref.commentsCount == null ? (
+                      <div className="flex items-center gap-1 text-[10px] font-mono text-muted-foreground/60">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        Fetching stats...
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-4 text-[11px] font-mono">
+                        {ref.viewCount != null && (
+                          <span className="flex items-center gap-1 text-muted-foreground">
+                            <Eye className="w-3 h-3" />{ref.viewCount.toLocaleString()}
+                          </span>
+                        )}
+                        {ref.likeCount != null && (
+                          <span className="flex items-center gap-1 text-muted-foreground">
+                            <Heart className="w-3 h-3" />{ref.likeCount.toLocaleString()}
+                          </span>
+                        )}
+                        {ref.commentsCount != null && (
+                          <span className="flex items-center gap-1 text-muted-foreground">
+                            <MessageCircle className="w-3 h-3" />{ref.commentsCount.toLocaleString()}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+              <CardContent className="p-4 flex-1 flex flex-col">
                 {ref.caption && (
                   <div className="text-xs text-muted-foreground line-clamp-2 mb-4 bg-background p-2 rounded border">
                     {ref.caption}
@@ -487,8 +448,11 @@ export default function RemakeList() {
                   </div>
                 )}
               </CardContent>
+                </div>{/* flex-1 col */}
+              </div>{/* flex row */}
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
