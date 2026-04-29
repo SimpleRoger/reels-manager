@@ -7,6 +7,13 @@ export const playbookLessonsTable = pgTable("playbook_lessons", {
   lesson: text("lesson").notNull(),
   category: text("category"),
   sourceReelId: integer("source_reel_id"),
+  proofUrl: text("proof_url"),
+  proofThumbnailUrl: text("proof_thumbnail_url"),
+  proofMediaUrl: text("proof_media_url"),
+  proofViewCount: integer("proof_view_count"),
+  proofLikeCount: integer("proof_like_count"),
+  proofCommentsCount: integer("proof_comments_count"),
+  proofAccountName: text("proof_account_name"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

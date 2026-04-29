@@ -880,6 +880,20 @@ components:
           type: ["string", "null"]
         sourceReelId:
           type: ["integer", "null"]
+        proofUrl:
+          type: ["string", "null"]
+        proofThumbnailUrl:
+          type: ["string", "null"]
+        proofMediaUrl:
+          type: ["string", "null"]
+        proofViewCount:
+          type: ["integer", "null"]
+        proofLikeCount:
+          type: ["integer", "null"]
+        proofCommentsCount:
+          type: ["integer", "null"]
+        proofAccountName:
+          type: ["string", "null"]
         createdAt:
           type: string
         updatedAt:
@@ -909,6 +923,8 @@ components:
           type: ["string", "null"]
         sourceReelId:
           type: ["integer", "null"]
+        proofUrl:
+          type: ["string", "null"]
       required:
         - lesson
 
@@ -916,8 +932,22 @@ components:
       type: object
       properties:
         lesson:
-          type: string
+          type: ["string", "null"]
         category:
+          type: ["string", "null"]
+        proofUrl:
+          type: ["string", "null"]
+        proofThumbnailUrl:
+          type: ["string", "null"]
+        proofMediaUrl:
+          type: ["string", "null"]
+        proofViewCount:
+          type: ["integer", "null"]
+        proofLikeCount:
+          type: ["integer", "null"]
+        proofCommentsCount:
+          type: ["integer", "null"]
+        proofAccountName:
           type: ["string", "null"]
 
     # ─── SAVED REFERENCES ─────────────────────────────────────────────────────

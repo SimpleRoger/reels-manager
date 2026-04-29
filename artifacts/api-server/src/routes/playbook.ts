@@ -7,6 +7,8 @@ import {
   UpdatePlaybookLessonBody,
   DeletePlaybookLessonParams,
 } from "@workspace/api-zod";
+import { scrapeInstagramReel } from "../lib/apify";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
@@ -16,6 +18,27 @@ function formatLesson(lesson: typeof playbookLessonsTable.$inferSelect) {
     createdAt: lesson.createdAt.toISOString(),
     updatedAt: lesson.updatedAt.toISOString(),
   };
+}
+
+async function enrichProofUrl(lessonId: number, proofUrl: string): Promise<void> {
+  try {
+    const result = await scrapeInstagramReel(proofUrl);
+    if (!result) return;
+    await db
+      .update(playbookLessonsTable)
+      .set({
+        proofThumbnailUrl: result.thumbnailUrl ?? undefined,
+        proofMediaUrl: result.mediaUrl ?? undefined,
+        proofViewCount: result.videoViewCount ?? undefined,
+        proofLikeCount: result.likesCount ?? undefined,
+        proofCommentsCount: result.commentsCount ?? undefined,
+        proofAccountName: result.accountName ?? undefined,
+      })
+      .where(eq(playbookLessonsTable.id, lessonId));
+    logger.info({ lessonId }, "Proof URL enriched via Apify");
+  } catch (err) {
+    logger.error({ err, lessonId }, "Failed to enrich proof URL");
+  }
 }
 
 router.get("/playbook", async (_req, res): Promise<void> => {
@@ -34,6 +57,12 @@ router.post("/playbook", async (req, res): Promise<void> => {
   }
 
   const [lesson] = await db.insert(playbookLessonsTable).values(body.data).returning();
+
+  // Fire Apify enrichment in background if proof URL provided
+  if (body.data.proofUrl) {
+    enrichProofUrl(lesson.id, body.data.proofUrl).catch(() => {});
+  }
+
   res.status(201).json(formatLesson(lesson));
 });
 
@@ -60,6 +89,11 @@ router.patch("/playbook/:id", async (req, res): Promise<void> => {
   if (!lesson) {
     res.status(404).json({ error: "Lesson not found" });
     return;
+  }
+
+  // If proof URL changed and is new, re-enrich
+  if (body.data.proofUrl && body.data.proofUrl !== lesson.proofUrl) {
+    enrichProofUrl(lesson.id, body.data.proofUrl).catch(() => {});
   }
 
   res.json(formatLesson(lesson));

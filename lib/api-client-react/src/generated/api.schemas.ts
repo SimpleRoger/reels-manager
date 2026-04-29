@@ -206,6 +206,20 @@ export interface PlaybookLesson {
   category?: string | null;
   /** @nullable */
   sourceReelId?: number | null;
+  /** @nullable */
+  proofUrl?: string | null;
+  /** @nullable */
+  proofThumbnailUrl?: string | null;
+  /** @nullable */
+  proofMediaUrl?: string | null;
+  /** @nullable */
+  proofViewCount?: number | null;
+  /** @nullable */
+  proofLikeCount?: number | null;
+  /** @nullable */
+  proofCommentsCount?: number | null;
+  /** @nullable */
+  proofAccountName?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -220,12 +234,29 @@ export interface CreatePlaybookBody {
   category?: string | null;
   /** @nullable */
   sourceReelId?: number | null;
+  /** @nullable */
+  proofUrl?: string | null;
 }
 
 export interface UpdatePlaybookBody {
-  lesson?: string;
+  /** @nullable */
+  lesson?: string | null;
   /** @nullable */
   category?: string | null;
+  /** @nullable */
+  proofUrl?: string | null;
+  /** @nullable */
+  proofThumbnailUrl?: string | null;
+  /** @nullable */
+  proofMediaUrl?: string | null;
+  /** @nullable */
+  proofViewCount?: number | null;
+  /** @nullable */
+  proofLikeCount?: number | null;
+  /** @nullable */
+  proofCommentsCount?: number | null;
+  /** @nullable */
+  proofAccountName?: string | null;
 }
 
 export interface SavedReference {

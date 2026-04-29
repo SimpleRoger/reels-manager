@@ -419,6 +419,13 @@ export const ListPlaybookLessonsResponse = zod.object({
       lesson: zod.string(),
       category: zod.string().nullish(),
       sourceReelId: zod.number().nullish(),
+      proofUrl: zod.string().nullish(),
+      proofThumbnailUrl: zod.string().nullish(),
+      proofMediaUrl: zod.string().nullish(),
+      proofViewCount: zod.number().nullish(),
+      proofLikeCount: zod.number().nullish(),
+      proofCommentsCount: zod.number().nullish(),
+      proofAccountName: zod.string().nullish(),
       createdAt: zod.string(),
       updatedAt: zod.string(),
     }),
@@ -432,6 +439,7 @@ export const CreatePlaybookLessonBody = zod.object({
   lesson: zod.string(),
   category: zod.string().nullish(),
   sourceReelId: zod.number().nullish(),
+  proofUrl: zod.string().nullish(),
 });
 
 /**
@@ -442,8 +450,15 @@ export const UpdatePlaybookLessonParams = zod.object({
 });
 
 export const UpdatePlaybookLessonBody = zod.object({
-  lesson: zod.string().optional(),
+  lesson: zod.string().nullish(),
   category: zod.string().nullish(),
+  proofUrl: zod.string().nullish(),
+  proofThumbnailUrl: zod.string().nullish(),
+  proofMediaUrl: zod.string().nullish(),
+  proofViewCount: zod.number().nullish(),
+  proofLikeCount: zod.number().nullish(),
+  proofCommentsCount: zod.number().nullish(),
+  proofAccountName: zod.string().nullish(),
 });
 
 export const UpdatePlaybookLessonResponse = zod.object({
@@ -451,6 +466,13 @@ export const UpdatePlaybookLessonResponse = zod.object({
   lesson: zod.string(),
   category: zod.string().nullish(),
   sourceReelId: zod.number().nullish(),
+  proofUrl: zod.string().nullish(),
+  proofThumbnailUrl: zod.string().nullish(),
+  proofMediaUrl: zod.string().nullish(),
+  proofViewCount: zod.number().nullish(),
+  proofLikeCount: zod.number().nullish(),
+  proofCommentsCount: zod.number().nullish(),
+  proofAccountName: zod.string().nullish(),
   createdAt: zod.string(),
   updatedAt: zod.string(),
 });
