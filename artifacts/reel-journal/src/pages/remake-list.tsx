@@ -15,6 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Trash2, ExternalLink, Bookmark, Check, Plus, Link2, Loader2, X, Play, Eye, Heart, MessageCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { InlinePlayer } from "@/components/inline-player";
+import { VideoThumb } from "@/components/video-thumb";
 
 export default function RemakeList() {
   const { data, isLoading } = useListReferences({
@@ -28,7 +29,6 @@ export default function RemakeList() {
   const { toast } = useToast();
 
   const [playingId, setPlayingId] = useState<number | null>(null);
-  const [failedThumbs, setFailedThumbs] = useState<Set<string>>(new Set());
   const [refreshing, setRefreshing] = useState(false);
   const [addMode, setAddMode] = useState<"single" | "batch" | null>(null);
   const [singleUrl, setSingleUrl] = useState("");
@@ -324,21 +324,13 @@ export default function RemakeList() {
                   />
                 ) : (
                   <>
-                    {ref.thumbnailUrl && !failedThumbs.has(ref.thumbnailUrl) ? (
-                      <img
-                        key={ref.thumbnailUrl}
-                        src={ref.thumbnailUrl}
-                        alt="thumbnail"
-                        className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                        onError={() =>
-                          setFailedThumbs((prev) => new Set([...prev, ref.thumbnailUrl!]))
-                        }
+                    <div className="absolute inset-0">
+                      <VideoThumb
+                        thumbnailUrl={ref.thumbnailUrl ?? null}
+                        videoUrl={ref.mediaUrl ?? null}
+                        className="transition-transform duration-500 group-hover:scale-105"
                       />
-                    ) : (
-                      <div className="absolute inset-0 flex items-center justify-center bg-zinc-900">
-                        <Play className="w-10 h-10 text-muted-foreground/30" />
-                      </div>
-                    )}
+                    </div>
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                       <div className="w-14 h-14 rounded-full bg-primary/90 flex items-center justify-center shadow-xl">

@@ -12,6 +12,7 @@ import videoAnalysisRouter from "./video-analysis";
 import dmImporterRouter from "./dm-importer";
 import reelSearchRouter from "./reel-search";
 import trendingReelsRouter from "./trending-reels";
+import mediaProxyRouter from "./media-proxy";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use(videoAnalysisRouter);
 router.use(dmImporterRouter);
 router.use(reelSearchRouter);
 router.use(trendingReelsRouter);
+router.use(mediaProxyRouter);
 
 export default router;

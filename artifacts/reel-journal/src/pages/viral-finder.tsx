@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { InlinePlayer } from "@/components/inline-player";
+import { VideoThumb } from "@/components/video-thumb";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -257,9 +258,7 @@ function SearchTab() {
                                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                               />
                             ) : (
-                              <div className="w-full h-full flex items-center justify-center text-muted-foreground/30">
-                                <Play className="w-8 h-8" />
-                              </div>
+                              <VideoThumb videoUrl={result.videoUrl} className="transition-transform duration-500 group-hover:scale-105" />
                             )}
                             {/* Hover play button */}
                             <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -592,9 +591,7 @@ function TrendingTab() {
                                 onError={() => setFailedThumbs((p) => new Set([...p, result.thumbnailUrl!]))}
                               />
                             ) : (
-                              <div className="w-full h-full flex items-center justify-center text-muted-foreground/30">
-                                <Play className="w-8 h-8" />
-                              </div>
+                              <VideoThumb videoUrl={result.videoUrl} className="transition-transform duration-500 group-hover:scale-105" />
                             )}
                             {/* Hover play button */}
                             <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
