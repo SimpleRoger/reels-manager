@@ -12,8 +12,14 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Trash2, ExternalLink, Bookmark, Check, Plus, Link2, Loader2, X } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Trash2, ExternalLink, Bookmark, Check, Plus, Link2, Loader2, X, Play } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+function extractShortcode(url: string): string | null {
+  const match = url.match(/instagram\.com\/(?:reel|p)\/([A-Za-z0-9_-]+)/);
+  return match ? match[1] : null;
+}
 
 export default function RemakeList() {
   const { data, isLoading } = useListReferences({
@@ -26,6 +32,7 @@ export default function RemakeList() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
+  const [watchUrl, setWatchUrl] = useState<string | null>(null);
   const [addMode, setAddMode] = useState<"single" | "batch" | null>(null);
   const [singleUrl, setSingleUrl] = useState("");
   const [batchUrls, setBatchUrls] = useState("");
@@ -125,8 +132,41 @@ export default function RemakeList() {
     });
   }
 
+  const watchShortcode = watchUrl ? extractShortcode(watchUrl) : null;
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
+      <Dialog open={!!watchUrl} onOpenChange={(open) => !open && setWatchUrl(null)}>
+        <DialogContent className="max-w-sm p-0 overflow-hidden bg-black border-border">
+          <DialogHeader className="px-4 py-3 border-b border-border bg-card">
+            <DialogTitle className="text-sm font-mono uppercase tracking-wider flex items-center gap-2">
+              <Play className="w-3 h-3 text-primary" /> Saved Reel
+              <a
+                href={watchUrl ?? "#"}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-auto text-primary hover:underline text-xs flex items-center gap-1 normal-case tracking-normal"
+              >
+                Open in Instagram <ExternalLink className="w-3 h-3" />
+              </a>
+            </DialogTitle>
+          </DialogHeader>
+          {watchShortcode ? (
+            <iframe
+              src={`https://www.instagram.com/reel/${watchShortcode}/embed/`}
+              className="w-full"
+              style={{ height: 560, border: "none" }}
+              allowFullScreen
+              scrolling="no"
+              allow="autoplay; clipboard-write; encrypted-media; picture-in-picture"
+            />
+          ) : (
+            <div className="flex items-center justify-center h-64 text-muted-foreground text-sm">
+              Could not parse reel URL
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
           <h1 className="text-3xl font-bold tracking-tight">Remake List</h1>
@@ -264,19 +304,29 @@ export default function RemakeList() {
                   href={ref.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-primary hover:underline font-mono text-xs truncate flex items-center gap-1"
+                  className="text-primary hover:underline font-mono text-xs truncate flex items-center gap-1 min-w-0"
                 >
                   <ExternalLink className="w-3 h-3 flex-shrink-0" />
                   {ref.url}
                 </a>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 text-muted-foreground hover:text-destructive shrink-0"
-                  onClick={() => handleDelete(ref.id)}
-                >
-                  <Trash2 className="w-3 h-3" />
-                </Button>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-xs font-mono uppercase tracking-wider text-primary hover:text-primary hover:bg-primary/10"
+                    onClick={() => setWatchUrl(ref.url)}
+                  >
+                    <Play className="w-3 h-3 mr-1" /> Watch
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                    onClick={() => handleDelete(ref.id)}
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                </div>
               </div>
 
               <CardContent className="p-5 flex-1 flex flex-col">
