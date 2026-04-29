@@ -11,7 +11,7 @@ import { PlaySquare, Filter, Play } from "lucide-react";
 import type { ListReelsSortBy, ListReelsSortOrder } from "@workspace/api-client-react";
 
 export default function ReelsLog() {
-  const [sortBy, setSortBy] = useState<ListReelsSortBy>("postedAt");
+  const [sortBy, setSortBy] = useState<ListReelsSortBy>("likeCount");
   const [sortOrder, setSortOrder] = useState<ListReelsSortOrder>("desc");
   const [playingId, setPlayingId] = useState<number | null>(null);
 
