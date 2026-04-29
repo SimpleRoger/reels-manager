@@ -4,42 +4,39 @@ import { logger } from "../lib/logger";
 const router: IRouter = Router();
 
 const APIFY_TOKEN = process.env["APIFY_API_TOKEN"];
-const ACTOR_ID = "apify~instagram-scraper";
+const ACTOR_ID = "patient_discovery/instagram-search-reels";
 
-interface ApifyItem {
-  // URL fields — different versions use different keys
-  url?: string;
-  permalink?: string;
-  shortCode?: string;
-  // Video
-  videoUrl?: string;
-  videoSrc?: string;
-  // Thumbnail
-  displayUrl?: string;
-  thumbnailUrl?: string;
-  imageUrl?: string;
-  // Caption / owner
-  caption?: string;
+interface SearchReelItem {
+  id?: string;
+  code?: string;
+  // Caption — can be a string or an object with `.text`
+  caption?: string | { text?: string; hashtags?: string[]; mentions?: string[] };
+  user?: { username?: string; full_name?: string };
   ownerUsername?: string;
-  username?: string;
   // Engagement
-  videoViewCount?: number;
-  videoPlayCount?: number;
-  playCount?: number;
+  ig_play_count?: number;
+  play_count?: number;
+  like_count?: number;
   likesCount?: number;
-  likesCountFull?: number;
-  likes?: number;
+  comment_count?: number;
   commentsCount?: number;
-  comments?: number;
-  // Type
-  type?: string;
-  productType?: string;
-  isVideo?: boolean;
+  share_count?: number;
+  // Media
+  video_url?: string;
+  videoUrl?: string;
+  // Thumbnail — actor doesn't always return one, try common fields
+  thumbnail_url?: string;
+  display_url?: string;
+  thumbnailUrl?: string;
+  displayUrl?: string;
+  // Date
+  taken_at_date?: string;
+  timestamp?: string;
 }
 
 async function pollRun(runId: string): Promise<boolean> {
-  const maxWait = 120_000;
-  const interval = 3_000;
+  const maxWait = 180_000;
+  const interval = 4_000;
   const start = Date.now();
 
   while (Date.now() - start < maxWait) {
@@ -48,7 +45,7 @@ async function pollRun(runId: string): Promise<boolean> {
       `https://api.apify.com/v2/actor-runs/${runId}?token=${APIFY_TOKEN}`
     );
     if (!res.ok) break;
-    const data = await res.json() as { data: { status: string } };
+    const data = (await res.json()) as { data: { status: string } };
     const status = data?.data?.status;
     if (status === "SUCCEEDED") return true;
     if (status === "FAILED" || status === "ABORTED" || status === "TIMED-OUT") {
@@ -59,11 +56,10 @@ async function pollRun(runId: string): Promise<boolean> {
   return false;
 }
 
-function resolveUrl(item: ApifyItem, hashtag: string): string | null {
-  if (item.url) return item.url;
-  if (item.permalink) return item.permalink;
-  if (item.shortCode) return `https://www.instagram.com/reel/${item.shortCode}/`;
-  return null;
+function extractCaption(raw: SearchReelItem["caption"]): string | null {
+  if (!raw) return null;
+  if (typeof raw === "string") return raw;
+  return raw.text ?? null;
 }
 
 router.post("/reel-search", async (req, res): Promise<void> => {
@@ -78,25 +74,20 @@ router.post("/reel-search", async (req, res): Promise<void> => {
     return;
   }
 
-  const hashtag = raw.replace(/^#/, "").trim();
+  // Strip leading # — the actor takes a plain keyword/phrase, not a hashtag URL
+  const query = raw.replace(/^#/, "").trim();
   const limit = Math.min(Number(req.body?.limit) || 30, 50);
+  // Each page yields ~12 reels; request enough pages to hit the desired limit
+  const maxPages = Math.ceil(limit / 12);
 
-  // Use the explore/tags URL as directUrl — more reliable than the hashtags input field
-  const exploreUrl = `https://www.instagram.com/explore/tags/${encodeURIComponent(hashtag)}/`;
-
-  logger.info({ hashtag, limit, exploreUrl }, "Starting reel search via Apify");
+  logger.info({ query, limit, maxPages }, "Starting reel keyword search via Apify");
 
   const startRes = await fetch(
     `https://api.apify.com/v2/acts/${ACTOR_ID}/runs?token=${APIFY_TOKEN}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        directUrls: [exploreUrl],
-        resultsType: "posts",
-        resultsLimit: limit,
-        addParentData: false,
-      }),
+      body: JSON.stringify({ query, maxPages }),
     }
   );
 
@@ -107,12 +98,14 @@ router.post("/reel-search", async (req, res): Promise<void> => {
     return;
   }
 
-  const startData = await startRes.json() as { data: { id: string } };
+  const startData = (await startRes.json()) as { data: { id: string } };
   const runId = startData?.data?.id;
   if (!runId) {
     res.status(502).json({ error: "Apify returned no runId" });
     return;
   }
+
+  logger.info({ runId, query }, "Apify keyword search run started");
 
   const succeeded = await pollRun(runId);
   if (!succeeded) {
@@ -128,32 +121,46 @@ router.post("/reel-search", async (req, res): Promise<void> => {
     return;
   }
 
-  const items = await itemsRes.json() as ApifyItem[];
+  const items = (await itemsRes.json()) as SearchReelItem[];
   if (!Array.isArray(items)) {
     res.status(502).json({ error: "Unexpected Apify response" });
     return;
   }
 
-  logger.info({ hashtag, rawCount: items.length }, "Apify returned raw items");
+  logger.info({ query, rawCount: items.length }, "Apify returned raw items");
 
   const results = items
-    .map((item) => ({
-      url: resolveUrl(item, hashtag),
-      shortcode: item.shortCode ?? resolveUrl(item, hashtag)?.match(/instagram\.com\/(?:reel|p)\/([A-Za-z0-9_-]+)/)?.[1] ?? "",
-      accountName: item.ownerUsername ?? item.username ?? "unknown",
-      caption: item.caption ?? null,
-      thumbnailUrl: item.displayUrl ?? item.thumbnailUrl ?? item.imageUrl ?? null,
-      videoUrl: item.videoUrl ?? item.videoSrc ?? null,
-      viewCount: item.videoViewCount ?? item.videoPlayCount ?? item.playCount ?? null,
-      likeCount: item.likesCount ?? item.likesCountFull ?? item.likes ?? null,
-      commentsCount: item.commentsCount ?? item.comments ?? null,
-    }))
-    // Keep anything that has either a URL or a shortcode — don't be too strict
-    .filter((item) => item.url || item.shortcode)
-    .sort((a, b) => (b.commentsCount ?? 0) - (a.commentsCount ?? 0));
+    .filter((item) => item.code || item.id)
+    .map((item) => {
+      const shortcode = item.code ?? item.id ?? "";
+      const url = shortcode
+        ? `https://www.instagram.com/reel/${shortcode}/`
+        : null;
+      return {
+        url,
+        shortcode,
+        accountName: item.user?.username ?? item.ownerUsername ?? "unknown",
+        caption: extractCaption(item.caption),
+        thumbnailUrl:
+          item.thumbnail_url ??
+          item.display_url ??
+          item.thumbnailUrl ??
+          item.displayUrl ??
+          null,
+        videoUrl: item.video_url ?? item.videoUrl ?? null,
+        viewCount: item.ig_play_count ?? item.play_count ?? null,
+        likeCount: item.like_count ?? item.likesCount ?? null,
+        commentsCount: item.comment_count ?? item.commentsCount ?? null,
+        shareCount: item.share_count ?? null,
+        takenAt: item.taken_at_date ?? item.timestamp ?? null,
+      };
+    })
+    .filter((item) => item.url)
+    .slice(0, limit)
+    .sort((a, b) => (b.viewCount ?? 0) - (a.viewCount ?? 0));
 
-  logger.info({ hashtag, count: results.length }, "Reel search complete");
-  res.json({ results, hashtag });
+  logger.info({ query, count: results.length }, "Reel keyword search complete");
+  res.json({ results, hashtag: query });
 });
 
 export default router;

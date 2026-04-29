@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatNumber } from "@/lib/format";
 import {
   Hash, TrendingUp, Eye, Heart, Sparkles, Wand2, BookmarkPlus, MessageCircle, Lightbulb,
-  AlertTriangle, Search, Loader2, ExternalLink, Play, Check
+  AlertTriangle, Search, Loader2, ExternalLink, Play, Check, Send
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -43,6 +43,8 @@ interface SearchReelResult {
   viewCount?: number | null;
   likeCount?: number | null;
   commentsCount?: number | null;
+  shareCount?: number | null;
+  takenAt?: string | null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -74,7 +76,7 @@ function AiBlock({ label, text, icon: Icon, numbered = false }: { label: string;
 
 // ─── Search Tab ───────────────────────────────────────────────────────────────
 
-type SortKey = "comments" | "likes" | "views";
+type SortKey = "comments" | "likes" | "views" | "shares";
 
 function SearchTab() {
   const { toast } = useToast();
@@ -104,6 +106,7 @@ function SearchTab() {
   const sortedResults = [...(searchMutation.data?.results ?? [])].sort((a, b) => {
     if (sort === "likes") return (b.likeCount ?? 0) - (a.likeCount ?? 0);
     if (sort === "views") return (b.viewCount ?? 0) - (a.viewCount ?? 0);
+    if (sort === "shares") return (b.shareCount ?? 0) - (a.shareCount ?? 0);
     return (b.commentsCount ?? 0) - (a.commentsCount ?? 0);
   });
 
@@ -147,7 +150,7 @@ function SearchTab() {
             <Search className="w-5 h-5 text-primary" /> Reel Search
           </CardTitle>
           <CardDescription>
-            Search any hashtag — results sorted by engagement. Save any reel directly to your Remake List.
+            Search any keyword or topic — finds reels posted to that keyword, sorted by engagement. Save any reel directly to your Remake List.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -177,7 +180,7 @@ function SearchTab() {
 
           {searchMutation.isPending && (
             <p className="text-xs text-muted-foreground font-mono mt-3">
-              Scraping Instagram — this takes up to 60 seconds...
+              Searching Instagram for "{query}" — this usually takes 30–90 seconds...
             </p>
           )}
         </CardContent>
@@ -196,7 +199,7 @@ function SearchTab() {
             </div>
             {searchMutation.data && (
               <div className="flex gap-1 bg-background rounded-md p-1 border text-xs font-mono">
-                {(["comments", "likes", "views"] as SortKey[]).map((v) => (
+                {(["views", "likes", "shares", "comments"] as SortKey[]).map((v) => (
                   <button
                     key={v}
                     onClick={() => setSort(v)}
@@ -218,7 +221,7 @@ function SearchTab() {
             ) : sortedResults.length === 0 ? (
               <div className="py-12 text-center text-muted-foreground border border-dashed rounded-xl">
                 <Search className="w-10 h-10 mx-auto mb-3 opacity-30" />
-                <p>No reels found for this hashtag.</p>
+                <p>No reels found for this keyword.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -245,10 +248,10 @@ function SearchTab() {
                         {/* Stats overlay */}
                         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent px-3 py-2">
                           <div className="flex items-center gap-3 text-[11px] font-mono text-white/90">
-                            {result.commentsCount != null && (
+                            {result.viewCount != null && (
                               <span className="flex items-center gap-1">
-                                <MessageCircle className="w-3 h-3" />
-                                {formatNumber(result.commentsCount)}
+                                <Eye className="w-3 h-3" />
+                                {formatNumber(result.viewCount)}
                               </span>
                             )}
                             {result.likeCount != null && (
@@ -257,10 +260,16 @@ function SearchTab() {
                                 {formatNumber(result.likeCount)}
                               </span>
                             )}
-                            {result.viewCount != null && (
+                            {result.shareCount != null && (
                               <span className="flex items-center gap-1">
-                                <Eye className="w-3 h-3" />
-                                {formatNumber(result.viewCount)}
+                                <Send className="w-3 h-3" />
+                                {formatNumber(result.shareCount)}
+                              </span>
+                            )}
+                            {result.commentsCount != null && (
+                              <span className="flex items-center gap-1">
+                                <MessageCircle className="w-3 h-3" />
+                                {formatNumber(result.commentsCount)}
                               </span>
                             )}
                           </div>
