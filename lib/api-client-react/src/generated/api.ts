@@ -37,6 +37,8 @@ import type {
   SaveReelNotesBody,
   SavedReference,
   SearchHashtagParams,
+  SearchReelsBody,
+  SearchReelsResponse,
   SyncResult,
   UpdatePlaybookBody,
   UpdateReelTagsBody,
@@ -1806,4 +1808,90 @@ export const useDeleteReference = <
   TContext
 > => {
   return useMutation(getDeleteReferenceMutationOptions(options));
+};
+
+/**
+ * @summary Search Instagram reels by hashtag via Apify
+ */
+export const getSearchReelsUrl = () => {
+  return `/api/reel-search`;
+};
+
+export const searchReels = async (
+  searchReelsBody: SearchReelsBody,
+  options?: RequestInit,
+): Promise<SearchReelsResponse> => {
+  return customFetch<SearchReelsResponse>(getSearchReelsUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(searchReelsBody),
+  });
+};
+
+export const getSearchReelsMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof searchReels>>,
+    TError,
+    { data: BodyType<SearchReelsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof searchReels>>,
+  TError,
+  { data: BodyType<SearchReelsBody> },
+  TContext
+> => {
+  const mutationKey = ["searchReels"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof searchReels>>,
+    { data: BodyType<SearchReelsBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return searchReels(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SearchReelsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof searchReels>>
+>;
+export type SearchReelsMutationBody = BodyType<SearchReelsBody>;
+export type SearchReelsMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Search Instagram reels by hashtag via Apify
+ */
+export const useSearchReels = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof searchReels>>,
+    TError,
+    { data: BodyType<SearchReelsBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof searchReels>>,
+  TError,
+  { data: BodyType<SearchReelsBody> },
+  TContext
+> => {
+  return useMutation(getSearchReelsMutationOptions(options));
 };

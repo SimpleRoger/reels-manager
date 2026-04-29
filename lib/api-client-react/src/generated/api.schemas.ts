@@ -302,6 +302,35 @@ export interface UpdateReferenceBody {
   likeCount?: number | null;
 }
 
+export interface SearchReelsBody {
+  /** Hashtag to search (with or without */
+  hashtag: string;
+  limit?: number;
+}
+
+export interface SearchReelResult {
+  url: string;
+  shortcode: string;
+  accountName: string;
+  /** @nullable */
+  caption?: string | null;
+  /** @nullable */
+  thumbnailUrl?: string | null;
+  /** @nullable */
+  videoUrl?: string | null;
+  /** @nullable */
+  viewCount?: number | null;
+  /** @nullable */
+  likeCount?: number | null;
+  /** @nullable */
+  commentsCount?: number | null;
+}
+
+export interface SearchReelsResponse {
+  results: SearchReelResult[];
+  hashtag: string;
+}
+
 export type SearchHashtagParams = {
   hashtag: string;
   limit?: number;

@@ -10,6 +10,7 @@ import profileRouter from "./profile";
 import viralFinderRouter from "./viral-finder";
 import videoAnalysisRouter from "./video-analysis";
 import dmImporterRouter from "./dm-importer";
+import reelSearchRouter from "./reel-search";
 
 const router: IRouter = Router();
 
@@ -24,5 +25,6 @@ router.use(profileRouter);
 router.use(viralFinderRouter);
 router.use(videoAnalysisRouter);
 router.use(dmImporterRouter);
+router.use(reelSearchRouter);
 
 export default router;

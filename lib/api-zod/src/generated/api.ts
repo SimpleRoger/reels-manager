@@ -544,3 +544,30 @@ export const UpdateReferenceResponse = zod.object({
 export const DeleteReferenceParams = zod.object({
   id: zod.coerce.number(),
 });
+
+/**
+ * @summary Search Instagram reels by hashtag via Apify
+ */
+export const searchReelsBodyLimitDefault = 30;
+
+export const SearchReelsBody = zod.object({
+  hashtag: zod.string().describe("Hashtag to search (with or without"),
+  limit: zod.number().default(searchReelsBodyLimitDefault),
+});
+
+export const SearchReelsResponse = zod.object({
+  results: zod.array(
+    zod.object({
+      url: zod.string(),
+      shortcode: zod.string(),
+      accountName: zod.string(),
+      caption: zod.string().nullish(),
+      thumbnailUrl: zod.string().nullish(),
+      videoUrl: zod.string().nullish(),
+      viewCount: zod.number().nullish(),
+      likeCount: zod.number().nullish(),
+      commentsCount: zod.number().nullish(),
+    }),
+  ),
+  hashtag: zod.string(),
+});

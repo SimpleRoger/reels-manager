@@ -503,6 +503,32 @@ paths:
         "204":
           description: Deleted
 
+  # ─── REEL SEARCH ─────────────────────────────────────────────────────────────
+  /reel-search:
+    post:
+      operationId: searchReels
+      tags: [references]
+      summary: Search Instagram reels by hashtag via Apify
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SearchReelsBody"
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchReelsResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -989,3 +1015,55 @@ components:
           type: ["integer", "null"]
         likeCount:
           type: ["integer", "null"]
+
+    # ─── REEL SEARCH ───────────────────────────────────────────────────────────
+    SearchReelsBody:
+      type: object
+      properties:
+        hashtag:
+          type: string
+          description: Hashtag to search (with or without #)
+        limit:
+          type: integer
+          default: 30
+      required:
+        - hashtag
+
+    SearchReelResult:
+      type: object
+      properties:
+        url:
+          type: string
+        shortcode:
+          type: string
+        accountName:
+          type: string
+        caption:
+          type: ["string", "null"]
+        thumbnailUrl:
+          type: ["string", "null"]
+        videoUrl:
+          type: ["string", "null"]
+        viewCount:
+          type: ["integer", "null"]
+        likeCount:
+          type: ["integer", "null"]
+        commentsCount:
+          type: ["integer", "null"]
+      required:
+        - url
+        - shortcode
+        - accountName
+
+    SearchReelsResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/SearchReelResult"
+        hashtag:
+          type: string
+      required:
+        - results
+        - hashtag
