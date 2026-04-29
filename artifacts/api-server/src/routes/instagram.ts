@@ -1,17 +1,15 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, avg, isNotNull } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { db, instagramAccountsTable, reelsTable } from "@workspace/db";
 import {
   ConnectInstagramBody,
 } from "@workspace/api-zod";
 import {
   verifyToken,
-  fetchUserMedia,
-  fetchMediaInsights,
-  computePerformanceStatus,
   getHashtagId,
   searchHashtagMedia,
 } from "../lib/instagram";
+import { runInstagramSync } from "../lib/sync";
 
 const router: IRouter = Router();
 
@@ -76,98 +74,21 @@ router.post("/instagram/sync", async (req, res): Promise<void> => {
     return;
   }
 
-  const account = accounts[0];
-
-  let media;
   try {
-    media = await fetchUserMedia(account.accessToken);
-  } catch (err) {
-    req.log.error({ err }, "Failed to fetch Instagram media");
-    res.status(400).json({ error: "Failed to fetch Instagram media. Token may be expired." });
-    return;
-  }
-
-  const reelMedia = media.filter(
-    (m) => m.media_type === "VIDEO" || m.media_product_type === "REELS"
-  );
-
-  const recentReels = await db
-    .select({
-      avgLikes: avg(reelsTable.likeCount),
-      avgComments: avg(reelsTable.commentsCount),
-      avgReach: avg(reelsTable.reach),
-      avgSaves: avg(reelsTable.saves),
-      avgShares: avg(reelsTable.shares),
-    })
-    .from(reelsTable)
-    .where(isNotNull(reelsTable.likeCount));
-
-  const avgs = recentReels[0] ?? { avgLikes: null, avgComments: null, avgReach: null, avgSaves: null, avgShares: null };
-  const averages = {
-    avgLikes: Number(avgs.avgLikes ?? 0),
-    avgComments: Number(avgs.avgComments ?? 0),
-    avgReach: avgs.avgReach != null ? Number(avgs.avgReach) : null,
-    avgSaves: avgs.avgSaves != null ? Number(avgs.avgSaves) : null,
-    avgShares: avgs.avgShares != null ? Number(avgs.avgShares) : null,
-  };
-
-  let synced = 0;
-  for (const m of reelMedia) {
-    const insights = await fetchMediaInsights(m.id, account.accessToken);
-
-    const existing = await db
-      .select()
-      .from(reelsTable)
-      .where(eq(reelsTable.instagramId, m.id))
-      .limit(1);
-
-    const prev = existing[0];
-
-    // For insight metrics: use the freshly fetched value if available,
-    // otherwise preserve whatever was already stored (prevents wiping good data
-    // when the API temporarily rejects a metric).
-    const reach  = insights.reach  ?? prev?.reach  ?? null;
-    const saves  = insights.saved  ?? prev?.saves  ?? null;
-    const shares = insights.shares ?? prev?.shares ?? null;
-    const plays  = insights.views ?? prev?.plays ?? null;
-
-    const reelData = {
-      instagramId: m.id,
-      caption: m.caption ?? null,
-      permalink: m.permalink ?? null,
-      thumbnailUrl: m.thumbnail_url ?? null,
-      mediaUrl: m.media_url ?? null,
-      postedAt: m.timestamp ? new Date(m.timestamp) : null,
-      likeCount: m.like_count ?? null,
-      commentsCount: m.comments_count ?? null,
-      reach,
-      saves,
-      shares,
-      plays,
-      performanceStatus: null as string | null,
-    };
-
-    const performanceStatus = computePerformanceStatus(reelData, averages);
-    reelData.performanceStatus = performanceStatus;
-
-    if (prev) {
-      await db
-        .update(reelsTable)
-        .set(reelData)
-        .where(eq(reelsTable.instagramId, m.id));
-    } else {
-      await db.insert(reelsTable).values({ ...reelData, tags: [] });
-      synced++;
+    const result = await runInstagramSync();
+    if (!result) {
+      res.status(400).json({ error: "Failed to fetch Instagram media. Token may be expired." });
+      return;
     }
+    res.json({
+      synced: result.synced,
+      total: result.total,
+      message: `Synced ${result.synced} new Reels, updated ${result.total - result.synced} existing`,
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to sync Instagram media");
+    res.status(400).json({ error: "Failed to fetch Instagram media. Token may be expired." });
   }
-
-  await db
-    .update(instagramAccountsTable)
-    .set({ lastSynced: new Date() })
-    .where(eq(instagramAccountsTable.id, account.id));
-
-  req.log.info({ synced, total: reelMedia.length }, "Instagram sync complete");
-  res.json({ synced, total: reelMedia.length, message: `Synced ${synced} new Reels, updated ${reelMedia.length - synced} existing` });
 });
 
 router.get("/instagram/hashtag-search", async (req, res): Promise<void> => {

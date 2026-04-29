@@ -81,7 +81,7 @@ export default function RemakeList() {
     const url = singleUrl.trim();
     if (!url) return;
     createMutation.mutate(
-      { url },
+      { data: { url } },
       {
         onSuccess: () => {
           setSingleUrl("");
@@ -109,7 +109,7 @@ export default function RemakeList() {
     let failed = 0;
     for (const url of urls) {
       try {
-        await createMutation.mutateAsync({ url });
+        await createMutation.mutateAsync({ data: { url } });
         added++;
       } catch {
         failed++;
