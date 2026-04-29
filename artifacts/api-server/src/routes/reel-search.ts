@@ -129,6 +129,7 @@ router.post("/reel-search", async (req, res): Promise<void> => {
 
   logger.info({ query, rawCount: items.length }, "Apify returned raw items");
 
+  const seen = new Set<string>();
   const results = items
     .filter((item) => item.code || item.id)
     .map((item) => {
@@ -155,7 +156,11 @@ router.post("/reel-search", async (req, res): Promise<void> => {
         takenAt: item.taken_at_date ?? item.timestamp ?? null,
       };
     })
-    .filter((item) => item.url)
+    .filter((item) => {
+      if (!item.url || seen.has(item.shortcode)) return false;
+      seen.add(item.shortcode);
+      return true;
+    })
     .slice(0, limit)
     .sort((a, b) => (b.viewCount ?? 0) - (a.viewCount ?? 0));
 

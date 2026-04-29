@@ -12,6 +12,7 @@ import {
   AlertTriangle, Search, Loader2, ExternalLink, Play, Check, Send, Flame, RefreshCw, Tag
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { InlinePlayer } from "@/components/inline-player";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -84,6 +85,7 @@ function SearchTab() {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("comments");
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [playingShortcode, setPlayingShortcode] = useState<string | null>(null);
 
   const createRefMutation = useCreateReference();
 
@@ -225,28 +227,50 @@ function SearchTab() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {sortedResults.map((result) => {
+                {sortedResults.map((result, idx) => {
                   const saved = savedIds.has(result.shortcode);
+                  const isPlaying = playingShortcode === result.shortcode;
                   return (
                     <div
-                      key={result.shortcode}
+                      key={`${result.shortcode}-${idx}`}
                       className="bg-background border border-border rounded-xl overflow-hidden flex flex-col hover-elevate group"
                     >
-                      {/* Thumbnail */}
-                      <div className="relative aspect-[9/16] max-h-48 bg-muted overflow-hidden shrink-0">
-                        {result.thumbnailUrl ? (
-                          <img
-                            src={result.thumbnailUrl}
-                            alt={`@${result.accountName}`}
-                            className="w-full h-full object-cover"
+                      {/* Thumbnail / Player */}
+                      <div
+                        className="relative aspect-[9/16] bg-zinc-900 overflow-hidden shrink-0 cursor-pointer"
+                        onClick={() => setPlayingShortcode(isPlaying ? null : result.shortcode)}
+                      >
+                        {isPlaying ? (
+                          <InlinePlayer
+                            mediaUrl={result.videoUrl ?? null}
+                            thumbnailUrl={result.thumbnailUrl ?? null}
+                            instagramUrl={result.url}
+                            onClose={() => setPlayingShortcode(null)}
+                            className="absolute inset-0"
                           />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center text-muted-foreground/30">
-                            <Play className="w-8 h-8" />
-                          </div>
+                          <>
+                            {result.thumbnailUrl ? (
+                              <img
+                                src={result.thumbnailUrl}
+                                alt={`@${result.accountName}`}
+                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-muted-foreground/30">
+                                <Play className="w-8 h-8" />
+                              </div>
+                            )}
+                            {/* Hover play button */}
+                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className="w-14 h-14 rounded-full bg-primary/90 flex items-center justify-center shadow-xl">
+                                <Play className="w-6 h-6 text-black fill-black ml-1" />
+                              </div>
+                            </div>
+                          </>
                         )}
-                        {/* Stats overlay */}
-                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent px-3 py-2">
+                        {/* Stats overlay — always visible */}
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent px-3 py-2 pointer-events-none">
                           <div className="flex items-center gap-3 text-[11px] font-mono text-white/90">
                             {result.viewCount != null && (
                               <span className="flex items-center gap-1">
@@ -352,6 +376,7 @@ function TrendingTab() {
   const [sectionFilter, setSectionFilter] = useState<string | null>(null);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [failedThumbs, setFailedThumbs] = useState<Set<string>>(new Set());
+  const [playingShortcode, setPlayingShortcode] = useState<string | null>(null);
 
   const fetchMutation = useMutation({
     mutationFn: async () => {
@@ -524,25 +549,46 @@ function TrendingTab() {
                   const thumbFailed = result.thumbnailUrl ? failedThumbs.has(result.thumbnailUrl) : true;
                   return (
                     <div key={result.shortcode || idx} className="flex flex-col rounded-xl border border-card-border overflow-hidden bg-background hover-elevate group">
-                      {/* Thumbnail */}
-                      <div className="relative aspect-[9/16] bg-zinc-900">
-                        {result.thumbnailUrl && !thumbFailed ? (
-                          <img
-                            key={result.thumbnailUrl}
-                            src={result.thumbnailUrl}
-                            alt={`@${result.accountName}`}
-                            className="w-full h-full object-cover"
-                            onError={() => setFailedThumbs((p) => new Set([...p, result.thumbnailUrl!]))}
+                      {/* Thumbnail / Player */}
+                      <div
+                        className="relative aspect-[9/16] bg-zinc-900 cursor-pointer"
+                        onClick={() => setPlayingShortcode(playingShortcode === result.shortcode ? null : result.shortcode)}
+                      >
+                        {playingShortcode === result.shortcode ? (
+                          <InlinePlayer
+                            mediaUrl={result.videoUrl ?? null}
+                            thumbnailUrl={result.thumbnailUrl ?? null}
+                            instagramUrl={result.url ?? ""}
+                            onClose={() => setPlayingShortcode(null)}
+                            className="absolute inset-0"
                           />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center text-muted-foreground/30">
-                            <Play className="w-8 h-8" />
-                          </div>
+                          <>
+                            {result.thumbnailUrl && !thumbFailed ? (
+                              <img
+                                key={result.thumbnailUrl}
+                                src={result.thumbnailUrl}
+                                alt={`@${result.accountName}`}
+                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                onError={() => setFailedThumbs((p) => new Set([...p, result.thumbnailUrl!]))}
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-muted-foreground/30">
+                                <Play className="w-8 h-8" />
+                              </div>
+                            )}
+                            {/* Hover play button */}
+                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className="w-14 h-14 rounded-full bg-primary/90 flex items-center justify-center shadow-xl">
+                                <Play className="w-6 h-6 text-black fill-black ml-1" />
+                              </div>
+                            </div>
+                          </>
                         )}
 
                         {/* Topic badge */}
                         {(result.topic || result.section) && (
-                          <div className="absolute top-2 left-2 right-2">
+                          <div className="absolute top-2 left-2 right-2 pointer-events-none">
                             <span className="inline-flex items-center gap-1 bg-black/70 backdrop-blur-sm text-white/90 text-[10px] font-mono px-2 py-0.5 rounded-full max-w-full truncate">
                               <Tag className="w-2.5 h-2.5 shrink-0 text-primary" />
                               {result.topic ?? result.section}
@@ -551,7 +597,7 @@ function TrendingTab() {
                         )}
 
                         {/* Stats overlay */}
-                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent px-3 py-2">
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent px-3 py-2 pointer-events-none">
                           <div className="flex items-center gap-3 text-[11px] font-mono text-white/90">
                             {result.viewCount != null && (
                               <span className="flex items-center gap-1">
