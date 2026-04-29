@@ -114,19 +114,17 @@ export default function ReelsLog() {
                     </>
                   )}
                 </div>
-                {!isPlaying && (
-                  <Link href={`/reels/${reel.id}`} className="flex-1 flex flex-col">
-                    <div className="p-3 flex-1 flex flex-col text-sm">
-                      <div className="flex justify-between items-center mb-2 font-mono text-[10px] text-muted-foreground uppercase tracking-wider">
-                        <span>{formatNumber(reel.plays)} Plays</span>
-                        <span>{formatNumber(reel.likeCount)} Likes</span>
-                      </div>
-                      <p className="line-clamp-2 text-xs text-card-foreground flex-1">
-                        {reel.caption || "No caption"}
-                      </p>
+                <Link href={`/reels/${reel.id}`} className="flex-1 flex flex-col">
+                  <div className="p-3 flex-1 flex flex-col text-sm">
+                    <div className="flex justify-between items-center mb-2 font-mono text-[10px] text-muted-foreground uppercase tracking-wider">
+                      <span>{formatNumber(reel.plays)} Plays</span>
+                      <span>{formatNumber(reel.likeCount)} Likes</span>
                     </div>
-                  </Link>
-                )}
+                    <p className="line-clamp-2 text-xs text-card-foreground flex-1">
+                      {reel.caption || "No caption"}
+                    </p>
+                  </div>
+                </Link>
               </Card>
             );
           })}
