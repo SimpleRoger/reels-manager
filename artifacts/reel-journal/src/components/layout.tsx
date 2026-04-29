@@ -1,6 +1,5 @@
 import { Link, useLocation } from "wouter";
 import {
-  LayoutDashboard,
   Film,
   BookOpen,
   Search,
@@ -11,7 +10,6 @@ import {
 } from "lucide-react";
 
 const navigation = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Reels Log", href: "/reels", icon: Film },
   { name: "Profile", href: "/profile", icon: UserCircle2 },
   { name: "Playbook", href: "/playbook", icon: BookOpen },
@@ -35,7 +33,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
         <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
           {navigation.map((item) => {
-            const isActive = location === item.href;
+            const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
             return (
               <Link
                 key={item.name}
