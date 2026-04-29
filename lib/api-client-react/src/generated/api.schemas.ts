@@ -232,6 +232,10 @@ export interface SavedReference {
   id: number;
   url: string;
   /** @nullable */
+  mediaUrl?: string | null;
+  /** @nullable */
+  thumbnailUrl?: string | null;
+  /** @nullable */
   caption?: string | null;
   /** @nullable */
   accountName?: string | null;

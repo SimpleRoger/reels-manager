@@ -7,6 +7,7 @@ import {
   UpdateReferenceBody,
   DeleteReferenceParams,
 } from "@workspace/api-zod";
+import { resolveReelMedia } from "../lib/resolve-reel-video";
 
 const router: IRouter = Router();
 
@@ -33,7 +34,14 @@ router.post("/references", async (req, res): Promise<void> => {
     return;
   }
 
-  const [ref] = await db.insert(savedReferencesTable).values(body.data).returning();
+  // Try to resolve direct video + thumbnail URLs in the background
+  const resolved = await resolveReelMedia(body.data.url);
+
+  const [ref] = await db.insert(savedReferencesTable).values({
+    ...body.data,
+    mediaUrl: body.data.mediaUrl ?? resolved.mediaUrl,
+    thumbnailUrl: body.data.thumbnailUrl ?? resolved.thumbnailUrl,
+  }).returning();
   res.status(201).json(formatReference(ref));
 });
 

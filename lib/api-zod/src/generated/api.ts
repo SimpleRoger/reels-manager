@@ -470,6 +470,8 @@ export const ListReferencesResponse = zod.object({
     zod.object({
       id: zod.number(),
       url: zod.string(),
+      mediaUrl: zod.string().nullish(),
+      thumbnailUrl: zod.string().nullish(),
       caption: zod.string().nullish(),
       accountName: zod.string().nullish(),
       whyItsgood: zod.string().nullish(),
@@ -517,6 +519,8 @@ export const UpdateReferenceBody = zod.object({
 export const UpdateReferenceResponse = zod.object({
   id: zod.number(),
   url: zod.string(),
+  mediaUrl: zod.string().nullish(),
+  thumbnailUrl: zod.string().nullish(),
   caption: zod.string().nullish(),
   accountName: zod.string().nullish(),
   whyItsgood: zod.string().nullish(),

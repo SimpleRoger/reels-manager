@@ -12,13 +12,73 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Trash2, ExternalLink, Bookmark, Check, Plus, Link2, Loader2, X, Play } from "lucide-react";
+import { Trash2, ExternalLink, Bookmark, Check, Plus, Link2, Loader2, X, Play, PlaySquare } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 function extractShortcode(url: string): string | null {
   const match = url.match(/instagram\.com\/(?:reel|p)\/([A-Za-z0-9_-]+)/);
   return match ? match[1] : null;
+}
+
+interface WatchRef {
+  url: string;
+  mediaUrl?: string | null;
+  thumbnailUrl?: string | null;
+}
+
+function VideoModal({ ref: watchRef, onClose }: { ref: WatchRef; onClose: () => void }) {
+  const shortcode = extractShortcode(watchRef.url);
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div className="relative w-full max-w-sm mx-4" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3">
+          <button
+            onClick={onClose}
+            className="text-white/70 hover:text-white transition-colors flex items-center gap-1 text-sm font-mono"
+          >
+            <X className="w-4 h-4" /> Close
+          </button>
+          <a
+            href={watchRef.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-white/70 hover:text-white text-xs flex items-center gap-1 font-mono"
+          >
+            Open in Instagram <ExternalLink className="w-3 h-3" />
+          </a>
+        </div>
+        <div className="aspect-[9/16] rounded-xl overflow-hidden bg-black shadow-2xl">
+          {watchRef.mediaUrl ? (
+            <video
+              src={watchRef.mediaUrl}
+              poster={watchRef.thumbnailUrl ?? undefined}
+              controls
+              autoPlay
+              playsInline
+              className="w-full h-full object-contain"
+            />
+          ) : shortcode ? (
+            <iframe
+              src={`https://www.instagram.com/reel/${shortcode}/embed/`}
+              className="w-full h-full"
+              style={{ border: "none" }}
+              allowFullScreen
+              scrolling="no"
+              allow="autoplay; clipboard-write; encrypted-media; picture-in-picture"
+            />
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center text-white/50 gap-3">
+              <PlaySquare className="w-12 h-12" />
+              <p className="text-sm">Could not load reel</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function RemakeList() {
@@ -32,7 +92,7 @@ export default function RemakeList() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const [watchUrl, setWatchUrl] = useState<string | null>(null);
+  const [watchRef, setWatchRef] = useState<WatchRef | null>(null);
   const [addMode, setAddMode] = useState<"single" | "batch" | null>(null);
   const [singleUrl, setSingleUrl] = useState("");
   const [batchUrls, setBatchUrls] = useState("");
@@ -132,41 +192,11 @@ export default function RemakeList() {
     });
   }
 
-  const watchShortcode = watchUrl ? extractShortcode(watchUrl) : null;
-
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <Dialog open={!!watchUrl} onOpenChange={(open) => !open && setWatchUrl(null)}>
-        <DialogContent className="max-w-sm p-0 overflow-hidden bg-black border-border">
-          <DialogHeader className="px-4 py-3 border-b border-border bg-card">
-            <DialogTitle className="text-sm font-mono uppercase tracking-wider flex items-center gap-2">
-              <Play className="w-3 h-3 text-primary" /> Saved Reel
-              <a
-                href={watchUrl ?? "#"}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="ml-auto text-primary hover:underline text-xs flex items-center gap-1 normal-case tracking-normal"
-              >
-                Open in Instagram <ExternalLink className="w-3 h-3" />
-              </a>
-            </DialogTitle>
-          </DialogHeader>
-          {watchShortcode ? (
-            <iframe
-              src={`https://www.instagram.com/reel/${watchShortcode}/embed/`}
-              className="w-full"
-              style={{ height: 560, border: "none" }}
-              allowFullScreen
-              scrolling="no"
-              allow="autoplay; clipboard-write; encrypted-media; picture-in-picture"
-            />
-          ) : (
-            <div className="flex items-center justify-center h-64 text-muted-foreground text-sm">
-              Could not parse reel URL
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      {watchRef && (
+        <VideoModal ref={watchRef} onClose={() => setWatchRef(null)} />
+      )}
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
           <h1 className="text-3xl font-bold tracking-tight">Remake List</h1>
@@ -314,7 +344,7 @@ export default function RemakeList() {
                     variant="ghost"
                     size="sm"
                     className="h-6 px-2 text-xs font-mono uppercase tracking-wider text-primary hover:text-primary hover:bg-primary/10"
-                    onClick={() => setWatchUrl(ref.url)}
+                    onClick={() => setWatchRef({ url: ref.url, mediaUrl: ref.mediaUrl, thumbnailUrl: ref.thumbnailUrl })}
                   >
                     <Play className="w-3 h-3 mr-1" /> Watch
                   </Button>

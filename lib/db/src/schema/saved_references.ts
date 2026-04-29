@@ -5,6 +5,8 @@ import { z } from "zod/v4";
 export const savedReferencesTable = pgTable("saved_references", {
   id: serial("id").primaryKey(),
   url: text("url").notNull(),
+  mediaUrl: text("media_url"),
+  thumbnailUrl: text("thumbnail_url"),
   caption: text("caption"),
   accountName: text("account_name"),
   whyItsgood: text("why_its_good"),

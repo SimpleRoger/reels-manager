@@ -902,6 +902,10 @@ components:
           type: integer
         url:
           type: string
+        mediaUrl:
+          type: ["string", "null"]
+        thumbnailUrl:
+          type: ["string", "null"]
         caption:
           type: ["string", "null"]
         accountName:
