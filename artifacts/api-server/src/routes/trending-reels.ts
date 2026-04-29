@@ -11,17 +11,13 @@ interface TrendingItem {
   code?: string;
   url?: string;
   username?: string;
-  // Explore taxonomy
   section?: string;
   topic?: string;
-  // Post type
   type?: string;
   is_video?: boolean;
-  // Content
   caption?: string;
   timestamp?: number;
   date?: string;
-  // Engagement
   like_count?: number;
   likesCount?: number;
   comment_count?: number;
@@ -29,7 +25,6 @@ interface TrendingItem {
   play_count?: number;
   video_play_count?: number;
   videoViewCount?: number;
-  // Media
   thumbnail_url?: string;
   display_url?: string;
   thumbnailUrl?: string;
@@ -37,28 +32,26 @@ interface TrendingItem {
   videoUrl?: string;
 }
 
-async function pollRun(runId: string): Promise<boolean> {
-  const maxWait = 300_000;
-  const interval = 5_000;
-  const start = Date.now();
-
-  while (Date.now() - start < maxWait) {
-    await new Promise((r) => setTimeout(r, interval));
-    const res = await fetch(
-      `https://api.apify.com/v2/actor-runs/${runId}?token=${APIFY_TOKEN}`
-    );
-    if (!res.ok) break;
-    const data = (await res.json()) as { data: { status: string } };
-    const status = data?.data?.status;
-    if (status === "SUCCEEDED") return true;
-    if (status === "FAILED" || status === "ABORTED" || status === "TIMED-OUT") {
-      logger.warn({ runId, status }, "Apify trending run did not succeed");
-      return false;
-    }
-  }
-  return false;
+function mapItem(item: TrendingItem) {
+  return {
+    url: item.url ?? (item.code ? `https://www.instagram.com/reel/${item.code}/` : null),
+    shortcode: item.code ?? item.id ?? "",
+    accountName: item.username ?? "unknown",
+    section: item.section ?? null,
+    topic: item.topic ?? null,
+    type: item.type ?? null,
+    isVideo: item.is_video ?? false,
+    caption: item.caption ?? null,
+    date: item.date ?? (item.timestamp ? new Date(item.timestamp * 1000).toISOString() : null),
+    thumbnailUrl: item.thumbnail_url ?? item.display_url ?? item.thumbnailUrl ?? null,
+    videoUrl: item.video_url ?? item.videoUrl ?? null,
+    viewCount: item.play_count ?? item.video_play_count ?? item.videoViewCount ?? null,
+    likeCount: item.like_count ?? item.likesCount ?? null,
+    commentsCount: item.comment_count ?? item.commentsCount ?? null,
+  };
 }
 
+// POST /api/trending-reels — starts the Apify run and returns runId immediately
 router.post("/trending-reels", async (req, res): Promise<void> => {
   if (!APIFY_TOKEN) {
     res.status(503).json({ error: "Apify not configured" });
@@ -66,7 +59,6 @@ router.post("/trending-reels", async (req, res): Promise<void> => {
   }
 
   const limit = Math.min(Number(req.body?.limit) || 30, 100);
-
   logger.info({ limit }, "Starting trending reels fetch via Apify");
 
   const startRes = await fetch(
@@ -93,13 +85,41 @@ router.post("/trending-reels", async (req, res): Promise<void> => {
   }
 
   logger.info({ runId }, "Apify trending run started");
+  res.json({ runId });
+});
 
-  const succeeded = await pollRun(runId);
-  if (!succeeded) {
-    res.status(502).json({ error: "Apify trending run failed or timed out" });
+// GET /api/trending-reels/status/:runId — poll run status; returns results when done
+router.get("/trending-reels/status/:runId", async (req, res): Promise<void> => {
+  if (!APIFY_TOKEN) {
+    res.status(503).json({ error: "Apify not configured" });
     return;
   }
 
+  const { runId } = req.params;
+
+  const statusRes = await fetch(
+    `https://api.apify.com/v2/actor-runs/${runId}?token=${APIFY_TOKEN}`
+  );
+  if (!statusRes.ok) {
+    res.status(502).json({ error: "Failed to check run status" });
+    return;
+  }
+
+  const statusData = (await statusRes.json()) as { data: { status: string } };
+  const status = statusData?.data?.status;
+
+  if (status === "RUNNING" || status === "READY" || status === "ABORTING") {
+    res.json({ status: "running" });
+    return;
+  }
+
+  if (status === "FAILED" || status === "ABORTED" || status === "TIMED-OUT") {
+    logger.warn({ runId, status }, "Apify trending run did not succeed");
+    res.status(502).json({ error: `Apify run ${status.toLowerCase()}` });
+    return;
+  }
+
+  // SUCCEEDED — fetch results
   const itemsRes = await fetch(
     `https://api.apify.com/v2/actor-runs/${runId}/dataset/items?token=${APIFY_TOKEN}`
   );
@@ -114,30 +134,15 @@ router.post("/trending-reels", async (req, res): Promise<void> => {
     return;
   }
 
-  logger.info({ rawCount: items.length }, "Apify trending items returned");
+  logger.info({ runId, rawCount: items.length }, "Apify trending items returned");
 
   const results = items
     .filter((item) => item.url || item.code)
-    .map((item) => ({
-      url: item.url ?? (item.code ? `https://www.instagram.com/reel/${item.code}/` : null),
-      shortcode: item.code ?? item.id ?? "",
-      accountName: item.username ?? "unknown",
-      section: item.section ?? null,
-      topic: item.topic ?? null,
-      type: item.type ?? null,
-      isVideo: item.is_video ?? false,
-      caption: item.caption ?? null,
-      date: item.date ?? (item.timestamp ? new Date(item.timestamp * 1000).toISOString() : null),
-      thumbnailUrl: item.thumbnail_url ?? item.display_url ?? item.thumbnailUrl ?? null,
-      videoUrl: item.video_url ?? item.videoUrl ?? null,
-      viewCount: item.play_count ?? item.video_play_count ?? item.videoViewCount ?? null,
-      likeCount: item.like_count ?? item.likesCount ?? null,
-      commentsCount: item.comment_count ?? item.commentsCount ?? null,
-    }))
+    .map(mapItem)
     .filter((item) => item.url);
 
   logger.info({ count: results.length }, "Trending reels fetch complete");
-  res.json({ results });
+  res.json({ status: "done", results });
 });
 
 export default router;

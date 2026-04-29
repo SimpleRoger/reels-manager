@@ -380,13 +380,32 @@ function TrendingTab() {
 
   const fetchMutation = useMutation({
     mutationFn: async () => {
-      const resp = await fetch(`${BASE}/api/trending-reels`, {
+      // Step 1: kick off the run and get a runId immediately
+      const startResp = await fetch(`${BASE}/api/trending-reels`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ limit: 50 }),
       });
-      if (!resp.ok) throw new Error((await resp.json())?.error ?? "Failed to fetch trending");
-      return resp.json() as Promise<{ results: TrendingReel[] }>;
+      if (!startResp.ok) {
+        const err = await startResp.json().catch(() => ({})) as { error?: string };
+        throw new Error(err?.error ?? "Failed to start trending fetch");
+      }
+      const { runId } = await startResp.json() as { runId: string };
+
+      // Step 2: poll status every 5 s until done (max 5 min)
+      const deadline = Date.now() + 5 * 60 * 1000;
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 5000));
+        const poll = await fetch(`${BASE}/api/trending-reels/status/${runId}`);
+        if (!poll.ok) {
+          const err = await poll.json().catch(() => ({})) as { error?: string };
+          throw new Error(err?.error ?? "Trending fetch failed");
+        }
+        const body = await poll.json() as { status: string; results?: TrendingReel[] };
+        if (body.status === "done") return { results: body.results ?? [] };
+        // status === "running" → loop again
+      }
+      throw new Error("Trending fetch timed out");
     },
     onSuccess: (data) => {
       setResults(data.results);
