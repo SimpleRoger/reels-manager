@@ -12,6 +12,7 @@ export const savedReferencesTable = pgTable("saved_references", {
   whyItsgood: text("why_its_good"),
   whatToChange: text("what_to_change"),
   howToRemake: text("how_to_remake"),
+  viewCount: integer("view_count"),
   commentsCount: integer("comments_count"),
   likeCount: integer("like_count"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

@@ -9,6 +9,10 @@
 export interface CreateReferenceBody {
   url: string;
   /** @nullable */
+  mediaUrl?: string | null;
+  /** @nullable */
+  thumbnailUrl?: string | null;
+  /** @nullable */
   caption?: string | null;
   /** @nullable */
   accountName?: string | null;
@@ -18,6 +22,8 @@ export interface CreateReferenceBody {
   whatToChange?: string | null;
   /** @nullable */
   howToRemake?: string | null;
+  /** @nullable */
+  viewCount?: number | null;
   /** @nullable */
   commentsCount?: number | null;
   /** @nullable */

@@ -477,6 +477,7 @@ export const ListReferencesResponse = zod.object({
       whyItsgood: zod.string().nullish(),
       whatToChange: zod.string().nullish(),
       howToRemake: zod.string().nullish(),
+      viewCount: zod.number().nullish(),
       commentsCount: zod.number().nullish(),
       likeCount: zod.number().nullish(),
       createdAt: zod.string(),
@@ -490,11 +491,14 @@ export const ListReferencesResponse = zod.object({
  */
 export const CreateReferenceBody = zod.object({
   url: zod.string(),
+  mediaUrl: zod.string().nullish(),
+  thumbnailUrl: zod.string().nullish(),
   caption: zod.string().nullish(),
   accountName: zod.string().nullish(),
   whyItsgood: zod.string().nullish(),
   whatToChange: zod.string().nullish(),
   howToRemake: zod.string().nullish(),
+  viewCount: zod.number().nullish(),
   commentsCount: zod.number().nullish(),
   likeCount: zod.number().nullish(),
 });
@@ -512,6 +516,7 @@ export const UpdateReferenceBody = zod.object({
   whyItsgood: zod.string().nullish(),
   whatToChange: zod.string().nullish(),
   howToRemake: zod.string().nullish(),
+  viewCount: zod.number().nullish(),
   commentsCount: zod.number().nullish(),
   likeCount: zod.number().nullish(),
 });
@@ -526,6 +531,7 @@ export const UpdateReferenceResponse = zod.object({
   whyItsgood: zod.string().nullish(),
   whatToChange: zod.string().nullish(),
   howToRemake: zod.string().nullish(),
+  viewCount: zod.number().nullish(),
   commentsCount: zod.number().nullish(),
   likeCount: zod.number().nullish(),
   createdAt: zod.string(),

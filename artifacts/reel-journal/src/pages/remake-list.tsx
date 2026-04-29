@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   useListReferences,
   getListReferencesQueryKey,
@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Trash2, ExternalLink, Bookmark, Check, Plus, Link2, Loader2, X, Play, PlaySquare } from "lucide-react";
+import { Trash2, ExternalLink, Bookmark, Check, Plus, Link2, Loader2, X, Play, Eye, Heart, MessageCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 function extractShortcode(url: string): string | null {
@@ -71,7 +71,7 @@ function VideoModal({ ref: watchRef, onClose }: { ref: WatchRef; onClose: () => 
             />
           ) : (
             <div className="w-full h-full flex flex-col items-center justify-center text-white/50 gap-3">
-              <PlaySquare className="w-12 h-12" />
+              <Play className="w-12 h-12" />
               <p className="text-sm">Could not load reel</p>
             </div>
           )}
@@ -108,6 +108,16 @@ export default function RemakeList() {
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: getListReferencesQueryKey() });
   }
+
+  // Auto-poll every 8 seconds while any reference is still missing stats (Apify still running)
+  useEffect(() => {
+    const hasPending = data?.references.some(
+      (r) => r.viewCount == null && r.likeCount == null && r.commentsCount == null
+    );
+    if (!hasPending) return;
+    const timer = setInterval(invalidate, 8_000);
+    return () => clearInterval(timer);
+  }, [data?.references]);
 
   function startEditing(ref: any) {
     setEditingId(ref.id);
@@ -329,34 +339,65 @@ export default function RemakeList() {
               key={ref.id}
               className="bg-card hover-elevate border-card-border overflow-hidden flex flex-col h-full"
             >
-              <div className="p-4 bg-muted/30 border-b border-border flex justify-between items-start gap-4">
-                <a
-                  href={ref.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline font-mono text-xs truncate flex items-center gap-1 min-w-0"
-                >
-                  <ExternalLink className="w-3 h-3 flex-shrink-0" />
-                  {ref.url}
-                </a>
-                <div className="flex items-center gap-1 shrink-0">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 px-2 text-xs font-mono uppercase tracking-wider text-primary hover:text-primary hover:bg-primary/10"
-                    onClick={() => setWatchRef({ url: ref.url, mediaUrl: ref.mediaUrl, thumbnailUrl: ref.thumbnailUrl })}
+              <div className="p-4 bg-muted/30 border-b border-border space-y-2">
+                <div className="flex justify-between items-start gap-4">
+                  <a
+                    href={ref.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline font-mono text-xs truncate flex items-center gap-1 min-w-0"
                   >
-                    <Play className="w-3 h-3 mr-1" /> Watch
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                    onClick={() => handleDelete(ref.id)}
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </Button>
+                    <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                    {ref.accountName ? `@${ref.accountName}` : ref.url}
+                  </a>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-xs font-mono uppercase tracking-wider text-primary hover:text-primary hover:bg-primary/10"
+                      onClick={() => setWatchRef({ url: ref.url, mediaUrl: ref.mediaUrl, thumbnailUrl: ref.thumbnailUrl })}
+                    >
+                      <Play className="w-3 h-3 mr-1" /> Watch
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                      onClick={() => handleDelete(ref.id)}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
                 </div>
+
+                {/* Stats row */}
+                {ref.viewCount == null && ref.likeCount == null && ref.commentsCount == null ? (
+                  <div className="flex items-center gap-1 text-[10px] font-mono text-muted-foreground/60">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Fetching stats...
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-4 text-[11px] font-mono">
+                    {ref.viewCount != null && (
+                      <span className="flex items-center gap-1 text-muted-foreground">
+                        <Eye className="w-3 h-3" />
+                        {ref.viewCount.toLocaleString()}
+                      </span>
+                    )}
+                    {ref.likeCount != null && (
+                      <span className="flex items-center gap-1 text-muted-foreground">
+                        <Heart className="w-3 h-3" />
+                        {ref.likeCount.toLocaleString()}
+                      </span>
+                    )}
+                    {ref.commentsCount != null && (
+                      <span className="flex items-center gap-1 text-muted-foreground">
+                        <MessageCircle className="w-3 h-3" />
+                        {ref.commentsCount.toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
 
               <CardContent className="p-5 flex-1 flex flex-col">

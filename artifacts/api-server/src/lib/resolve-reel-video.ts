@@ -1,73 +1,173 @@
-import { db, reelsTable, instagramAccountsTable } from "@workspace/db";
+import { db, reelsTable, savedReferencesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { logger } from "./logger";
 
 interface ResolvedMedia {
   mediaUrl: string | null;
   thumbnailUrl: string | null;
+  videoViewCount: number | null;
+  commentsCount: number | null;
+  likesCount: number | null;
+  caption: string | null;
+  accountName: string | null;
 }
 
-function extractShortcode(url: string): string | null {
-  const match = url.match(/instagram\.com\/(?:reel|p)\/([A-Za-z0-9_-]+)/);
-  return match ? match[1] : null;
-}
+const APIFY_TOKEN = process.env["APIFY_API_TOKEN"];
+const ACTOR_ID = "apify~instagram-scraper";
 
-export async function resolveReelMedia(instagramUrl: string): Promise<ResolvedMedia> {
-  const shortcode = extractShortcode(instagramUrl);
-  if (!shortcode) return { mediaUrl: null, thumbnailUrl: null };
+async function pollRun(runId: string): Promise<boolean> {
+  const maxWait = 120_000;
+  const interval = 3_000;
+  const start = Date.now();
 
-  // First check if this is one of the user's own reels already in the DB
-  const ownReels = await db
-    .select({ mediaUrl: reelsTable.mediaUrl, thumbnailUrl: reelsTable.thumbnailUrl, permalink: reelsTable.permalink })
-    .from(reelsTable)
-    .where(eq(reelsTable.permalink, instagramUrl));
-
-  if (!ownReels.length) {
-    // Try permalink match without trailing slash variations
-    const base = instagramUrl.replace(/\/$/, "");
-    const withSlash = base + "/";
-    const all = await db.select({ mediaUrl: reelsTable.mediaUrl, thumbnailUrl: reelsTable.thumbnailUrl, permalink: reelsTable.permalink }).from(reelsTable);
-    const match = all.find(r => r.permalink && (r.permalink.replace(/\/$/, "") === base));
-    if (match) {
-      return { mediaUrl: match.mediaUrl ?? null, thumbnailUrl: match.thumbnailUrl ?? null };
+  while (Date.now() - start < maxWait) {
+    await new Promise((r) => setTimeout(r, interval));
+    const res = await fetch(
+      `https://api.apify.com/v2/actor-runs/${runId}?token=${APIFY_TOKEN}`
+    );
+    if (!res.ok) break;
+    const data = await res.json() as { data: { status: string } };
+    const status = data?.data?.status;
+    if (status === "SUCCEEDED") return true;
+    if (status === "FAILED" || status === "ABORTED" || status === "TIMED-OUT") {
+      logger.warn({ runId, status }, "Apify run did not succeed");
+      return false;
     }
-  } else {
-    return { mediaUrl: ownReels[0].mediaUrl ?? null, thumbnailUrl: ownReels[0].thumbnailUrl ?? null };
+  }
+  return false;
+}
+
+async function runApifyScraper(url: string): Promise<ResolvedMedia | null> {
+  if (!APIFY_TOKEN) {
+    logger.warn("APIFY_API_TOKEN not set — skipping scrape");
+    return null;
   }
 
-  // Try fetching the Instagram page HTML to extract the video URL
+  // Start actor run
+  const startRes = await fetch(
+    `https://api.apify.com/v2/acts/${ACTOR_ID}/runs?token=${APIFY_TOKEN}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        directUrls: [url],
+        resultsType: "posts",
+        resultsLimit: 1,
+        addParentData: false,
+      }),
+    }
+  );
+
+  if (!startRes.ok) {
+    const err = await startRes.text();
+    logger.error({ status: startRes.status, err }, "Apify run start failed");
+    return null;
+  }
+
+  const startData = await startRes.json() as { data: { id: string } };
+  const runId = startData?.data?.id;
+  if (!runId) {
+    logger.error("Apify run returned no runId");
+    return null;
+  }
+
+  logger.info({ runId, url }, "Apify run started");
+
+  const succeeded = await pollRun(runId);
+  if (!succeeded) return null;
+
+  // Fetch dataset items
+  const itemsRes = await fetch(
+    `https://api.apify.com/v2/actor-runs/${runId}/dataset/items?token=${APIFY_TOKEN}`
+  );
+  if (!itemsRes.ok) return null;
+
+  const items = await itemsRes.json() as any[];
+  const item = Array.isArray(items) ? items[0] : null;
+  if (!item) {
+    logger.warn({ runId }, "Apify returned no items");
+    return null;
+  }
+
+  logger.info({ runId, hasVideo: !!item.videoUrl }, "Apify scrape complete");
+
+  return {
+    mediaUrl: item.videoUrl ?? null,
+    thumbnailUrl: item.displayUrl ?? item.thumbnailUrl ?? null,
+    videoViewCount: item.videoViewCount ?? item.videoPlayCount ?? null,
+    commentsCount: item.commentsCount ?? null,
+    likesCount: item.likesCount ?? item.likesCountFull ?? null,
+    caption: item.caption ?? null,
+    accountName: item.ownerUsername ?? null,
+  };
+}
+
+export async function resolveReelMedia(instagramUrl: string): Promise<{
+  mediaUrl: string | null;
+  thumbnailUrl: string | null;
+}> {
+  // Check if this is one of the user's own synced reels first
+  const all = await db
+    .select({ mediaUrl: reelsTable.mediaUrl, thumbnailUrl: reelsTable.thumbnailUrl, permalink: reelsTable.permalink })
+    .from(reelsTable);
+
+  const base = instagramUrl.replace(/\/$/, "");
+  const own = all.find((r) => r.permalink && r.permalink.replace(/\/$/, "") === base);
+  if (own?.mediaUrl) {
+    return { mediaUrl: own.mediaUrl, thumbnailUrl: own.thumbnailUrl ?? null };
+  }
+
+  return { mediaUrl: null, thumbnailUrl: null };
+}
+
+// On startup: enrich any saved references that are still missing stats
+export async function enrichMissingReferences(): Promise<void> {
+  if (!APIFY_TOKEN) return;
   try {
-    const res = await fetch(`https://www.instagram.com/reel/${shortcode}/`, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      },
-    });
+    const missing = await db
+      .select({ id: savedReferencesTable.id, url: savedReferencesTable.url, viewCount: savedReferencesTable.viewCount, likeCount: savedReferencesTable.likeCount, commentsCount: savedReferencesTable.commentsCount })
+      .from(savedReferencesTable)
+      .then((rows) =>
+        rows.filter(
+          (r) =>
+            r.url?.includes("instagram.com") &&
+            r.viewCount == null &&
+            r.likeCount == null &&
+            r.commentsCount == null
+        )
+      );
 
-    if (!res.ok) {
-      logger.warn({ status: res.status, url: instagramUrl }, "resolveReelMedia: page fetch failed");
-      return { mediaUrl: null, thumbnailUrl: null };
+    // Stagger the requests so we don't hammer Apify all at once
+    for (const ref of missing) {
+      logger.info({ id: ref.id }, "Startup enrichment: queuing reference");
+      await enrichReferenceWithApify(ref.id, ref.url);
     }
-
-    const html = await res.text();
-
-    // Extract video_url from page JSON blobs
-    const videoMatch = html.match(/"video_url"\s*:\s*"([^"]+)"/);
-    const thumbMatch = html.match(/"display_url"\s*:\s*"([^"]+)"/) || html.match(/"thumbnail_src"\s*:\s*"([^"]+)"/);
-
-    const mediaUrl = videoMatch ? videoMatch[1].replace(/\\u0026/g, "&").replace(/\\/g, "") : null;
-    const thumbnailUrl = thumbMatch ? thumbMatch[1].replace(/\\u0026/g, "&").replace(/\\/g, "") : null;
-
-    if (mediaUrl) {
-      logger.info({ shortcode }, "resolveReelMedia: resolved via page scrape");
-    } else {
-      logger.info({ shortcode }, "resolveReelMedia: page scraped but no video_url found");
-    }
-
-    return { mediaUrl, thumbnailUrl };
   } catch (err) {
-    logger.warn({ err, url: instagramUrl }, "resolveReelMedia: scrape error");
-    return { mediaUrl: null, thumbnailUrl: null };
+    logger.error({ err }, "Startup enrichment failed");
+  }
+}
+
+// Called in background after the reference row is saved — enriches it with Apify data
+export async function enrichReferenceWithApify(referenceId: number, url: string): Promise<void> {
+  try {
+    const result = await runApifyScraper(url);
+    if (!result) return;
+
+    await db
+      .update(savedReferencesTable)
+      .set({
+        mediaUrl: result.mediaUrl ?? undefined,
+        thumbnailUrl: result.thumbnailUrl ?? undefined,
+        viewCount: result.videoViewCount ?? undefined,
+        commentsCount: result.commentsCount ?? undefined,
+        likeCount: result.likesCount ?? undefined,
+        caption: result.caption ?? undefined,
+        accountName: result.accountName ?? undefined,
+      })
+      .where(eq(savedReferencesTable.id, referenceId));
+
+    logger.info({ referenceId }, "Reference enriched via Apify");
+  } catch (err) {
+    logger.error({ err, referenceId }, "Failed to enrich reference via Apify");
   }
 }

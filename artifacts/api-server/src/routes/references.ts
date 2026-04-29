@@ -7,7 +7,7 @@ import {
   UpdateReferenceBody,
   DeleteReferenceParams,
 } from "@workspace/api-zod";
-import { resolveReelMedia } from "../lib/resolve-reel-video";
+import { resolveReelMedia, enrichReferenceWithApify } from "../lib/resolve-reel-video";
 
 const router: IRouter = Router();
 
@@ -34,7 +34,7 @@ router.post("/references", async (req, res): Promise<void> => {
     return;
   }
 
-  // Try to resolve direct video + thumbnail URLs in the background
+  // Check if this is one of the user's own reels (fast path — no Apify needed)
   const resolved = await resolveReelMedia(body.data.url);
 
   const [ref] = await db.insert(savedReferencesTable).values({
@@ -42,6 +42,12 @@ router.post("/references", async (req, res): Promise<void> => {
     mediaUrl: body.data.mediaUrl ?? resolved.mediaUrl,
     thumbnailUrl: body.data.thumbnailUrl ?? resolved.thumbnailUrl,
   }).returning();
+
+  // Fire Apify enrichment in the background (doesn't block the response)
+  if (!resolved.mediaUrl) {
+    enrichReferenceWithApify(ref.id, body.data.url).catch(() => {});
+  }
+
   res.status(201).json(formatReference(ref));
 });
 

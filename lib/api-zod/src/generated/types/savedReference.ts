@@ -24,6 +24,8 @@ export interface SavedReference {
   /** @nullable */
   howToRemake?: string | null;
   /** @nullable */
+  viewCount?: number | null;
+  /** @nullable */
   commentsCount?: number | null;
   /** @nullable */
   likeCount?: number | null;

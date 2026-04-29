@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startAutoSync } from "./lib/sync";
+import { enrichMissingReferences } from "./lib/resolve-reel-video";
 
 const rawPort = process.env["PORT"];
 
@@ -24,4 +25,8 @@ app.listen(port, (err) => {
 
   logger.info({ port }, "Server listening");
   startAutoSync();
+  // Fire-and-forget: enrich any existing references missing stats
+  enrichMissingReferences().catch((err) =>
+    logger.error({ err }, "enrichMissingReferences error")
+  );
 });

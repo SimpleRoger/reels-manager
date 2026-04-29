@@ -916,6 +916,8 @@ components:
           type: ["string", "null"]
         howToRemake:
           type: ["string", "null"]
+        viewCount:
+          type: ["integer", "null"]
         commentsCount:
           type: ["integer", "null"]
         likeCount:
@@ -945,6 +947,10 @@ components:
       properties:
         url:
           type: string
+        mediaUrl:
+          type: ["string", "null"]
+        thumbnailUrl:
+          type: ["string", "null"]
         caption:
           type: ["string", "null"]
         accountName:
@@ -955,6 +961,8 @@ components:
           type: ["string", "null"]
         howToRemake:
           type: ["string", "null"]
+        viewCount:
+          type: ["integer", "null"]
         commentsCount:
           type: ["integer", "null"]
         likeCount:
@@ -975,6 +983,8 @@ components:
           type: ["string", "null"]
         howToRemake:
           type: ["string", "null"]
+        viewCount:
+          type: ["integer", "null"]
         commentsCount:
           type: ["integer", "null"]
         likeCount:

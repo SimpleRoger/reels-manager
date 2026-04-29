@@ -246,6 +246,8 @@ export interface SavedReference {
   /** @nullable */
   howToRemake?: string | null;
   /** @nullable */
+  viewCount?: number | null;
+  /** @nullable */
   commentsCount?: number | null;
   /** @nullable */
   likeCount?: number | null;
@@ -260,6 +262,10 @@ export interface ListReferencesResponse {
 export interface CreateReferenceBody {
   url: string;
   /** @nullable */
+  mediaUrl?: string | null;
+  /** @nullable */
+  thumbnailUrl?: string | null;
+  /** @nullable */
   caption?: string | null;
   /** @nullable */
   accountName?: string | null;
@@ -269,6 +275,8 @@ export interface CreateReferenceBody {
   whatToChange?: string | null;
   /** @nullable */
   howToRemake?: string | null;
+  /** @nullable */
+  viewCount?: number | null;
   /** @nullable */
   commentsCount?: number | null;
   /** @nullable */
@@ -286,6 +294,8 @@ export interface UpdateReferenceBody {
   whatToChange?: string | null;
   /** @nullable */
   howToRemake?: string | null;
+  /** @nullable */
+  viewCount?: number | null;
   /** @nullable */
   commentsCount?: number | null;
   /** @nullable */
