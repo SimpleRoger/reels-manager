@@ -273,91 +273,79 @@ export default function RemakeList() {
               key={ref.id}
               className="bg-card hover-elevate border-card-border overflow-hidden flex flex-col group"
             >
-              {/* ── Header row: thumbnail strip + account/stats + delete ── */}
-              <div className="flex border-b border-border">
-                {/* Thumbnail strip */}
-                <div
-                  className="relative w-[72px] shrink-0 bg-muted overflow-hidden cursor-pointer border-r border-border"
-                  onClick={() => setPlayingId(isPlaying ? null : ref.id)}
-                >
-                  {ref.thumbnailUrl ? (
-                    <img
-                      src={ref.thumbnailUrl}
-                      alt="thumbnail"
-                      className="w-full h-full object-cover min-h-[80px]"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center min-h-[80px]">
-                      <Play className="w-4 h-4 text-muted-foreground/40" />
+              {/* ── Thumbnail / player banner ── */}
+              <div
+                className="relative w-full h-[140px] bg-muted border-b border-border cursor-pointer overflow-hidden shrink-0"
+                onClick={() => setPlayingId(isPlaying ? null : ref.id)}
+              >
+                {isPlaying ? (
+                  <InlinePlayer
+                    mediaUrl={ref.mediaUrl}
+                    thumbnailUrl={ref.thumbnailUrl}
+                    instagramUrl={ref.url}
+                    onClose={() => setPlayingId(null)}
+                    className="absolute inset-0"
+                  />
+                ) : (
+                  <>
+                    {ref.thumbnailUrl ? (
+                      <img
+                        src={ref.thumbnailUrl}
+                        alt="thumbnail"
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Play className="w-8 h-8 text-muted-foreground/30" />
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="w-12 h-12 rounded-full bg-primary/90 flex items-center justify-center shadow-xl">
+                        <Play className="w-5 h-5 text-black fill-black ml-0.5" />
+                      </div>
                     </div>
-                  )}
-                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Play className="w-5 h-5 text-white fill-white drop-shadow-md" />
-                  </div>
-                </div>
-
-                {/* Account + stats */}
-                <div className="flex-1 px-4 py-3 space-y-1.5 bg-muted/30 min-w-0">
-                  <div className="flex justify-between items-center gap-3">
-                    <a
-                      href={ref.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline font-mono text-xs truncate flex items-center gap-1 min-w-0"
-                    >
-                      <ExternalLink className="w-3 h-3 flex-shrink-0" />
-                      {ref.accountName ? `@${ref.accountName}` : ref.url}
-                    </a>
+                    {/* Account name + stats overlay at bottom */}
+                    <div className="absolute bottom-0 left-0 right-0 px-3 py-2 flex items-center justify-between gap-2">
+                      <a
+                        href={ref.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-white hover:text-primary font-mono text-xs truncate flex items-center gap-1 min-w-0 drop-shadow"
+                      >
+                        <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                        {ref.accountName ? `@${ref.accountName}` : ref.url}
+                      </a>
+                      <div className="flex items-center gap-3 text-[11px] font-mono text-white/80 shrink-0 drop-shadow">
+                        {ref.viewCount == null && ref.likeCount == null && ref.commentsCount == null ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <>
+                            {ref.viewCount != null && (
+                              <span className="flex items-center gap-1"><Eye className="w-3 h-3" />{ref.viewCount.toLocaleString()}</span>
+                            )}
+                            {ref.likeCount != null && (
+                              <span className="flex items-center gap-1"><Heart className="w-3 h-3" />{ref.likeCount.toLocaleString()}</span>
+                            )}
+                            {ref.commentsCount != null && (
+                              <span className="flex items-center gap-1"><MessageCircle className="w-3 h-3" />{ref.commentsCount.toLocaleString()}</span>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-6 w-6 text-muted-foreground hover:text-destructive shrink-0"
-                      onClick={() => handleDelete(ref.id)}
+                      className="absolute top-2 right-2 h-6 w-6 text-white/70 hover:text-white hover:bg-black/40 z-10"
+                      onClick={(e) => { e.stopPropagation(); handleDelete(ref.id); }}
                     >
                       <Trash2 className="w-3 h-3" />
                     </Button>
-                  </div>
-                  {ref.viewCount == null && ref.likeCount == null && ref.commentsCount == null ? (
-                    <div className="flex items-center gap-1 text-[10px] font-mono text-muted-foreground/60">
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                      Fetching stats...
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-4 text-[11px] font-mono">
-                      {ref.viewCount != null && (
-                        <span className="flex items-center gap-1 text-muted-foreground">
-                          <Eye className="w-3 h-3" />{ref.viewCount.toLocaleString()}
-                        </span>
-                      )}
-                      {ref.likeCount != null && (
-                        <span className="flex items-center gap-1 text-muted-foreground">
-                          <Heart className="w-3 h-3" />{ref.likeCount.toLocaleString()}
-                        </span>
-                      )}
-                      {ref.commentsCount != null && (
-                        <span className="flex items-center gap-1 text-muted-foreground">
-                          <MessageCircle className="w-3 h-3" />{ref.commentsCount.toLocaleString()}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </div>
+                  </>
+                )}
               </div>
-
-              {/* ── Inline player: slides open below header when playing ── */}
-              {isPlaying && (
-                <div className="flex justify-center bg-black border-b border-border py-2">
-                  <div className="w-[148px] aspect-[9/16] relative">
-                    <InlinePlayer
-                      mediaUrl={ref.mediaUrl}
-                      thumbnailUrl={ref.thumbnailUrl}
-                      instagramUrl={ref.url}
-                      onClose={() => setPlayingId(null)}
-                      className="absolute inset-0"
-                    />
-                  </div>
-                </div>
-              )}
 
               {/* ── Caption + notes (always visible) ── */}
               <CardContent className="p-4 flex-1 flex flex-col">
