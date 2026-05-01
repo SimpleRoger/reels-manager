@@ -160,14 +160,14 @@ export default function RemakeList() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-1">
           <h1 className="text-3xl font-bold tracking-tight">Remake List</h1>
           <p className="text-muted-foreground text-sm">
             Save reels you want to study, remake, or reference.
           </p>
         </div>
-        <div className="flex gap-2 shrink-0 flex-wrap justify-end">
+        <div className="flex gap-2 flex-wrap sm:shrink-0 sm:justify-end">
           <Button
             size="sm"
             variant="ghost"

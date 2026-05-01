@@ -192,7 +192,7 @@ function SearchTab() {
       {/* Results */}
       {(searchMutation.data || searchMutation.isPending) && (
         <Card className="bg-card border-card-border">
-          <CardHeader className="flex flex-row items-center justify-between pb-3">
+          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between pb-3">
             <div>
               <CardTitle className="text-base">
                 {searchMutation.data
@@ -201,12 +201,12 @@ function SearchTab() {
               </CardTitle>
             </div>
             {searchMutation.data && (
-              <div className="flex gap-1 bg-background rounded-md p-1 border text-xs font-mono">
+              <div className="flex gap-1 bg-background rounded-md p-1 border text-xs font-mono self-start sm:self-auto">
                 {(["views", "likes", "shares", "comments"] as SortKey[]).map((v) => (
                   <button
                     key={v}
                     onClick={() => setSort(v)}
-                    className={`px-3 py-1 rounded uppercase tracking-wider transition-colors ${
+                    className={`px-2.5 py-1 rounded uppercase tracking-wider transition-colors ${
                       sort === v ? "bg-primary text-black" : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
