@@ -2,6 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { startAutoSync } from "./lib/sync";
 import { enrichMissingReferences } from "./lib/resolve-reel-video";
+import { seedProductionIfEmpty } from "./lib/seeder";
 
 const rawPort = process.env["PORT"];
 
@@ -24,6 +25,10 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+  // Seed production DB with dev data on first boot (no-op in dev or if DB non-empty)
+  seedProductionIfEmpty().catch((err) =>
+    logger.error({ err }, "seedProductionIfEmpty error")
+  );
   startAutoSync();
   // Fire-and-forget: enrich any existing references missing stats
   enrichMissingReferences().catch((err) =>
