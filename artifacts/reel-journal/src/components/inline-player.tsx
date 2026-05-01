@@ -33,17 +33,8 @@ export function InlinePlayer({ mediaUrl, thumbnailUrl, instagramUrl, onClose, cl
         <X className="w-3.5 h-3.5" />
       </button>
 
-      {mediaUrl ? (
-        <video
-          ref={videoRef}
-          src={mediaUrl}
-          poster={thumbnailUrl ?? undefined}
-          controls
-          playsInline
-          className="w-full h-full object-contain"
-          onClick={(e) => e.stopPropagation()}
-        />
-      ) : shortcode ? (
+      {shortcode ? (
+        // Instagram's own embed player — handles auth, adaptive streaming, and CORS correctly
         <iframe
           src={`https://www.instagram.com/reel/${shortcode}/embed/`}
           className="w-full h-full"
@@ -51,6 +42,18 @@ export function InlinePlayer({ mediaUrl, thumbnailUrl, instagramUrl, onClose, cl
           allowFullScreen
           scrolling="no"
           allow="autoplay; clipboard-write; encrypted-media; picture-in-picture"
+        />
+      ) : mediaUrl ? (
+        // Fallback: direct video element when no Instagram URL is available
+        <video
+          ref={videoRef}
+          src={mediaUrl}
+          poster={thumbnailUrl ?? undefined}
+          controls
+          playsInline
+          preload="auto"
+          className="w-full h-full object-contain"
+          onClick={(e) => e.stopPropagation()}
         />
       ) : (
         <div className="w-full h-full flex items-center justify-center text-white/40 text-xs font-mono">
