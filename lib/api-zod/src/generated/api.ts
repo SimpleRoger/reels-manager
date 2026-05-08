@@ -568,6 +568,104 @@ export const DeleteReferenceParams = zod.object({
 });
 
 /**
+ * @summary List content calendar posts
+ */
+export const ListCalendarPostsQueryParams = zod.object({
+  start: zod.coerce.string().optional(),
+  end: zod.coerce.string().optional(),
+});
+
+export const ListCalendarPostsResponse = zod.object({
+  posts: zod.array(
+    zod.object({
+      id: zod.number(),
+      title: zod.string(),
+      accountType: zod.string().describe("ig_reel | clothing"),
+      status: zod.string().describe("idea | filmed | edited | posted"),
+      scheduledDate: zod.string().describe("ISO date YYYY-MM-DD"),
+      hook: zod.string().nullish(),
+      caption: zod.string().nullish(),
+      outfit: zod.string().nullish(),
+      location: zod.string().nullish(),
+      audio: zod.string().nullish(),
+      notes: zod.string().nullish(),
+      result: zod.string().nullish(),
+      linkedReelId: zod.number().nullish(),
+      createdAt: zod.string(),
+      updatedAt: zod.string(),
+    }),
+  ),
+});
+
+/**
+ * @summary Create a new content calendar post
+ */
+export const createCalendarPostBodyAccountTypeDefault = `ig_reel`;
+export const createCalendarPostBodyStatusDefault = `idea`;
+
+export const CreateCalendarPostBody = zod.object({
+  title: zod.string(),
+  accountType: zod.string().default(createCalendarPostBodyAccountTypeDefault),
+  status: zod.string().default(createCalendarPostBodyStatusDefault),
+  scheduledDate: zod.string(),
+  hook: zod.string().nullish(),
+  caption: zod.string().nullish(),
+  outfit: zod.string().nullish(),
+  location: zod.string().nullish(),
+  audio: zod.string().nullish(),
+  notes: zod.string().nullish(),
+  result: zod.string().nullish(),
+  linkedReelId: zod.number().nullish(),
+});
+
+/**
+ * @summary Update a calendar post (including reschedule)
+ */
+export const UpdateCalendarPostParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateCalendarPostBody = zod.object({
+  title: zod.string().optional(),
+  accountType: zod.string().optional(),
+  status: zod.string().optional(),
+  scheduledDate: zod.string().optional(),
+  hook: zod.string().nullish(),
+  caption: zod.string().nullish(),
+  outfit: zod.string().nullish(),
+  location: zod.string().nullish(),
+  audio: zod.string().nullish(),
+  notes: zod.string().nullish(),
+  result: zod.string().nullish(),
+  linkedReelId: zod.number().nullish(),
+});
+
+export const UpdateCalendarPostResponse = zod.object({
+  id: zod.number(),
+  title: zod.string(),
+  accountType: zod.string().describe("ig_reel | clothing"),
+  status: zod.string().describe("idea | filmed | edited | posted"),
+  scheduledDate: zod.string().describe("ISO date YYYY-MM-DD"),
+  hook: zod.string().nullish(),
+  caption: zod.string().nullish(),
+  outfit: zod.string().nullish(),
+  location: zod.string().nullish(),
+  audio: zod.string().nullish(),
+  notes: zod.string().nullish(),
+  result: zod.string().nullish(),
+  linkedReelId: zod.number().nullish(),
+  createdAt: zod.string(),
+  updatedAt: zod.string(),
+});
+
+/**
+ * @summary Delete a calendar post
+ */
+export const DeleteCalendarPostParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
  * @summary Search Instagram reels by hashtag via Apify
  */
 export const searchReelsBodyLimitDefault = 30;

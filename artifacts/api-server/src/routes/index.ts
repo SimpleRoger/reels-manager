@@ -13,6 +13,7 @@ import dmImporterRouter from "./dm-importer";
 import reelSearchRouter from "./reel-search";
 import trendingReelsRouter from "./trending-reels";
 import mediaProxyRouter from "./media-proxy";
+import calendarRouter from "./calendar";
 
 const router: IRouter = Router();
 
@@ -30,5 +31,6 @@ router.use(dmImporterRouter);
 router.use(reelSearchRouter);
 router.use(trendingReelsRouter);
 router.use(mediaProxyRouter);
+router.use(calendarRouter);
 
 export default router;

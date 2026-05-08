@@ -503,6 +503,94 @@ paths:
         "204":
           description: Deleted
 
+  # ─── CALENDAR ────────────────────────────────────────────────────────────────
+  /calendar:
+    get:
+      operationId: listCalendarPosts
+      tags: [calendar]
+      summary: List content calendar posts
+      parameters:
+        - name: start
+          in: query
+          required: false
+          schema:
+            type: string
+            description: ISO date string (YYYY-MM-DD)
+        - name: end
+          in: query
+          required: false
+          schema:
+            type: string
+            description: ISO date string (YYYY-MM-DD)
+      responses:
+        "200":
+          description: Calendar posts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListCalendarPostsResponse"
+    post:
+      operationId: createCalendarPost
+      tags: [calendar]
+      summary: Create a new content calendar post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCalendarPostBody"
+      responses:
+        "201":
+          description: Created post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CalendarPost"
+
+  /calendar/{id}:
+    patch:
+      operationId: updateCalendarPost
+      tags: [calendar]
+      summary: Update a calendar post (including reschedule)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCalendarPostBody"
+      responses:
+        "200":
+          description: Updated post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CalendarPost"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteCalendarPost
+      tags: [calendar]
+      summary: Delete a calendar post
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
   # ─── REEL SEARCH ─────────────────────────────────────────────────────────────
   /reel-search:
     post:
@@ -1044,6 +1132,123 @@ components:
         commentsCount:
           type: ["integer", "null"]
         likeCount:
+          type: ["integer", "null"]
+
+    # ─── CALENDAR ──────────────────────────────────────────────────────────────
+    CalendarPost:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        accountType:
+          type: string
+          description: ig_reel | clothing
+        status:
+          type: string
+          description: idea | filmed | edited | posted
+        scheduledDate:
+          type: string
+          description: ISO date YYYY-MM-DD
+        hook:
+          type: ["string", "null"]
+        caption:
+          type: ["string", "null"]
+        outfit:
+          type: ["string", "null"]
+        location:
+          type: ["string", "null"]
+        audio:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        result:
+          type: ["string", "null"]
+        linkedReelId:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        - id
+        - title
+        - accountType
+        - status
+        - scheduledDate
+        - createdAt
+        - updatedAt
+
+    ListCalendarPostsResponse:
+      type: object
+      properties:
+        posts:
+          type: array
+          items:
+            $ref: "#/components/schemas/CalendarPost"
+      required:
+        - posts
+
+    CreateCalendarPostBody:
+      type: object
+      properties:
+        title:
+          type: string
+        accountType:
+          type: string
+          default: ig_reel
+        status:
+          type: string
+          default: idea
+        scheduledDate:
+          type: string
+        hook:
+          type: ["string", "null"]
+        caption:
+          type: ["string", "null"]
+        outfit:
+          type: ["string", "null"]
+        location:
+          type: ["string", "null"]
+        audio:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        result:
+          type: ["string", "null"]
+        linkedReelId:
+          type: ["integer", "null"]
+      required:
+        - title
+        - scheduledDate
+
+    UpdateCalendarPostBody:
+      type: object
+      properties:
+        title:
+          type: string
+        accountType:
+          type: string
+        status:
+          type: string
+        scheduledDate:
+          type: string
+        hook:
+          type: ["string", "null"]
+        caption:
+          type: ["string", "null"]
+        outfit:
+          type: ["string", "null"]
+        location:
+          type: ["string", "null"]
+        audio:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        result:
+          type: ["string", "null"]
+        linkedReelId:
           type: ["integer", "null"]
 
     # ─── REEL SEARCH ───────────────────────────────────────────────────────────

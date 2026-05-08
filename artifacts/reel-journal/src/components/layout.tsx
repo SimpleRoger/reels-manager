@@ -7,9 +7,11 @@ import {
   Settings,
   UserCircle2,
   MessageSquare,
+  CalendarDays,
 } from "lucide-react";
 
 const navigation = [
+  { name: "Calendar", shortName: "Plan", href: "/calendar", icon: CalendarDays },
   { name: "Reels Log", shortName: "Log", href: "/reels", icon: Film },
   { name: "Profile", shortName: "Profile", href: "/profile", icon: UserCircle2 },
   { name: "Playbook", shortName: "Playbook", href: "/playbook", icon: BookOpen },

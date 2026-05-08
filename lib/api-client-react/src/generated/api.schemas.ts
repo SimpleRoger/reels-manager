@@ -333,6 +333,85 @@ export interface UpdateReferenceBody {
   likeCount?: number | null;
 }
 
+export interface CalendarPost {
+  id: number;
+  title: string;
+  /** ig_reel | clothing */
+  accountType: string;
+  /** idea | filmed | edited | posted */
+  status: string;
+  /** ISO date YYYY-MM-DD */
+  scheduledDate: string;
+  /** @nullable */
+  hook?: string | null;
+  /** @nullable */
+  caption?: string | null;
+  /** @nullable */
+  outfit?: string | null;
+  /** @nullable */
+  location?: string | null;
+  /** @nullable */
+  audio?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  /** @nullable */
+  result?: string | null;
+  /** @nullable */
+  linkedReelId?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ListCalendarPostsResponse {
+  posts: CalendarPost[];
+}
+
+export interface CreateCalendarPostBody {
+  title: string;
+  accountType?: string;
+  status?: string;
+  scheduledDate: string;
+  /** @nullable */
+  hook?: string | null;
+  /** @nullable */
+  caption?: string | null;
+  /** @nullable */
+  outfit?: string | null;
+  /** @nullable */
+  location?: string | null;
+  /** @nullable */
+  audio?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  /** @nullable */
+  result?: string | null;
+  /** @nullable */
+  linkedReelId?: number | null;
+}
+
+export interface UpdateCalendarPostBody {
+  title?: string;
+  accountType?: string;
+  status?: string;
+  scheduledDate?: string;
+  /** @nullable */
+  hook?: string | null;
+  /** @nullable */
+  caption?: string | null;
+  /** @nullable */
+  outfit?: string | null;
+  /** @nullable */
+  location?: string | null;
+  /** @nullable */
+  audio?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  /** @nullable */
+  result?: string | null;
+  /** @nullable */
+  linkedReelId?: number | null;
+}
+
 export interface SearchReelsBody {
   /** Hashtag to search (with or without */
   hashtag: string;
@@ -398,3 +477,14 @@ export const ListReelsSortOrder = {
   asc: "asc",
   desc: "desc",
 } as const;
+
+export type ListCalendarPostsParams = {
+  /**
+   * ISO date string (YYYY-MM-DD)
+   */
+  start?: string;
+  /**
+   * ISO date string (YYYY-MM-DD)
+   */
+  end?: string;
+};

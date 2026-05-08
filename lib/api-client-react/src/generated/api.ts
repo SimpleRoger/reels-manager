@@ -17,8 +17,10 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  CalendarPost,
   ConnectInstagramBody,
   ConnectInstagramResponse,
+  CreateCalendarPostBody,
   CreatePlaybookBody,
   CreateReferenceBody,
   DashboardSummary,
@@ -26,6 +28,8 @@ import type {
   HashtagSearchResult,
   HealthStatus,
   InstagramStatus,
+  ListCalendarPostsParams,
+  ListCalendarPostsResponse,
   ListPlaybookResponse,
   ListReelsParams,
   ListReelsResponse,
@@ -40,6 +44,7 @@ import type {
   SearchReelsBody,
   SearchReelsResponse,
   SyncResult,
+  UpdateCalendarPostBody,
   UpdatePlaybookBody,
   UpdateReelTagsBody,
   UpdateReelTagsResponse,
@@ -1808,6 +1813,363 @@ export const useDeleteReference = <
   TContext
 > => {
   return useMutation(getDeleteReferenceMutationOptions(options));
+};
+
+/**
+ * @summary List content calendar posts
+ */
+export const getListCalendarPostsUrl = (params?: ListCalendarPostsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/calendar?${stringifiedParams}`
+    : `/api/calendar`;
+};
+
+export const listCalendarPosts = async (
+  params?: ListCalendarPostsParams,
+  options?: RequestInit,
+): Promise<ListCalendarPostsResponse> => {
+  return customFetch<ListCalendarPostsResponse>(
+    getListCalendarPostsUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getListCalendarPostsQueryKey = (
+  params?: ListCalendarPostsParams,
+) => {
+  return [`/api/calendar`, ...(params ? [params] : [])] as const;
+};
+
+export const getListCalendarPostsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listCalendarPosts>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListCalendarPostsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listCalendarPosts>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListCalendarPostsQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listCalendarPosts>>
+  > = ({ signal }) => listCalendarPosts(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listCalendarPosts>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListCalendarPostsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listCalendarPosts>>
+>;
+export type ListCalendarPostsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List content calendar posts
+ */
+
+export function useListCalendarPosts<
+  TData = Awaited<ReturnType<typeof listCalendarPosts>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListCalendarPostsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listCalendarPosts>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListCalendarPostsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a new content calendar post
+ */
+export const getCreateCalendarPostUrl = () => {
+  return `/api/calendar`;
+};
+
+export const createCalendarPost = async (
+  createCalendarPostBody: CreateCalendarPostBody,
+  options?: RequestInit,
+): Promise<CalendarPost> => {
+  return customFetch<CalendarPost>(getCreateCalendarPostUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createCalendarPostBody),
+  });
+};
+
+export const getCreateCalendarPostMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createCalendarPost>>,
+    TError,
+    { data: BodyType<CreateCalendarPostBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createCalendarPost>>,
+  TError,
+  { data: BodyType<CreateCalendarPostBody> },
+  TContext
+> => {
+  const mutationKey = ["createCalendarPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createCalendarPost>>,
+    { data: BodyType<CreateCalendarPostBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createCalendarPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateCalendarPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createCalendarPost>>
+>;
+export type CreateCalendarPostMutationBody = BodyType<CreateCalendarPostBody>;
+export type CreateCalendarPostMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a new content calendar post
+ */
+export const useCreateCalendarPost = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createCalendarPost>>,
+    TError,
+    { data: BodyType<CreateCalendarPostBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createCalendarPost>>,
+  TError,
+  { data: BodyType<CreateCalendarPostBody> },
+  TContext
+> => {
+  return useMutation(getCreateCalendarPostMutationOptions(options));
+};
+
+/**
+ * @summary Update a calendar post (including reschedule)
+ */
+export const getUpdateCalendarPostUrl = (id: number) => {
+  return `/api/calendar/${id}`;
+};
+
+export const updateCalendarPost = async (
+  id: number,
+  updateCalendarPostBody: UpdateCalendarPostBody,
+  options?: RequestInit,
+): Promise<CalendarPost> => {
+  return customFetch<CalendarPost>(getUpdateCalendarPostUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateCalendarPostBody),
+  });
+};
+
+export const getUpdateCalendarPostMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateCalendarPost>>,
+    TError,
+    { id: number; data: BodyType<UpdateCalendarPostBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateCalendarPost>>,
+  TError,
+  { id: number; data: BodyType<UpdateCalendarPostBody> },
+  TContext
+> => {
+  const mutationKey = ["updateCalendarPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateCalendarPost>>,
+    { id: number; data: BodyType<UpdateCalendarPostBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateCalendarPost(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateCalendarPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateCalendarPost>>
+>;
+export type UpdateCalendarPostMutationBody = BodyType<UpdateCalendarPostBody>;
+export type UpdateCalendarPostMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Update a calendar post (including reschedule)
+ */
+export const useUpdateCalendarPost = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateCalendarPost>>,
+    TError,
+    { id: number; data: BodyType<UpdateCalendarPostBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateCalendarPost>>,
+  TError,
+  { id: number; data: BodyType<UpdateCalendarPostBody> },
+  TContext
+> => {
+  return useMutation(getUpdateCalendarPostMutationOptions(options));
+};
+
+/**
+ * @summary Delete a calendar post
+ */
+export const getDeleteCalendarPostUrl = (id: number) => {
+  return `/api/calendar/${id}`;
+};
+
+export const deleteCalendarPost = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteCalendarPostUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteCalendarPostMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteCalendarPost>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteCalendarPost>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteCalendarPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteCalendarPost>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteCalendarPost(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteCalendarPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteCalendarPost>>
+>;
+
+export type DeleteCalendarPostMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a calendar post
+ */
+export const useDeleteCalendarPost = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteCalendarPost>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteCalendarPost>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteCalendarPostMutationOptions(options));
 };
 
 /**
