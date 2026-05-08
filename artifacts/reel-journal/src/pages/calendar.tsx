@@ -420,7 +420,7 @@ export default function Calendar() {
   const updateMutation = useUpdateCalendarPost();
   const deleteMutation = useDeleteCalendarPost();
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["listCalendarPosts"] });
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["/api/calendar"] });
 
   // ── Calendar grid ──
   const firstDay = new Date(year, month, 1).getDay();
