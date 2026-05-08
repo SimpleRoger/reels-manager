@@ -568,7 +568,7 @@ export default function Calendar() {
           <div className="grid grid-cols-7 gap-px bg-border rounded-xl overflow-hidden border border-border">
             {cells.map((day, i) => {
               if (day === null) {
-                return <div key={`empty-${i}`} className="bg-background min-h-[90px] p-1.5" />;
+                return <div key={`empty-${i}`} className="bg-background min-h-[120px] p-1.5" />;
               }
 
               const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -586,7 +586,7 @@ export default function Calendar() {
                   onDragOver={(e) => handleDragOver(e, dateStr)}
                   onDrop={(e) => handleDrop(e, dateStr)}
                   onDragEnd={handleDragEnd}
-                  className={`bg-background min-h-[90px] p-1.5 transition-colors cursor-pointer group
+                  className={`bg-background min-h-[120px] p-1.5 transition-colors cursor-pointer group
                     ${isDragTarget ? "bg-accent/50" : ""}
                     ${isScheduledDay ? "bg-background" : "bg-muted/20"}
                   `}
