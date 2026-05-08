@@ -123,3 +123,38 @@ export function startAutoSync() {
     }
   }, THIRTY_MINUTES);
 }
+
+function msUntilSydney7am(): number {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat("en-AU", {
+    timeZone: "Australia/Sydney",
+    hour: "numeric",
+    minute: "numeric",
+    second: "numeric",
+    hour12: false,
+  }).formatToParts(now);
+  const h = parseInt(parts.find((p) => p.type === "hour")?.value ?? "0");
+  const m = parseInt(parts.find((p) => p.type === "minute")?.value ?? "0");
+  const s = parseInt(parts.find((p) => p.type === "second")?.value ?? "0");
+  const elapsed = h * 3600 + m * 60 + s;
+  const until = 7 * 3600 - elapsed;
+  return (until <= 0 ? until + 86400 : until) * 1000;
+}
+
+export function scheduleDailySydneySync() {
+  function scheduleNext() {
+    const delay = msUntilSydney7am();
+    const hours = Math.round((delay / 3600000) * 10) / 10;
+    logger.info({ hoursUntilNext: hours }, "Auto-sync: daily 7am Sydney sync scheduled");
+    setTimeout(async () => {
+      logger.info("Auto-sync: running daily 7am Sydney sync");
+      try {
+        await runInstagramSync();
+      } catch (err) {
+        logger.error({ err }, "Auto-sync: daily Sydney sync error");
+      }
+      scheduleNext();
+    }, delay);
+  }
+  scheduleNext();
+}

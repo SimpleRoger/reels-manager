@@ -1,6 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
-import { startAutoSync } from "./lib/sync";
+import { startAutoSync, scheduleDailySydneySync } from "./lib/sync";
 import { enrichMissingReferences } from "./lib/resolve-reel-video";
 import { seedProductionIfEmpty } from "./lib/seeder";
 
@@ -30,6 +30,7 @@ app.listen(port, (err) => {
     logger.error({ err }, "seedProductionIfEmpty error")
   );
   startAutoSync();
+  scheduleDailySydneySync();
   // Fire-and-forget: enrich any existing references missing stats
   enrichMissingReferences().catch((err) =>
     logger.error({ err }, "enrichMissingReferences error")

@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Layout } from "@/components/layout";
 import Calendar from "@/pages/calendar";
+import { useScheduledRefresh } from "@/hooks/use-scheduled-refresh";
 import ReelsLog from "@/pages/reels";
 import ReelDetail from "@/pages/reel-detail";
 import Playbook from "@/pages/playbook";
@@ -17,6 +18,7 @@ import NotFound from "@/pages/not-found";
 const queryClient = new QueryClient();
 
 function Router() {
+  useScheduledRefresh();
   return (
     <Layout>
       <Switch>
