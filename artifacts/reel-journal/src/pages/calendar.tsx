@@ -68,6 +68,7 @@ const STATUS_CONFIG: Record<Status, { label: string; color: string }> = {
 // Recurring schedule: day of week (0=Sun) → account type
 const SCHEDULE: Record<number, AccountType> = {
   0: "ig_reel",   // Sun
+  1: "dancing",   // Mon
   2: "ig_reel",   // Tue
   3: "dancing",   // Wed
   4: "clothing",  // Thu
@@ -75,6 +76,7 @@ const SCHEDULE: Record<number, AccountType> = {
 };
 
 const SCHEDULE_ITEMS = [
+  { day: "Mon", type: "dancing" as AccountType },
   { day: "Tue", type: "ig_reel" as AccountType },
   { day: "Wed", type: "dancing" as AccountType },
   { day: "Thu", type: "clothing" as AccountType },
