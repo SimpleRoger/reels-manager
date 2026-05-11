@@ -402,12 +402,29 @@ function DetailModal({ post, onClose, onSave, onDelete }: DetailModalProps) {
   );
 }
 
+// ─── Ghost Card (unfilled scheduled slot) ────────────────────────────────────
+
+function GhostCard({ accountType, onClick }: { accountType: AccountType; onClick: () => void }) {
+  const acct = ACCOUNT_CONFIG[accountType] ?? ACCOUNT_CONFIG.ig_reel;
+  return (
+    <div
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      className={`cursor-pointer rounded-md px-2 py-1.5 border border-dashed text-left w-full select-none transition-opacity opacity-35 hover:opacity-75 ${acct.bg} ${acct.border}`}
+    >
+      <div className="flex items-center justify-between gap-1">
+        <span className={`text-[10px] font-semibold ${acct.color}`}>{acct.label}</span>
+        <span className="text-[9px] px-1 py-0.5 rounded font-medium bg-zinc-800 text-zinc-500">To Do</span>
+      </div>
+    </div>
+  );
+}
+
 // ─── New Post Prefill ─────────────────────────────────────────────────────────
 
-function defaultPostForDate(dateStr: string): Partial<CalendarPost> {
+function defaultPostForDate(dateStr: string, forceAccountType?: AccountType): Partial<CalendarPost> {
   const d = new Date(dateStr + "T12:00:00");
   const dow = d.getDay();
-  const accountType: AccountType = SCHEDULE[dow] ?? "ig_reel";
+  const accountType: AccountType = forceAccountType ?? SCHEDULE[dow] ?? "ig_reel";
   return { scheduledDate: dateStr, accountType, status: "idea", title: "" };
 }
 
@@ -419,6 +436,7 @@ export default function Calendar() {
   const [month, setMonth] = useState(today.getMonth());
   const [selectedPost, setSelectedPost] = useState<CalendarPost | "new" | null>(null);
   const [newPostDate, setNewPostDate] = useState<string>("");
+  const [newPostAccountType, setNewPostAccountType] = useState<AccountType | undefined>(undefined);
   const [dragPostId, setDragPostId] = useState<number | null>(null);
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
 
@@ -521,7 +539,7 @@ export default function Calendar() {
 
   const modalPost: CalendarPost | null =
     selectedPost === "new"
-      ? ({ ...defaultPostForDate(newPostDate), id: 0, createdAt: "", updatedAt: "" } as CalendarPost)
+      ? ({ ...defaultPostForDate(newPostDate, newPostAccountType), id: 0, createdAt: "", updatedAt: "" } as CalendarPost)
       : selectedPost;
 
   return (
@@ -530,11 +548,11 @@ export default function Calendar() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Content Calendar</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Tue · Thu · Sat · Sun posting schedule</p>
+          <p className="text-sm text-muted-foreground mt-0.5">Mon · Tue · Wed · Thu · Sat · Sun posting schedule</p>
         </div>
         <Button
           size="sm"
-          onClick={() => { setNewPostDate(todayStr); setSelectedPost("new"); }}
+          onClick={() => { setNewPostDate(todayStr); setNewPostAccountType(undefined); setSelectedPost("new"); }}
           className="gap-1.5"
         >
           <Plus className="h-4 w-4" />
@@ -601,10 +619,10 @@ export default function Calendar() {
                     ${isDragTarget ? "bg-accent/50" : ""}
                     ${isScheduledDay ? "bg-background" : "bg-muted/20"}
                   `}
-                  onClick={() => { setNewPostDate(dateStr); setSelectedPost("new"); }}
+                  onClick={(e) => { setNewPostDate(dateStr); setNewPostAccountType(undefined); setSelectedPost("new"); }}
                 >
-                  {/* Date + scheduled dot */}
-                  <div className="flex items-center justify-between mb-1">
+                  {/* Date number */}
+                  <div className="flex items-center mb-1">
                     <span
                       className={`text-xs font-medium w-6 h-6 flex items-center justify-center rounded-full
                         ${isToday ? "bg-primary text-primary-foreground" : "text-foreground"}
@@ -612,18 +630,9 @@ export default function Calendar() {
                     >
                       {day}
                     </span>
-                    {isScheduledDay && (
-                      <span
-                        className={`text-[9px] px-1 py-0.5 rounded font-semibold opacity-50 group-hover:opacity-100 transition-opacity
-                          ${ACCOUNT_CONFIG[scheduledType].bg} ${ACCOUNT_CONFIG[scheduledType].color}
-                        `}
-                      >
-                        {ACCOUNT_CONFIG[scheduledType].label}
-                      </span>
-                    )}
                   </div>
 
-                  {/* Posts */}
+                  {/* Real posts + ghost slot */}
                   <div className="space-y-1" onClick={(e) => e.stopPropagation()}>
                     {dayPosts.map((post) => (
                       <PostCard
@@ -633,17 +642,13 @@ export default function Calendar() {
                         onDragStart={(e) => handleDragStart(e, post.id)}
                       />
                     ))}
+                    {isScheduledDay && !dayPosts.some(p => p.accountType === scheduledType) && (
+                      <GhostCard
+                        accountType={scheduledType}
+                        onClick={() => { setNewPostDate(dateStr); setNewPostAccountType(scheduledType); setSelectedPost("new"); }}
+                      />
+                    )}
                   </div>
-
-                  {/* Add button on hover */}
-                  {dayPosts.length === 0 && isScheduledDay && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setNewPostDate(dateStr); setSelectedPost("new"); }}
-                      className="w-full mt-1 flex items-center justify-center opacity-0 group-hover:opacity-40 hover:!opacity-100 transition-opacity"
-                    >
-                      <Plus className="h-3 w-3 text-muted-foreground" />
-                    </button>
-                  )}
                 </div>
               );
             })}
