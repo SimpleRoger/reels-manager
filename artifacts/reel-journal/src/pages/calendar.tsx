@@ -81,10 +81,15 @@ const SCHEDULE_ITEMS = [
   { day: "Tue", type: "ig_reel" as AccountType },
   { day: "Wed", type: "dancing" as AccountType },
   { day: "Thu", type: "clothing" as AccountType },
-  { day: "Fri", type: "ig_reel" as AccountType },
+  { day: "Fri", type: "ig_reel" as AccountType, label: "Trial Reel" },
   { day: "Sat", type: "clothing" as AccountType },
   { day: "Sun", type: "ig_reel" as AccountType },
 ];
+
+// Day-of-week label overrides for ghost cards (0=Sun)
+const SCHEDULE_LABEL: Record<number, string> = {
+  5: "Trial Reel", // Fri
+};
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -139,7 +144,7 @@ function WeeklyChecklist({ posts }: WeeklyChecklistProps) {
     <div className="bg-card border border-border rounded-xl p-4 shrink-0">
       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">This Week</p>
       <div className="space-y-2">
-        {SCHEDULE_ITEMS.map(({ day, type }) => {
+        {SCHEDULE_ITEMS.map(({ day, type, label }) => {
           const date = weekDates[day];
           const dayPosts = (date ? postsByDate.get(date) ?? [] : []).filter(
             (p) => p.accountType === type
@@ -157,7 +162,7 @@ function WeeklyChecklist({ posts }: WeeklyChecklistProps) {
               )}
               <span className={`text-xs font-mono w-7 ${isPosted ? "text-emerald-400" : "text-foreground"}`}>{day}</span>
               <span className={`text-xs px-1.5 py-0.5 rounded ${cfg.bg} ${cfg.color} font-medium`}>
-                {cfg.label}
+                {label ?? cfg.label}
               </span>
               {hasPost && !isPosted && (
                 <span className="text-[10px] text-muted-foreground truncate">
@@ -406,7 +411,7 @@ function DetailModal({ post, onClose, onSave, onDelete }: DetailModalProps) {
 
 // ─── Ghost Card (unfilled scheduled slot) ────────────────────────────────────
 
-function GhostCard({ accountType, onClick }: { accountType: AccountType; onClick: () => void }) {
+function GhostCard({ accountType, label, onClick }: { accountType: AccountType; label?: string; onClick: () => void }) {
   const acct = ACCOUNT_CONFIG[accountType] ?? ACCOUNT_CONFIG.ig_reel;
   return (
     <div
@@ -414,7 +419,7 @@ function GhostCard({ accountType, onClick }: { accountType: AccountType; onClick
       className={`cursor-pointer rounded-md px-2 py-1.5 border border-dashed text-left w-full select-none transition-opacity opacity-35 hover:opacity-75 ${acct.bg} ${acct.border}`}
     >
       <div className="flex items-center justify-between gap-1">
-        <span className={`text-[10px] font-semibold ${acct.color}`}>{acct.label}</span>
+        <span className={`text-[10px] font-semibold ${acct.color}`}>{label ?? acct.label}</span>
         <span className="text-[9px] px-1 py-0.5 rounded font-medium bg-zinc-800 text-zinc-500">To Do</span>
       </div>
     </div>
@@ -647,6 +652,7 @@ export default function Calendar() {
                     {isScheduledDay && !dayPosts.some(p => p.accountType === scheduledType) && (
                       <GhostCard
                         accountType={scheduledType}
+                        label={SCHEDULE_LABEL[dow]}
                         onClick={() => { setNewPostDate(dateStr); setNewPostAccountType(scheduledType); setSelectedPost("new"); }}
                       />
                     )}
