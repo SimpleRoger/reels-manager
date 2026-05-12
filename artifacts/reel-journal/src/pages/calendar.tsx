@@ -72,6 +72,7 @@ const SCHEDULE: Record<number, AccountType> = {
   2: "ig_reel",   // Tue
   3: "dancing",   // Wed
   4: "clothing",  // Thu
+  5: "ig_reel",   // Fri (trial reel)
   6: "clothing",  // Sat
 };
 
@@ -80,6 +81,7 @@ const SCHEDULE_ITEMS = [
   { day: "Tue", type: "ig_reel" as AccountType },
   { day: "Wed", type: "dancing" as AccountType },
   { day: "Thu", type: "clothing" as AccountType },
+  { day: "Fri", type: "ig_reel" as AccountType },
   { day: "Sat", type: "clothing" as AccountType },
   { day: "Sun", type: "ig_reel" as AccountType },
 ];
@@ -548,7 +550,7 @@ export default function Calendar() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Content Calendar</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Mon · Tue · Wed · Thu · Sat · Sun posting schedule</p>
+          <p className="text-sm text-muted-foreground mt-0.5">Mon · Tue · Wed · Thu · Fri · Sat · Sun posting schedule</p>
         </div>
         <Button
           size="sm"
