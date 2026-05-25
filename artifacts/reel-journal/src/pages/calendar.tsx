@@ -447,6 +447,7 @@ export default function Calendar() {
   const [newPostAccountType, setNewPostAccountType] = useState<AccountType | undefined>(undefined);
   const [dragPostId, setDragPostId] = useState<number | null>(null);
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
+  const navHoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const queryClient = useQueryClient();
 
@@ -547,6 +548,20 @@ export default function Calendar() {
     setDragOverDate(null);
   }
 
+  function handleNavDragEnter(direction: "prev" | "next") {
+    if (dragPostId == null) return;
+    navHoverTimer.current = setTimeout(() => {
+      direction === "prev" ? prevMonth() : nextMonth();
+    }, 600);
+  }
+
+  function handleNavDragLeave() {
+    if (navHoverTimer.current) {
+      clearTimeout(navHoverTimer.current);
+      navHoverTimer.current = null;
+    }
+  }
+
   const modalPost: CalendarPost | null =
     selectedPost === "new"
       ? ({ ...defaultPostForDate(newPostDate, newPostAccountType), id: 0, createdAt: "", updatedAt: "" } as CalendarPost)
@@ -575,11 +590,23 @@ export default function Calendar() {
         <div className="flex-1 min-w-0">
           {/* Month navigation */}
           <div className="flex items-center justify-between mb-3">
-            <button onClick={prevMonth} className="p-1.5 rounded-md hover:bg-accent transition-colors">
+            <button
+              onClick={prevMonth}
+              onDragOver={(e) => e.preventDefault()}
+              onDragEnter={() => handleNavDragEnter("prev")}
+              onDragLeave={handleNavDragLeave}
+              className={`p-1.5 rounded-md transition-colors ${dragPostId != null ? "hover:bg-primary/30 ring-1 ring-primary/40 animate-pulse" : "hover:bg-accent"}`}
+            >
               <ChevronLeft className="h-4 w-4" />
             </button>
             <h2 className="text-base font-semibold">{MONTHS[month]} {year}</h2>
-            <button onClick={nextMonth} className="p-1.5 rounded-md hover:bg-accent transition-colors">
+            <button
+              onClick={nextMonth}
+              onDragOver={(e) => e.preventDefault()}
+              onDragEnter={() => handleNavDragEnter("next")}
+              onDragLeave={handleNavDragLeave}
+              className={`p-1.5 rounded-md transition-colors ${dragPostId != null ? "hover:bg-primary/30 ring-1 ring-primary/40 animate-pulse" : "hover:bg-accent"}`}
+            >
               <ChevronRight className="h-4 w-4" />
             </button>
           </div>
