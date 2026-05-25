@@ -184,11 +184,12 @@ function WeeklyChecklist({ posts }: WeeklyChecklistProps) {
 
 interface PostCardProps {
   post: CalendarPost;
+  labelOverride?: string;
   onClick: () => void;
   onDragStart: (e: React.DragEvent) => void;
 }
 
-function PostCard({ post, onClick, onDragStart }: PostCardProps) {
+function PostCard({ post, labelOverride, onClick, onDragStart }: PostCardProps) {
   const acct = ACCOUNT_CONFIG[post.accountType as AccountType] ?? ACCOUNT_CONFIG.ig_reel;
   const status = STATUS_CONFIG[post.status as Status] ?? STATUS_CONFIG.idea;
 
@@ -200,7 +201,7 @@ function PostCard({ post, onClick, onDragStart }: PostCardProps) {
       className={`cursor-grab active:cursor-grabbing rounded-md px-2 py-1.5 border text-left w-full select-none ${acct.bg} ${acct.border} border hover:brightness-110 transition-all`}
     >
       <div className="flex items-start justify-between gap-1 mb-1">
-        <span className={`text-[10px] font-semibold ${acct.color}`}>{acct.label}</span>
+        <span className={`text-[10px] font-semibold ${acct.color}`}>{labelOverride ?? acct.label}</span>
         <span className={`text-[9px] px-1 py-0.5 rounded font-medium shrink-0 ${status.color}`}>{status.label}</span>
       </div>
       <p className="text-xs text-foreground leading-tight line-clamp-2">{post.title}</p>
@@ -448,8 +449,19 @@ export default function Calendar() {
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
 
   const queryClient = useQueryClient();
-  const { start, end } = getMonthRange(year, month);
-  const { data } = useListCalendarPosts({ start, end });
+
+  // ── Build fixed 6-week grid (42 cells) with overflow days from adjacent months ──
+  const gridStart = new Date(year, month, 1);
+  gridStart.setDate(gridStart.getDate() - gridStart.getDay()); // rewind to Sunday
+
+  const gridCells: { dateStr: string; isCurrentMonth: boolean }[] = [];
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(gridStart);
+    d.setDate(d.getDate() + i);
+    gridCells.push({ dateStr: toDateStr(d), isCurrentMonth: d.getMonth() === month });
+  }
+
+  const { data } = useListCalendarPosts({ start: gridCells[0].dateStr, end: gridCells[41].dateStr });
   const posts: CalendarPost[] = (data?.posts ?? []) as CalendarPost[];
 
   const createMutation = useCreateCalendarPost();
@@ -457,15 +469,6 @@ export default function Calendar() {
   const deleteMutation = useDeleteCalendarPost();
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["/api/calendar"] });
-
-  // ── Calendar grid ──
-  const firstDay = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const cells: (number | null)[] = [
-    ...Array(firstDay).fill(null),
-    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
-  ];
-  while (cells.length % 7 !== 0) cells.push(null);
 
   const postsByDate = new Map<string, CalendarPost[]>();
   for (const p of posts) {
@@ -602,13 +605,9 @@ export default function Calendar() {
 
           {/* Calendar grid */}
           <div className="grid grid-cols-7 gap-px bg-border rounded-xl overflow-hidden border border-border">
-            {cells.map((day, i) => {
-              if (day === null) {
-                return <div key={`empty-${i}`} className="bg-background min-h-[120px] p-1.5" />;
-              }
-
-              const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+            {gridCells.map(({ dateStr, isCurrentMonth }) => {
               const d = new Date(dateStr + "T12:00:00");
+              const day = d.getDate();
               const dow = d.getDay();
               const isScheduledDay = dow in SCHEDULE;
               const scheduledType = SCHEDULE[dow];
@@ -622,34 +621,34 @@ export default function Calendar() {
                   onDragOver={(e) => handleDragOver(e, dateStr)}
                   onDrop={(e) => handleDrop(e, dateStr)}
                   onDragEnd={handleDragEnd}
-                  className={`bg-background min-h-[120px] p-1.5 transition-colors cursor-pointer group
-                    ${isDragTarget ? "bg-accent/50" : ""}
-                    ${isScheduledDay ? "bg-background" : "bg-muted/20"}
+                  className={`min-h-[120px] p-1.5 transition-colors cursor-pointer group
+                    ${isDragTarget ? "bg-accent/50" : isCurrentMonth ? (isScheduledDay ? "bg-background" : "bg-muted/20") : "bg-muted/40"}
                   `}
-                  onClick={(e) => { setNewPostDate(dateStr); setNewPostAccountType(undefined); setSelectedPost("new"); }}
+                  onClick={() => { setNewPostDate(dateStr); setNewPostAccountType(undefined); setSelectedPost("new"); }}
                 >
                   {/* Date number */}
                   <div className="flex items-center mb-1">
                     <span
                       className={`text-xs font-medium w-6 h-6 flex items-center justify-center rounded-full
-                        ${isToday ? "bg-primary text-primary-foreground" : "text-foreground"}
+                        ${isToday ? "bg-primary text-primary-foreground" : isCurrentMonth ? "text-foreground" : "text-muted-foreground/50"}
                       `}
                     >
                       {day}
                     </span>
                   </div>
 
-                  {/* Real posts + ghost slot */}
+                  {/* Real posts + ghost slot (ghost only for current month) */}
                   <div className="space-y-1" onClick={(e) => e.stopPropagation()}>
                     {dayPosts.map((post) => (
                       <PostCard
                         key={post.id}
                         post={post}
+                        labelOverride={post.accountType === scheduledType ? SCHEDULE_LABEL[dow] : undefined}
                         onClick={() => setSelectedPost(post)}
                         onDragStart={(e) => handleDragStart(e, post.id)}
                       />
                     ))}
-                    {isScheduledDay && !dayPosts.some(p => p.accountType === scheduledType) && (
+                    {isCurrentMonth && isScheduledDay && !dayPosts.some(p => p.accountType === scheduledType) && (
                       <GhostCard
                         accountType={scheduledType}
                         label={SCHEDULE_LABEL[dow]}
