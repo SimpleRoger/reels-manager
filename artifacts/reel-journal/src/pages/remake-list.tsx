@@ -411,7 +411,7 @@ export default function RemakeList() {
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-          {data?.references.map((ref) => {
+          {[...(data?.references ?? [])].sort((a, b) => (b.viewCount ?? -1) - (a.viewCount ?? -1)).map((ref) => {
             const isPlaying = playingId === ref.id;
             const hasNotes = !!(ref as any).whyItsgood || !!(ref as any).whatToChange || !!(ref as any).howToRemake;
 
