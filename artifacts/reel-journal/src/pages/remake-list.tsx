@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   useListReferences,
   getListReferencesQueryKey,
@@ -210,6 +210,7 @@ export default function RemakeList() {
     queryClient.invalidateQueries({ queryKey: getListReferencesQueryKey() });
   }
 
+  // Poll while any reference is still missing stats (Apify still running)
   useEffect(() => {
     const hasPending = data?.references.some(
       (r) => r.viewCount == null && r.likeCount == null && r.commentsCount == null
@@ -217,6 +218,25 @@ export default function RemakeList() {
     if (!hasPending) return;
     const timer = setInterval(invalidate, 8_000);
     return () => clearInterval(timer);
+  }, [data?.references]);
+
+  // Auto-refresh stale CDN URLs once per session — Apify URLs typically expire after a few hours
+  const hasAutoRefreshed = useRef(false);
+  useEffect(() => {
+    if (hasAutoRefreshed.current || !data?.references.length) return;
+    const anyStale = data.references.some((r) => {
+      const ageHours = (Date.now() - new Date((r as any).updatedAt ?? 0).getTime()) / 3_600_000;
+      return ageHours > 6;
+    });
+    if (!anyStale) return;
+    hasAutoRefreshed.current = true;
+    fetch("/api/references/refresh-all", { method: "POST" }).catch(() => {});
+    // Poll every 20 s for up to 5 min to pick up fresh URLs as Apify finishes
+    const start = Date.now();
+    const poll = setInterval(() => {
+      invalidate();
+      if (Date.now() - start > 300_000) clearInterval(poll);
+    }, 20_000);
   }, [data?.references]);
 
   function handleSave(id: number, values: { whyItsgood: string; whatToChange: string; howToRemake: string }) {
