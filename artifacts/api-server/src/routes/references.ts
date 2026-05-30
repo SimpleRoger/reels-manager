@@ -79,6 +79,48 @@ router.patch("/references/:id", async (req, res): Promise<void> => {
   res.json(formatReference(ref));
 });
 
+// External ingest — lets other apps POST a reel URL into the remake list
+// Optional auth: set INGEST_API_KEY env var; callers send "Authorization: Bearer <key>"
+router.post("/references/ingest", async (req, res): Promise<void> => {
+  const requiredKey = process.env.INGEST_API_KEY;
+  if (requiredKey) {
+    const auth = req.headers["authorization"] ?? "";
+    const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+    if (token !== requiredKey) {
+      res.status(401).json({ error: "Invalid or missing API key" });
+      return;
+    }
+  }
+
+  const url = typeof req.body?.url === "string" ? req.body.url.trim() : null;
+  if (!url) {
+    res.status(400).json({ error: "url is required" });
+    return;
+  }
+
+  // Skip duplicate URLs
+  const existing = await db
+    .select({ id: savedReferencesTable.id })
+    .from(savedReferencesTable)
+    .where(eq(savedReferencesTable.url, url));
+  if (existing.length) {
+    res.status(200).json({ duplicate: true, id: existing[0].id });
+    return;
+  }
+
+  const resolved = await resolveReelMedia(url);
+  const [ref] = await db
+    .insert(savedReferencesTable)
+    .values({ url, mediaUrl: resolved.mediaUrl, thumbnailUrl: resolved.thumbnailUrl })
+    .returning();
+
+  if (!resolved.mediaUrl) {
+    enrichReferenceWithApify(ref.id, url).catch(() => {});
+  }
+
+  res.status(201).json(formatReference(ref));
+});
+
 // Re-run Apify on ALL saved references to refresh expired CDN URLs
 router.post("/references/refresh-all", async (req, res): Promise<void> => {
   const refs = await db.select({ id: savedReferencesTable.id, url: savedReferencesTable.url }).from(savedReferencesTable);

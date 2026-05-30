@@ -437,9 +437,6 @@ export default function RemakeList() {
                       className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
 
-                    {/* Gradient */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
-
                     {/* Pending stats spinner */}
                     {ref.viewCount == null && ref.likeCount == null && (
                       <div className="absolute top-2 left-2">
@@ -463,26 +460,26 @@ export default function RemakeList() {
                         <Play className="w-5 h-5 text-black fill-black ml-0.5" />
                       </button>
                     </div>
-
-                    {/* Bottom stats */}
-                    <div className="absolute bottom-0 left-0 right-0 p-2 space-y-1">
-                      {ref.accountName && (
-                        <p className="text-[10px] font-semibold text-white/90 truncate">@{ref.accountName}</p>
-                      )}
-                      <div className="flex items-center gap-2 text-[9px] font-mono text-white/70">
-                        {ref.viewCount != null && (
-                          <span className="flex items-center gap-0.5"><Eye className="w-2.5 h-2.5" />{ref.viewCount.toLocaleString()}</span>
-                        )}
-                        {ref.likeCount != null && (
-                          <span className="flex items-center gap-0.5"><Heart className="w-2.5 h-2.5" />{ref.likeCount.toLocaleString()}</span>
-                        )}
-                        {ref.commentsCount != null && (
-                          <span className="flex items-center gap-0.5"><MessageCircle className="w-2.5 h-2.5" />{ref.commentsCount.toLocaleString()}</span>
-                        )}
-                      </div>
-                    </div>
                   </>
                 )}
+
+                {/* Stats — always visible over thumbnail AND player */}
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2 space-y-1 pointer-events-none">
+                  {ref.accountName && (
+                    <p className="text-[10px] font-semibold text-white/90 truncate">@{ref.accountName}</p>
+                  )}
+                  <div className="flex items-center gap-2 text-[9px] font-mono text-white/70">
+                    {ref.viewCount != null && (
+                      <span className="flex items-center gap-0.5"><Eye className="w-2.5 h-2.5" />{ref.viewCount.toLocaleString()}</span>
+                    )}
+                    {ref.likeCount != null && (
+                      <span className="flex items-center gap-0.5"><Heart className="w-2.5 h-2.5" />{ref.likeCount.toLocaleString()}</span>
+                    )}
+                    {ref.commentsCount != null && (
+                      <span className="flex items-center gap-0.5"><MessageCircle className="w-2.5 h-2.5" />{ref.commentsCount.toLocaleString()}</span>
+                    )}
+                  </div>
+                </div>
               </div>
             );
           })}
