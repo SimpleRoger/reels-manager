@@ -96,13 +96,13 @@ export default function ReelDetailScreen() {
       >
         {/* Video / Thumbnail */}
         <Pressable
-          style={[styles.mediaContainer, { backgroundColor: colors.muted }]}
+          style={[styles.mediaContainer, { backgroundColor: "#000" }]}
           onPress={handlePlay}
         >
           {isPlaying && hasVideo ? (
             <VideoView
               player={player}
-              style={styles.mediaContainer}
+              style={StyleSheet.absoluteFill}
               contentFit="cover"
               nativeControls
             />
@@ -111,7 +111,7 @@ export default function ReelDetailScreen() {
               {reel.thumbnailUrl ? (
                 <Image
                   source={{ uri: reel.thumbnailUrl }}
-                  style={styles.mediaContainer}
+                  style={StyleSheet.absoluteFill}
                   resizeMode="cover"
                 />
               ) : (
@@ -276,14 +276,13 @@ const styles = StyleSheet.create({
   statusText: { fontSize: 11, fontWeight: "700", letterSpacing: 0.5 },
   mediaContainer: {
     width: "100%",
-    aspectRatio: 9 / 16,
-    maxHeight: 400,
+    height: 380,
     backgroundColor: "#000",
+    overflow: "hidden",
   },
   thumbPlaceholder: {
     width: "100%",
-    aspectRatio: 9 / 16,
-    maxHeight: 400,
+    height: 380,
     alignItems: "center",
     justifyContent: "center",
   },
