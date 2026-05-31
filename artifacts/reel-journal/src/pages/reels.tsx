@@ -19,37 +19,38 @@ import { useQueryClient } from "@tanstack/react-query";
 
 type ViewMode = "grid" | "loudness";
 
-// ── Loudness helpers ─────────────────────────────────────────────────────────
+// ── True Peak helpers ─────────────────────────────────────────────────────────
 
-function lufsColor(lufs: number): string {
-  if (lufs >= -16 && lufs <= -9) return "#22c55e";   // green — optimal
-  if (lufs >= -20 && lufs < -16) return "#f59e0b";   // amber — slightly quiet
-  if (lufs > -9 && lufs <= -6)   return "#f59e0b";   // amber — slightly hot
-  return "#ef4444";                                    // red — too quiet or clipping
+function peakColor(tp: number): string {
+  if (tp > -1)  return "#ef4444";  // red — clipping risk
+  if (tp > -3)  return "#f97316";  // orange — hot
+  if (tp > -6)  return "#f59e0b";  // amber — moderate
+  return "#22c55e";                 // green — safe headroom
 }
 
-function lufsLabel(lufs: number): string {
-  if (lufs >= -16 && lufs <= -9)  return "Optimal";
-  if (lufs >= -20 && lufs < -16)  return "Quiet";
-  if (lufs > -9 && lufs <= -6)    return "Hot";
-  if (lufs < -20)                 return "Too Quiet";
-  return "Clipping";
+function peakLabel(tp: number): string {
+  if (tp > -1)  return "Clipping";
+  if (tp > -3)  return "Hot";
+  if (tp > -6)  return "Moderate";
+  return "Safe";
 }
 
-// Normalize a LUFS value to a 0–100% bar width (range -30 to 0)
-function lufsBarPct(lufs: number): number {
-  const min = -30;
-  const max = 0;
-  return Math.min(100, Math.max(2, ((lufs - min) / (max - min)) * 100));
+// Maps -20 dBTP → 0%, 0 dBTP → 100% (hotter = wider = more danger visible)
+function peakBarPct(tp: number): number {
+  return Math.min(100, Math.max(1, ((tp + 20) / 20) * 100));
 }
+
+// Danger zone marker at -1 dBTP = 95% along the bar
+const DANGER_MARKER_PCT = (19 / 20) * 100;
 
 // ── LoudnessRow ──────────────────────────────────────────────────────────────
 
 function LoudnessRow({ reel, onAnalyzed }: { reel: Reel; onAnalyzed: () => void }) {
-  const analyze = useAnalyzeReelLoudness({ mutation: { onSuccess: onAnalyzed } });
-  const hasLufs = reel.lufsIntegrated != null;
-  const color = hasLufs ? lufsColor(reel.lufsIntegrated!) : "#52525b";
-  const barPct = hasLufs ? lufsBarPct(reel.lufsIntegrated!) : 0;
+  const analyze   = useAnalyzeReelLoudness({ mutation: { onSuccess: onAnalyzed } });
+  const hasData   = reel.lufsTruePeak != null;
+  const tp        = reel.lufsTruePeak ?? null;
+  const color     = tp != null ? peakColor(tp) : "#52525b";
+  const barPct    = tp != null ? peakBarPct(tp) : 0;
   const isRunning = analyze.isPending;
 
   return (
@@ -73,25 +74,29 @@ function LoudnessRow({ reel, onAnalyzed }: { reel: Reel; onAnalyzed: () => void 
         <p className="text-[10px] font-mono text-muted-foreground mt-1">{formatDate(reel.postedAt)}</p>
       </div>
 
-      {/* bar */}
+      {/* danger meter bar */}
       <div className="flex-1 min-w-0">
-        {hasLufs ? (
+        {hasData ? (
           <div className="space-y-1">
-            <div className="h-5 w-full bg-zinc-800 rounded-full overflow-hidden">
+            <div className="relative h-5 w-full bg-zinc-800 rounded-full overflow-visible">
+              {/* filled bar — wider = hotter = more danger */}
               <div
-                className="h-full rounded-full transition-all duration-700"
+                className="absolute left-0 top-0 h-full rounded-full transition-all duration-700"
                 style={{ width: `${barPct}%`, backgroundColor: color }}
               />
-            </div>
-            {/* reference markers */}
-            <div className="relative h-3">
-              {/* -14 LUFS marker (Instagram/TikTok normalization target) */}
+              {/* -1 dBTP danger line */}
               <div
-                className="absolute top-0 flex flex-col items-center"
-                style={{ left: `${lufsBarPct(-14)}%`, transform: "translateX(-50%)" }}
+                className="absolute top-0 h-full w-px bg-white/40 z-10"
+                style={{ left: `${DANGER_MARKER_PCT}%` }}
+              />
+            </div>
+            <div className="relative h-3 flex">
+              <div className="flex-1" />
+              <div
+                className="absolute flex flex-col items-center"
+                style={{ left: `${DANGER_MARKER_PCT}%`, transform: "translateX(-50%)" }}
               >
-                <div className="w-px h-2 bg-white/20" />
-                <span className="text-[8px] font-mono text-white/30">−14</span>
+                <span className="text-[8px] font-mono text-white/30">−1 limit</span>
               </div>
             </div>
           </div>
@@ -100,31 +105,25 @@ function LoudnessRow({ reel, onAnalyzed }: { reel: Reel; onAnalyzed: () => void 
         )}
       </div>
 
-      {/* values */}
-      <div className="w-36 flex-none text-right space-y-0.5">
-        {hasLufs ? (
+      {/* True Peak — primary metric */}
+      <div className="w-44 flex-none text-right space-y-0.5">
+        {hasData ? (
           <>
             <div className="flex items-center justify-end gap-1.5">
               <span
                 className="text-[10px] font-mono px-1.5 py-0.5 rounded"
                 style={{ backgroundColor: `${color}22`, color }}
               >
-                {lufsLabel(reel.lufsIntegrated!)}
+                {peakLabel(tp!)}
               </span>
-              <span className="text-sm font-bold tabular-nums" style={{ color }}>
-                {reel.lufsIntegrated!.toFixed(1)}
+              <span className="text-lg font-bold tabular-nums" style={{ color }}>
+                {tp!.toFixed(1)}
               </span>
-              <span className="text-[10px] text-muted-foreground">LUFS</span>
+              <span className="text-[10px] text-muted-foreground">dBTP</span>
             </div>
             <div className="flex items-center justify-end gap-3 text-[10px] font-mono text-muted-foreground">
               <span>LRA {reel.lufsRange?.toFixed(1) ?? "—"} LU</span>
-              <span
-                className={
-                  (reel.lufsTruePeak ?? -99) > -1 ? "text-red-400" : "text-muted-foreground"
-                }
-              >
-                TP {reel.lufsTruePeak?.toFixed(1) ?? "—"} dBTP
-              </span>
+              <span>{reel.lufsIntegrated?.toFixed(1) ?? "—"} LUFS</span>
             </div>
           </>
         ) : (
@@ -136,7 +135,7 @@ function LoudnessRow({ reel, onAnalyzed }: { reel: Reel; onAnalyzed: () => void 
       <div className="w-16 flex-none flex justify-end">
         {isRunning ? (
           <Loader2 className="w-4 h-4 text-primary animate-spin" />
-        ) : hasLufs ? (
+        ) : hasData ? (
           <button
             onClick={() => analyze.mutate({ id: reel.id })}
             title="Re-analyze"
@@ -163,31 +162,40 @@ function LoudnessRow({ reel, onAnalyzed }: { reel: Reel; onAnalyzed: () => void 
 
 function LoudnessView({ reels, onRefresh }: { reels: Reel[]; onRefresh: () => void }) {
   const analyzeAll = useAnalyzeAllLoudness({ mutation: { onSuccess: onRefresh } });
-  const analyzed   = reels.filter((r) => r.lufsIntegrated != null);
-  const pending    = reels.filter((r) => r.lufsIntegrated == null && r.mediaUrl);
 
+  const analyzed  = reels.filter((r) => r.lufsTruePeak != null);
+  const pending   = reels.filter((r) => r.lufsAnalyzedAt == null && r.mediaUrl);
+
+  // Sort hottest first (closest to 0 = most dangerous at top)
   const sorted = [...reels].sort((a, b) => {
-    if (a.lufsIntegrated == null && b.lufsIntegrated == null) return 0;
-    if (a.lufsIntegrated == null) return 1;
-    if (b.lufsIntegrated == null) return -1;
-    return b.lufsIntegrated - a.lufsIntegrated;
+    const tpA = a.lufsTruePeak ?? -999;
+    const tpB = b.lufsTruePeak ?? -999;
+    return tpB - tpA;
   });
 
-  const avgLufs =
-    analyzed.length > 0
-      ? analyzed.reduce((s, r) => s + r.lufsIntegrated!, 0) / analyzed.length
-      : null;
+  const hottest  = analyzed.length > 0 ? Math.max(...analyzed.map((r) => r.lufsTruePeak!)) : null;
+  const avgPeak  = analyzed.length > 0 ? analyzed.reduce((s, r) => s + r.lufsTruePeak!, 0) / analyzed.length : null;
+  const clipping = analyzed.filter((r) => r.lufsTruePeak! > -1).length;
+  const hot      = analyzed.filter((r) => r.lufsTruePeak! > -3 && r.lufsTruePeak! <= -1).length;
 
   return (
     <div className="space-y-5">
       {/* summary strip */}
       <div className="flex flex-wrap gap-4 items-center justify-between">
-        <div className="flex gap-6">
-          {avgLufs != null && (
+        <div className="flex gap-6 flex-wrap">
+          {hottest != null && (
             <div>
-              <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Avg Loudness</p>
-              <p className="text-2xl font-bold tabular-nums" style={{ color: lufsColor(avgLufs) }}>
-                {avgLufs.toFixed(1)} <span className="text-sm font-normal text-muted-foreground">LUFS</span>
+              <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Hottest Peak</p>
+              <p className="text-2xl font-bold tabular-nums" style={{ color: peakColor(hottest) }}>
+                {hottest.toFixed(1)} <span className="text-sm font-normal text-muted-foreground">dBTP</span>
+              </p>
+            </div>
+          )}
+          {avgPeak != null && (
+            <div>
+              <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Avg Peak</p>
+              <p className="text-2xl font-bold tabular-nums" style={{ color: peakColor(avgPeak) }}>
+                {avgPeak.toFixed(1)} <span className="text-sm font-normal text-muted-foreground">dBTP</span>
               </p>
             </div>
           )}
@@ -197,22 +205,22 @@ function LoudnessView({ reels, onRefresh }: { reels: Reel[]; onRefresh: () => vo
               {analyzed.length} <span className="text-sm font-normal text-muted-foreground">/ {reels.length}</span>
             </p>
           </div>
-          {analyzed.filter((r) => (r.lufsTruePeak ?? -99) > -1).length > 0 && (
-            <div className="flex items-center gap-1.5 text-red-400">
+          {clipping > 0 && (
+            <div className="flex items-center gap-1.5 text-red-400 self-end pb-1">
               <AlertTriangle className="w-4 h-4" />
-              <span className="text-sm font-mono">
-                {analyzed.filter((r) => (r.lufsTruePeak ?? -99) > -1).length} clipping
-              </span>
+              <span className="text-sm font-mono font-bold">{clipping} clipping</span>
+            </div>
+          )}
+          {hot > 0 && (
+            <div className="flex items-center gap-1.5 text-orange-400 self-end pb-1">
+              <AlertTriangle className="w-4 h-4" />
+              <span className="text-sm font-mono">{hot} hot</span>
             </div>
           )}
         </div>
 
         {pending.length > 0 && (
-          <Button
-            onClick={() => analyzeAll.mutate()}
-            disabled={analyzeAll.isPending}
-            className="gap-2"
-          >
+          <Button onClick={() => analyzeAll.mutate()} disabled={analyzeAll.isPending} className="gap-2">
             {analyzeAll.isPending ? (
               <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing…</>
             ) : (
@@ -222,17 +230,21 @@ function LoudnessView({ reels, onRefresh }: { reels: Reel[]; onRefresh: () => vo
         )}
       </div>
 
-      {/* target reference */}
+      {/* reference info */}
       <div className="flex items-center gap-2 text-[11px] text-muted-foreground bg-card border rounded-lg px-4 py-2.5">
         <Volume2 className="w-3.5 h-3.5 flex-none" />
         <span>
-          Instagram & TikTok normalize uploads to <strong className="text-foreground">−14 LUFS</strong>.
-          {" "}Aim for <strong className="text-green-400">−16 to −9 LUFS</strong> for best results after platform compression.
-          {" "}True peak should stay below <strong className="text-foreground">−1 dBTP</strong>.
+          True Peak measures the absolute loudest sample. Keep below{" "}
+          <strong className="text-foreground">−1 dBTP</strong> — platform re-encoding can push peaks up by 1–2 dB,
+          so anything already near 0 will clip after Instagram/TikTok processes it.{" "}
+          <span className="text-green-400">≤−6</span> is safe,{" "}
+          <span className="text-amber-400">−3 to −6</span> moderate,{" "}
+          <span className="text-orange-400">−1 to −3</span> hot,{" "}
+          <span className="text-red-400">&gt;−1</span> clipping risk.
         </span>
       </div>
 
-      {/* rows */}
+      {/* rows — sorted hottest first */}
       <div className="space-y-2">
         {sorted.map((reel) => (
           <LoudnessRow key={reel.id} reel={reel} onAnalyzed={onRefresh} />
@@ -363,14 +375,14 @@ export default function ReelsLog() {
                         <StatusBadge status={reel.performanceStatus} />
                       </div>
 
-                      {/* LUFS badge */}
-                      {reel.lufsIntegrated != null && (
+                      {/* True Peak badge */}
+                      {reel.lufsTruePeak != null && (
                         <div className="absolute bottom-2 left-2">
                           <span
                             className="text-[10px] font-bold font-mono px-1.5 py-0.5 rounded bg-black/70"
-                            style={{ color: lufsColor(reel.lufsIntegrated) }}
+                            style={{ color: peakColor(reel.lufsTruePeak) }}
                           >
-                            {reel.lufsIntegrated.toFixed(1)} L
+                            {reel.lufsTruePeak.toFixed(1)} TP
                           </span>
                         </div>
                       )}
