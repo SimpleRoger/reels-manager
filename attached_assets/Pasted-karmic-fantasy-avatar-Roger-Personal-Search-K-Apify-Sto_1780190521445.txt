@@ -1,0 +1,331 @@
+karmic_fantasy avatar
+Roger
+
+Personal
+
+
+Search...
+
+K
+
+
+Apify Store
+Dashboard
+Actors
+Runs
+Saved tasks
+Integrations
+Schedules
+Development
+My Actors
+Insights
+Messaging
+Proxy
+Storage
+Billing
+Settings
+RAM
+0 MB
+/
+8 GB
+Usage
+$4.92
+/
+$5.00
+
+Upgrade to
+
+Starter
+
+
+
+Best Tiktok Video Scraper avatar
+Best Tiktok Video Scraper
+
+$2.00 / 1,000 results
+
+Limited permissions
+Start
+Save as a new task
+API
+
+scrape-creators/best-tiktok-video-scraper
+
+
+4.3
+
+(2)
+
+22
+429
+65
+Crafted by
+scrape-creators avatar
+Scrape Creators
+Extract data from chosen tiktoks. Just add a TikTok URL and get TikTok video and profile data: URLs, numbers of shares, followers, hashtags, hearts, video, and music metadata. Export scraped data, run the scraper via API, schedule and monitor runs or integrate with other tools.
+Input
+Information
+Runs
+1
+
+Builds
+6
+
+Integrations
+0
+
+Monitoring
+Issues
+2
+
+Saved tasks
+0
+
+Reviews
+Build
+0.0.30 / latest
+
+
+Readme
+
+
+Input
+
+🎥 Best TikTok Video Scraper
+Best TikTok Video Scraper is the most affordable and powerful way to extract data from TikTok videos — fast, clean, and simple.
+
+💸 Only $2 per 1,000 videos scraped
+📝 Transcripts included — just toggle "Should Get Transcript"
+📧 Got questions? Just email me: adrian@thewebscrapingguy.com
+
+📹 What You Can Scrape with Best TikTok Video Scraper
+Video-Level Data
+Captions
+Video URLs
+Plays, likes, comments, shares
+Hashtags
+Country, timestamp, paid status
+Music/video metadata
+Creator Info
+Username, ID, avatar
+Bio, account status
+Followers/following
+Given/received likes
+🧪 Sample Input
+{
+  "postURLs": ["https://www.tiktok.com/@olympics/video/7208589533632269574"],
+  "shouldDownloadSubtitles": true
+}
+
+🧾 Sample Output
+{
+  "id": "7488736374602927402",
+  "description": "Oh shit there goes Pres breaking tik tok again. #bagelstomakehimdance ",
+  "descriptionLanguage": "en",
+  "createTime": "2025-04-02T15:22:04.000Z",
+  "isAd": false,
+  "author": {
+    "id": 6659752019493208000,
+    "username": "stoolpresidente",
+    "avatar": "https://p16-common-va.tiktokcdn-us.com/tos-maliva-avt-0068/7310178711609032710~tplv-tiktokx-cropcenter-q:720:720:q75.webp?dr=8836&idc=useast5&ps=87d6e48a&s=AWEME_DETAIL&sc=avatar&shcp=1d1a97fc&shp=45126217&t=223449c4",
+    "signature": "El Presidente/Barstool Sports Founder.",
+    "region": "US",
+    "secUid": "MS4wLjABAAAAINC_ElRR-l1RCcnEjOZhNO-9wOzAMf-YHXqRY8vvG9bEhMRa6iu23TaE3JPZYXBD",
+    "nickname": "Dave Portnoy"
+  },
+  "music": {
+    "title": "original sound - stoolpresidente",
+    "id": 7488736378289671000,
+    "author": "Dave Portnoy",
+    "playUrl": "https://v19.tiktokcdn-us.com/5d5db93b47b1416bbb6bd2b2eb91509f/67fe9edb/video/tos/useast5/tos-useast5-v-27dcd7-tx/ocw2Ger9oIFkYErRYEPALCyaQfTqEieqXHFa8R/?a=1233&bti=OUBzOTg7QGo6OjZAL3AjLTAzYCMxNDNg&ch=0&cr=0&dr=0&er=0&lr=default&cd=0%7C0%7C0%7C0&br=250&bt=125&ft=GSDrKInz7ThvIY3OXq8Zmo&mime_type=audio_mpeg&qs=6&rc=NmZoOWgzMzszaDM1N2VoaEBpajt2NnQ5cjpveTMzZzU8NEAyNTA0LWFfXzExMS9iYDUyYSNucjJvMmRrYGpgLS1kMS9zcw%3D%3D&vvpl=1&l=20250408180041998267D1EE7B406166DB&btag=e000b0000&shp=d05b14bd&shcp=-"
+  },
+  "videoUrl": "https://v19.tiktokcdn-us.com/8bbad9f0de9e1e4459f8f94e9f34efcd/67f5b8b1/video/tos/useast5/tos-useast5-pve-0068-tx/ooDDXiDOFnXv7Vtl2R1KABfEF7KIESPfgnVn0E/?a=1233&bti=OTg7QGo5QHM6OjZALTAzYCMvcCMxNDNg&ch=0&cr=13&dr=0&er=0&lr=all&net=0&cd=0%7C0%7C0%7C&cv=1&br=1782&bt=891&cs=0&ds=6&ft=gKfIn8QLodzR12NvSP4oeIxRbWn.xq_45SY&mime_type=video_mp4&qs=0&rc=ZTxnNGg5aGQ3ZDs0NTMzN0BpM3FvZnc5cnVveTMzZzczNEAuMzQvLTM0Xi0xMDYvMGBiYSMycnBlMmRzX2pgLS1kMS9zYSMycnBlMmRzX2pgLS1kMS9zcw%3D%3D&vvpl=1&l=20250408180041998267D1EE7B406166DB&btag=e000b0000",
+  "thumbnail": "https://p16-pu-sign-useast8.tiktokcdn-us.com/tos-useast5-p-0068-tx/o8vVhfgjKEjuFonnAKAwIVEtfXEXkBDSXD7R7F~tplv-tiktokx-cropcenter-q:300:400:q72.heic?dr=8596&refresh_token=159e2fb3&x-expires=1744221600&x-signature=KlhXBzhgSFbGYhG1VkfIJ%2FuF%2BAo%3D&t=bacd0480&ps=933b5bde&shp=d05b14bd&shcp=1d1a97fc&idc=useast5&sc=cover&biz_tag=tt_video&s=AWEME_DETAIL",
+  "playCount": 910618,
+  "commentCount": 941,
+  "shareCount": 4540,
+  "likeCount": 39624,
+  "url": "https://www.tiktok.com/@stoolpresidente/video/7488736374602927402",
+  "transcriptUrl": "https://v16-cla.tiktokcdn-us.com/2e38543b141a2451b7e4ea910facbda6/681cf151/video/tos/useast5/tos-useast5-v-0068-tx/d9004ebea97f400c8292132b0acaed6a/?a=1233&bti=OTg7QGo5QHM6OjZALTAzYCMvcCMxNDNg&ch=0&cr=13&dr=0&er=0&lr=all&net=0&cd=0%7C0%7C0%7C&cv=1&br=4636&bt=2318&ds=3&ft=ge.El8QLodzR12NvSP4oeIxRbWn.xq_45SY&mime_type=video_mp4&qs=13&rc=M3FvZnc5cnVveTMzZzczNEBpM3FvZnc5cnVveTMzZzczNEAycnBlMmRzX2pgLS1kMS9zYSMycnBlMmRzX2pgLS1kMS9zcw%3D%3D&vvpl=1&l=20250408180041998267D1EE7B406166DB&btag=e00070000",
+  "transcript": "WEBVTT\n\n\n00:00:00.380 --> 00:00:03.600\nBagels to make him dance. Bagels to make him dance.\n\n00:00:03.700 --> 00:00:06.760\nBagels to make him dance. Bagels to make him dance.\n\n00:00:06.900 --> 00:00:08.400\nBagels to make him dance.\n",
+  "downloadUrl": "https://api.apify.com/v2/key-value-stores/Q4deWbguuaGZlKtrX/records/1744135243742-tiktok-video",
+  "downloadCoverUrl": "https://api.apify.com/v2/key-value-stores/Q4deWbguuaGZlKtrX/records/1744135244865-tiktok-cover",
+  "region": "US",
+  "durationMS": 8976,
+  "hashtags": [
+    {
+      "id": "7488735293903028270",
+      "name": "bagelstomakehimdance"
+    }
+  ]
+}
+
+🧠 Use Cases
+✨ Sentiment analysis & product reviews
+📊 Campaign & trend tracking
+🕵️ Fact-checking & misinformation monitoring
+🎯 TikTok influencer research
+📚 Content strategy & competitive analysis
+⚙️ Automation & Integration
+Hook it into your favorite tools:
+
+Clay
+Crew AI
+Zapier
+Make
+Webhooks
+…and more
+💵 Pricing Comparison
+Tool	Cost per 1,000 Videos
+Best TikTok Video Scraper	$2
+Apify	$10
+That's 80% cheaper — and you get transcripts if needed. 💥
+
+🙋 FAQ
+Q: Can I use this without coding?
+A: Yes. Just paste video URLs and click Start.
+
+Q: Can I automate it?
+A: Absolutely. Webhooks + integrations supported.
+
+Q: Is scraping TikTok legal?
+A: We only extract public data. Public data is ok to scrape.
+
+Q: Can I contact you?
+A: Sure! Email me adrian@thewebscrapingguy.com
+
+🙋 Need Help?
+Just shoot me an email: adrian@thewebscrapingguy.com
+
+TikTok Video Scraper
+A Node.js actor for scraping TikTok video data using the ScrapeCreators API.
+
+The Error You Encountered
+The error "Missing url property" occurred because you were trying to scrape a TikTok user profile URL instead of a video URL.
+
+❌ Wrong format (user profile):
+
+https://www.tiktok.com/@very.green123?_t=ZS-8xgmq3Yehr5&_r=1
+
+✅ Correct format (video URL):
+
+https://www.tiktok.com/@username/video/1234567890123456789
+
+Input Format
+The actor expects an input object with the following structure:
+
+{
+  "videos": [
+    "https://www.tiktok.com/@username/video/1234567890123456789",
+    "https://www.tiktok.com/@anotheruser/video/9876543210987654321"
+  ],
+  "shouldGetTranscript": true,
+  "shouldDownloadVideos": false,
+  "shouldDownloadCovers": false
+}
+
+Input Parameters
+videos (required): Array of TikTok video URLs
+shouldGetTranscript (optional): Whether to fetch video transcripts (default: false)
+shouldDownloadVideos (optional): Whether to download video files (default: false)
+shouldDownloadCovers (optional): Whether to download cover images (default: false)
+Environment Variables
+You need to set the SCRAPE_CREATORS_API_KEY environment variable with your ScrapeCreators API key.
+
+How to Get TikTok Video URLs
+Go to any TikTok video
+Click the "Share" button
+Click "Copy link"
+The URL should look like: https://www.tiktok.com/@username/video/1234567890123456789
+Output Format
+The actor returns an array of video objects with the following structure:
+
+{
+  "id": "video_id",
+  "description": "Video description",
+  "createTime": "2024-01-01T00:00:00.000Z",
+  "author": {
+    "id": "user_id",
+    "username": "username",
+    "nickname": "Display Name",
+    "avatar": "avatar_url"
+  },
+  "videoUrl": "direct_video_url",
+  "playCount": 1000,
+  "likeCount": 100,
+  "commentCount": 50,
+  "shareCount": 25,
+  "transcript": "Video transcript (if requested)",
+  "downloadUrl": "apify_download_url (if requested)",
+  "downloadCoverUrl": "apify_cover_download_url (if requested)"
+}
+
+Error Handling
+The actor now includes improved error handling:
+
+Input validation: Checks for valid input format
+URL validation: Ensures URLs are TikTok video URLs (not profile URLs)
+API error handling: Better logging of API responses and errors
+Graceful failures: Continues processing other videos even if one fails
+Detailed logging: More informative error messages
+Testing
+Use the provided test.json file to test the actor with sample video URLs.
+
+Common Issues
+"Missing url property": You're using a profile URL instead of a video URL
+"Invalid TikTok URL format": The URL doesn't contain /video/
+API errors: Check your ScrapeCreators API key and quota
+Empty results: The video might be private or deleted
+Dependencies
+axios: HTTP client for API requests
+got: HTTP client for downloading files
+heic-convert: Converting HEIC images to JPEG
+apify: Apify SDK for actor functionality
+Actor metrics
+
+429 total users
+
+65 monthly active users
+
+4.3 / 5 (2)
+
+22 bookmarks
+
+>99% runs succeeded
+
+16 hours issue response
+
+Created in Apr 2025
+
+Modified a month ago
+
+Security
+
+Limited permissions
+Categories
+
+Social media
+Developer tools
+Videos
+On this page
+
+🎥 Best TikTok Video Scraper
+📹 What You Can Scrape with Best TikTok Video Scraper
+🧪 Sample Input
+🧾 Sample Output
+🧠 Use Cases
+⚙️ Automation & Integration
+💵 Pricing Comparison
+🙋 FAQ
+🙋 Need Help?
+TikTok Video Scraper
+The Error You Encountered
+Input Format
+Environment Variables
+How to Get TikTok Video URLs
+Output Format
+Error Handling
+Testing
+Common Issues
+Dependencies
+1Password menu is available. Press down arrow to select.
