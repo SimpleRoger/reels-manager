@@ -220,24 +220,29 @@ export default function RemakeList() {
     return () => clearInterval(timer);
   }, [data?.references]);
 
-  // Auto-refresh stale CDN URLs once per session — Apify URLs typically expire after a few hours
-  const hasAutoRefreshed = useRef(false);
+  // Auto-refresh stale CDN URLs once per browser session (survives React remounts)
   useEffect(() => {
-    if (hasAutoRefreshed.current || !data?.references.length) return;
+    if (!data?.references.length) return;
+    const SESSION_KEY = "remake_refreshed_at";
+    const lastRefresh = Number(sessionStorage.getItem(SESSION_KEY) ?? 0);
+    const hoursSinceRefresh = (Date.now() - lastRefresh) / 3_600_000;
+    if (hoursSinceRefresh < 2) return; // already refreshed recently this session
     const anyStale = data.references.some((r) => {
       const ageHours = (Date.now() - new Date((r as any).updatedAt ?? 0).getTime()) / 3_600_000;
-      return ageHours > 6;
+      return ageHours > 4;
     });
     if (!anyStale) return;
-    hasAutoRefreshed.current = true;
+    sessionStorage.setItem(SESSION_KEY, String(Date.now()));
     fetch("/api/references/refresh-all", { method: "POST" }).catch(() => {});
-    // Poll every 20 s for up to 5 min to pick up fresh URLs as Apify finishes
+    // Poll every 30s for up to 3 min to pick up fresh URLs as Apify finishes
     const start = Date.now();
     const poll = setInterval(() => {
+      if (Date.now() - start > 180_000) { clearInterval(poll); return; }
       invalidate();
-      if (Date.now() - start > 300_000) clearInterval(poll);
-    }, 20_000);
-  }, [data?.references]);
+    }, 30_000);
+    return () => clearInterval(poll);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!data?.references.length]);
 
   function handleSave(id: number, values: { whyItsgood: string; whatToChange: string; howToRemake: string }) {
     updateMutation.mutate(
