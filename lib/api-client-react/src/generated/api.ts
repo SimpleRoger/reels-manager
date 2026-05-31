@@ -34,6 +34,8 @@ import type {
   ListReelsParams,
   ListReelsResponse,
   ListReferencesResponse,
+  LoudnessBatchResult,
+  LoudnessResult,
   PlaybookLesson,
   ReelAnalysis,
   ReelDetail,
@@ -978,6 +980,171 @@ export const useUpdateReelTags = <
   TContext
 > => {
   return useMutation(getUpdateReelTagsMutationOptions(options));
+};
+
+/**
+ * @summary Measure LUFS audio loudness for a single Reel
+ */
+export const getAnalyzeReelLoudnessUrl = (id: number) => {
+  return `/api/reels/${id}/loudness`;
+};
+
+export const analyzeReelLoudness = async (
+  id: number,
+  options?: RequestInit,
+): Promise<LoudnessResult> => {
+  return customFetch<LoudnessResult>(getAnalyzeReelLoudnessUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getAnalyzeReelLoudnessMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof analyzeReelLoudness>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof analyzeReelLoudness>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["analyzeReelLoudness"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof analyzeReelLoudness>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return analyzeReelLoudness(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AnalyzeReelLoudnessMutationResult = NonNullable<
+  Awaited<ReturnType<typeof analyzeReelLoudness>>
+>;
+
+export type AnalyzeReelLoudnessMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Measure LUFS audio loudness for a single Reel
+ */
+export const useAnalyzeReelLoudness = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof analyzeReelLoudness>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof analyzeReelLoudness>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getAnalyzeReelLoudnessMutationOptions(options));
+};
+
+/**
+ * @summary Batch-analyze LUFS for all reels missing loudness data
+ */
+export const getAnalyzeAllLoudnessUrl = () => {
+  return `/api/reels/loudness-batch`;
+};
+
+export const analyzeAllLoudness = async (
+  options?: RequestInit,
+): Promise<LoudnessBatchResult> => {
+  return customFetch<LoudnessBatchResult>(getAnalyzeAllLoudnessUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getAnalyzeAllLoudnessMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof analyzeAllLoudness>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof analyzeAllLoudness>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["analyzeAllLoudness"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof analyzeAllLoudness>>,
+    void
+  > = () => {
+    return analyzeAllLoudness(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AnalyzeAllLoudnessMutationResult = NonNullable<
+  Awaited<ReturnType<typeof analyzeAllLoudness>>
+>;
+
+export type AnalyzeAllLoudnessMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Batch-analyze LUFS for all reels missing loudness data
+ */
+export const useAnalyzeAllLoudness = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof analyzeAllLoudness>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof analyzeAllLoudness>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getAnalyzeAllLoudnessMutationOptions(options));
 };
 
 /**

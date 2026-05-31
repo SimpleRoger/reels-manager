@@ -1,0 +1,2 @@
+- [LUFS analysis quirks](lufs-analysis.md) — ffmpeg ebur128 on Instagram CDN: must download to temp file + parse Summary block only
+- [TikTok media proxy](tiktok-media-proxy.md) — TikTok CDN hostnames must be in media-proxy ALLOWED_HOSTS or thumbnails 403

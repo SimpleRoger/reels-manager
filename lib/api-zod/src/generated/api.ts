@@ -96,6 +96,16 @@ export const GetDashboardSummaryResponse = zod.object({
         .nullish()
         .describe("underperforming | normal | overperforming"),
       tags: zod.array(zod.string()),
+      lufsIntegrated: zod
+        .number()
+        .nullish()
+        .describe("Integrated loudness in LUFS (EBU R128)"),
+      lufsRange: zod.number().nullish().describe("Loudness range in LU"),
+      lufsTruePeak: zod.number().nullish().describe("True peak level in dBTP"),
+      lufsAnalyzedAt: zod
+        .string()
+        .nullish()
+        .describe("ISO timestamp when LUFS was last measured"),
       createdAt: zod.string(),
       updatedAt: zod.string(),
     })
@@ -201,6 +211,16 @@ export const ListReelsResponse = zod.object({
         .nullish()
         .describe("underperforming | normal | overperforming"),
       tags: zod.array(zod.string()),
+      lufsIntegrated: zod
+        .number()
+        .nullish()
+        .describe("Integrated loudness in LUFS (EBU R128)"),
+      lufsRange: zod.number().nullish().describe("Loudness range in LU"),
+      lufsTruePeak: zod.number().nullish().describe("True peak level in dBTP"),
+      lufsAnalyzedAt: zod
+        .string()
+        .nullish()
+        .describe("ISO timestamp when LUFS was last measured"),
       createdAt: zod.string(),
       updatedAt: zod.string(),
     }),
@@ -235,6 +255,16 @@ export const GetReelResponse = zod
       .nullish()
       .describe("underperforming | normal | overperforming"),
     tags: zod.array(zod.string()),
+    lufsIntegrated: zod
+      .number()
+      .nullish()
+      .describe("Integrated loudness in LUFS (EBU R128)"),
+    lufsRange: zod.number().nullish().describe("Loudness range in LU"),
+    lufsTruePeak: zod.number().nullish().describe("True peak level in dBTP"),
+    lufsAnalyzedAt: zod
+      .string()
+      .nullish()
+      .describe("ISO timestamp when LUFS was last measured"),
     createdAt: zod.string(),
     updatedAt: zod.string(),
   })
@@ -365,6 +395,29 @@ export const UpdateReelTagsBody = zod.object({
 
 export const UpdateReelTagsResponse = zod.object({
   tags: zod.array(zod.string()),
+});
+
+/**
+ * @summary Measure LUFS audio loudness for a single Reel
+ */
+export const AnalyzeReelLoudnessParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AnalyzeReelLoudnessResponse = zod.object({
+  reelId: zod.number(),
+  integrated: zod.number().describe("Integrated loudness in LUFS"),
+  range: zod.number().describe("Loudness range in LU"),
+  truePeak: zod.number().describe("True peak in dBTP"),
+  analyzedAt: zod.string(),
+});
+
+/**
+ * @summary Batch-analyze LUFS for all reels missing loudness data
+ */
+export const AnalyzeAllLoudnessResponse = zod.object({
+  queued: zod.number(),
+  message: zod.string(),
 });
 
 /**

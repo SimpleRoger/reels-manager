@@ -24,6 +24,8 @@ tags:
     description: Instagram API integration
   - name: dashboard
     description: Dashboard summary endpoints
+  - name: loudness
+    description: Audio loudness (LUFS) analysis
 
 paths:
   /healthz:
@@ -295,6 +297,63 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/UpdateReelTagsResponse"
+
+  # ─── LOUDNESS ───────────────────────────────────────────────────────────────
+  /reels/{id}/loudness:
+    post:
+      operationId: analyzeReelLoudness
+      tags: [loudness]
+      summary: Measure LUFS audio loudness for a single Reel
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: LUFS result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoudnessResult"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: No media URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Analysis failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /reels/loudness-batch:
+    post:
+      operationId: analyzeAllLoudness
+      tags: [loudness]
+      summary: Batch-analyze LUFS for all reels missing loudness data
+      responses:
+        "200":
+          description: Batch queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoudnessBatchResult"
+        "409":
+          description: Batch already running
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   # ─── AI ANALYSIS ────────────────────────────────────────────────────────────
   /reels/{id}/analyze:
@@ -800,6 +859,18 @@ components:
           type: array
           items:
             type: string
+        lufsIntegrated:
+          type: ["number", "null"]
+          description: Integrated loudness in LUFS (EBU R128)
+        lufsRange:
+          type: ["number", "null"]
+          description: Loudness range in LU
+        lufsTruePeak:
+          type: ["number", "null"]
+          description: True peak level in dBTP
+        lufsAnalyzedAt:
+          type: ["string", "null"]
+          description: ISO timestamp when LUFS was last measured
         createdAt:
           type: string
         updatedAt:
@@ -1302,3 +1373,38 @@ components:
       required:
         - results
         - hashtag
+
+    # ─── LOUDNESS ─────────────────────────────────────────────────────────────
+    LoudnessResult:
+      type: object
+      properties:
+        reelId:
+          type: integer
+        integrated:
+          type: number
+          description: Integrated loudness in LUFS
+        range:
+          type: number
+          description: Loudness range in LU
+        truePeak:
+          type: number
+          description: True peak in dBTP
+        analyzedAt:
+          type: string
+      required:
+        - reelId
+        - integrated
+        - range
+        - truePeak
+        - analyzedAt
+
+    LoudnessBatchResult:
+      type: object
+      properties:
+        queued:
+          type: integer
+        message:
+          type: string
+      required:
+        - queued
+        - message

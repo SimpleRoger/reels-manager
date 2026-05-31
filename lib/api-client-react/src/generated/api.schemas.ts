@@ -90,6 +90,26 @@ export interface Reel {
    */
   performanceStatus?: string | null;
   tags: string[];
+  /**
+   * Integrated loudness in LUFS (EBU R128)
+   * @nullable
+   */
+  lufsIntegrated?: number | null;
+  /**
+   * Loudness range in LU
+   * @nullable
+   */
+  lufsRange?: number | null;
+  /**
+   * True peak level in dBTP
+   * @nullable
+   */
+  lufsTruePeak?: number | null;
+  /**
+   * ISO timestamp when LUFS was last measured
+   * @nullable
+   */
+  lufsAnalyzedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -439,6 +459,22 @@ export interface SearchReelResult {
 export interface SearchReelsResponse {
   results: SearchReelResult[];
   hashtag: string;
+}
+
+export interface LoudnessResult {
+  reelId: number;
+  /** Integrated loudness in LUFS */
+  integrated: number;
+  /** Loudness range in LU */
+  range: number;
+  /** True peak in dBTP */
+  truePeak: number;
+  analyzedAt: string;
+}
+
+export interface LoudnessBatchResult {
+  queued: number;
+  message: string;
 }
 
 export type SearchHashtagParams = {

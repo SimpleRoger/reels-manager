@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, real } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -18,6 +18,10 @@ export const reelsTable = pgTable("reels", {
   plays: integer("plays"),
   performanceStatus: text("performance_status"),
   tags: text("tags").array().notNull().default([]),
+  lufsIntegrated: real("lufs_integrated"),
+  lufsRange: real("lufs_range"),
+  lufsTruePeak: real("lufs_true_peak"),
+  lufsAnalyzedAt: timestamp("lufs_analyzed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

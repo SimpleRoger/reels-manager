@@ -1,5 +1,10 @@
 import { useState } from "react";
-import { useListReels, getListReelsQueryKey } from "@workspace/api-client-react";
+import {
+  useListReels,
+  getListReelsQueryKey,
+  useAnalyzeReelLoudness,
+  useAnalyzeAllLoudness,
+} from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { formatNumber, formatDate } from "@/lib/format";
 import { StatusBadge } from "@/components/status-badge";
@@ -7,50 +12,313 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { InlinePlayer } from "@/components/inline-player";
-import { PlaySquare, Filter, Play } from "lucide-react";
-import type { ListReelsSortBy, ListReelsSortOrder } from "@workspace/api-client-react";
+import { PlaySquare, Filter, Play, LayoutGrid, Volume2, Loader2, CheckCircle2, AlertTriangle, Zap } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import type { ListReelsSortBy, ListReelsSortOrder, Reel } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+
+type ViewMode = "grid" | "loudness";
+
+// ── Loudness helpers ─────────────────────────────────────────────────────────
+
+function lufsColor(lufs: number): string {
+  if (lufs >= -16 && lufs <= -9) return "#22c55e";   // green — optimal
+  if (lufs >= -20 && lufs < -16) return "#f59e0b";   // amber — slightly quiet
+  if (lufs > -9 && lufs <= -6)   return "#f59e0b";   // amber — slightly hot
+  return "#ef4444";                                    // red — too quiet or clipping
+}
+
+function lufsLabel(lufs: number): string {
+  if (lufs >= -16 && lufs <= -9)  return "Optimal";
+  if (lufs >= -20 && lufs < -16)  return "Quiet";
+  if (lufs > -9 && lufs <= -6)    return "Hot";
+  if (lufs < -20)                 return "Too Quiet";
+  return "Clipping";
+}
+
+// Normalize a LUFS value to a 0–100% bar width (range -30 to 0)
+function lufsBarPct(lufs: number): number {
+  const min = -30;
+  const max = 0;
+  return Math.min(100, Math.max(2, ((lufs - min) / (max - min)) * 100));
+}
+
+// ── LoudnessRow ──────────────────────────────────────────────────────────────
+
+function LoudnessRow({ reel, onAnalyzed }: { reel: Reel; onAnalyzed: () => void }) {
+  const analyze = useAnalyzeReelLoudness({ mutation: { onSuccess: onAnalyzed } });
+  const hasLufs = reel.lufsIntegrated != null;
+  const color = hasLufs ? lufsColor(reel.lufsIntegrated!) : "#52525b";
+  const barPct = hasLufs ? lufsBarPct(reel.lufsIntegrated!) : 0;
+  const isRunning = analyze.isPending;
+
+  return (
+    <div className="flex items-center gap-4 py-3 px-4 rounded-lg bg-card border border-border hover:border-primary/30 transition-colors">
+      {/* thumbnail */}
+      <div className="w-10 h-14 flex-none rounded overflow-hidden bg-zinc-900">
+        {reel.thumbnailUrl ? (
+          <img src={reel.thumbnailUrl} alt="" className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <PlaySquare className="w-4 h-4 text-muted-foreground/30" />
+          </div>
+        )}
+      </div>
+
+      {/* caption + date */}
+      <div className="w-36 flex-none hidden md:block">
+        <p className="text-xs text-card-foreground line-clamp-2 leading-tight">
+          {reel.caption || "No caption"}
+        </p>
+        <p className="text-[10px] font-mono text-muted-foreground mt-1">{formatDate(reel.postedAt)}</p>
+      </div>
+
+      {/* bar */}
+      <div className="flex-1 min-w-0">
+        {hasLufs ? (
+          <div className="space-y-1">
+            <div className="h-5 w-full bg-zinc-800 rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-700"
+                style={{ width: `${barPct}%`, backgroundColor: color }}
+              />
+            </div>
+            {/* reference markers */}
+            <div className="relative h-3">
+              {/* -14 LUFS marker (Instagram/TikTok normalization target) */}
+              <div
+                className="absolute top-0 flex flex-col items-center"
+                style={{ left: `${lufsBarPct(-14)}%`, transform: "translateX(-50%)" }}
+              >
+                <div className="w-px h-2 bg-white/20" />
+                <span className="text-[8px] font-mono text-white/30">−14</span>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="h-5 w-full bg-zinc-800/50 rounded-full border border-dashed border-zinc-700" />
+        )}
+      </div>
+
+      {/* values */}
+      <div className="w-36 flex-none text-right space-y-0.5">
+        {hasLufs ? (
+          <>
+            <div className="flex items-center justify-end gap-1.5">
+              <span
+                className="text-[10px] font-mono px-1.5 py-0.5 rounded"
+                style={{ backgroundColor: `${color}22`, color }}
+              >
+                {lufsLabel(reel.lufsIntegrated!)}
+              </span>
+              <span className="text-sm font-bold tabular-nums" style={{ color }}>
+                {reel.lufsIntegrated!.toFixed(1)}
+              </span>
+              <span className="text-[10px] text-muted-foreground">LUFS</span>
+            </div>
+            <div className="flex items-center justify-end gap-3 text-[10px] font-mono text-muted-foreground">
+              <span>LRA {reel.lufsRange?.toFixed(1) ?? "—"} LU</span>
+              <span
+                className={
+                  (reel.lufsTruePeak ?? -99) > -1 ? "text-red-400" : "text-muted-foreground"
+                }
+              >
+                TP {reel.lufsTruePeak?.toFixed(1) ?? "—"} dBTP
+              </span>
+            </div>
+          </>
+        ) : (
+          <span className="text-[11px] text-muted-foreground/50">Not analyzed</span>
+        )}
+      </div>
+
+      {/* action */}
+      <div className="w-16 flex-none flex justify-end">
+        {isRunning ? (
+          <Loader2 className="w-4 h-4 text-primary animate-spin" />
+        ) : hasLufs ? (
+          <button
+            onClick={() => analyze.mutate({ id: reel.id })}
+            title="Re-analyze"
+            className="text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+          >
+            <CheckCircle2 className="w-4 h-4" />
+          </button>
+        ) : (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-[11px] px-2"
+            onClick={() => analyze.mutate({ id: reel.id })}
+          >
+            Analyze
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── LoudnessView ─────────────────────────────────────────────────────────────
+
+function LoudnessView({ reels, onRefresh }: { reels: Reel[]; onRefresh: () => void }) {
+  const analyzeAll = useAnalyzeAllLoudness({ mutation: { onSuccess: onRefresh } });
+  const analyzed   = reels.filter((r) => r.lufsIntegrated != null);
+  const pending    = reels.filter((r) => r.lufsIntegrated == null && r.mediaUrl);
+
+  const sorted = [...reels].sort((a, b) => {
+    if (a.lufsIntegrated == null && b.lufsIntegrated == null) return 0;
+    if (a.lufsIntegrated == null) return 1;
+    if (b.lufsIntegrated == null) return -1;
+    return b.lufsIntegrated - a.lufsIntegrated;
+  });
+
+  const avgLufs =
+    analyzed.length > 0
+      ? analyzed.reduce((s, r) => s + r.lufsIntegrated!, 0) / analyzed.length
+      : null;
+
+  return (
+    <div className="space-y-5">
+      {/* summary strip */}
+      <div className="flex flex-wrap gap-4 items-center justify-between">
+        <div className="flex gap-6">
+          {avgLufs != null && (
+            <div>
+              <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Avg Loudness</p>
+              <p className="text-2xl font-bold tabular-nums" style={{ color: lufsColor(avgLufs) }}>
+                {avgLufs.toFixed(1)} <span className="text-sm font-normal text-muted-foreground">LUFS</span>
+              </p>
+            </div>
+          )}
+          <div>
+            <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Analyzed</p>
+            <p className="text-2xl font-bold tabular-nums">
+              {analyzed.length} <span className="text-sm font-normal text-muted-foreground">/ {reels.length}</span>
+            </p>
+          </div>
+          {analyzed.filter((r) => (r.lufsTruePeak ?? -99) > -1).length > 0 && (
+            <div className="flex items-center gap-1.5 text-red-400">
+              <AlertTriangle className="w-4 h-4" />
+              <span className="text-sm font-mono">
+                {analyzed.filter((r) => (r.lufsTruePeak ?? -99) > -1).length} clipping
+              </span>
+            </div>
+          )}
+        </div>
+
+        {pending.length > 0 && (
+          <Button
+            onClick={() => analyzeAll.mutate()}
+            disabled={analyzeAll.isPending}
+            className="gap-2"
+          >
+            {analyzeAll.isPending ? (
+              <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing…</>
+            ) : (
+              <><Zap className="w-4 h-4" /> Analyze All ({pending.length})</>
+            )}
+          </Button>
+        )}
+      </div>
+
+      {/* target reference */}
+      <div className="flex items-center gap-2 text-[11px] text-muted-foreground bg-card border rounded-lg px-4 py-2.5">
+        <Volume2 className="w-3.5 h-3.5 flex-none" />
+        <span>
+          Instagram & TikTok normalize uploads to <strong className="text-foreground">−14 LUFS</strong>.
+          {" "}Aim for <strong className="text-green-400">−16 to −9 LUFS</strong> for best results after platform compression.
+          {" "}True peak should stay below <strong className="text-foreground">−1 dBTP</strong>.
+        </span>
+      </div>
+
+      {/* rows */}
+      <div className="space-y-2">
+        {sorted.map((reel) => (
+          <LoudnessRow key={reel.id} reel={reel} onAnalyzed={onRefresh} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function ReelsLog() {
-  const [sortBy, setSortBy] = useState<ListReelsSortBy>("likeCount");
+  const [sortBy, setSortBy]   = useState<ListReelsSortBy>("likeCount");
   const [sortOrder, setSortOrder] = useState<ListReelsSortOrder>("desc");
   const [playingId, setPlayingId] = useState<number | null>(null);
+  const [viewMode, setViewMode]   = useState<ViewMode>("grid");
+
+  const queryClient = useQueryClient();
+  const qKey = getListReelsQueryKey({ sortBy, sortOrder, limit: 500 });
 
   const { data, isLoading } = useListReels({ sortBy, sortOrder, limit: 500 }, {
-    query: {
-      queryKey: getListReelsQueryKey({ sortBy, sortOrder, limit: 500 })
-    }
+    query: { queryKey: qKey },
   });
+
+  const refresh = () => queryClient.invalidateQueries({ queryKey: getListReelsQueryKey({ sortBy, sortOrder, limit: 500 }) });
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
+      {/* header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div className="space-y-1">
           <h1 className="text-3xl font-bold tracking-tight">Reels Log</h1>
           <p className="text-muted-foreground text-sm">Your complete content history.</p>
         </div>
-        
-        <div className="flex items-center gap-2 bg-card border rounded-md p-1">
-          <Filter className="w-4 h-4 text-muted-foreground ml-2" />
-          <Select 
-            value={`${sortBy}-${sortOrder}`} 
-            onValueChange={(val) => {
-              const [by, order] = val.split("-") as [ListReelsSortBy, ListReelsSortOrder];
-              setSortBy(by);
-              setSortOrder(order);
-            }}
-          >
-            <SelectTrigger className="w-[180px] border-0 focus:ring-0 text-xs font-mono uppercase tracking-wider bg-transparent">
-              <SelectValue placeholder="Sort by" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="postedAt-desc">Newest First</SelectItem>
-              <SelectItem value="postedAt-asc">Oldest First</SelectItem>
-              <SelectItem value="likeCount-desc">Most Likes</SelectItem>
-              <SelectItem value="commentsCount-desc">Most Comments</SelectItem>
-              <SelectItem value="shares-desc">Most Shares</SelectItem>
-              <SelectItem value="saves-desc">Most Saves</SelectItem>
-            </SelectContent>
-          </Select>
+
+        <div className="flex items-center gap-2">
+          {/* view toggle */}
+          <div className="flex items-center bg-card border rounded-md p-1 gap-0.5">
+            <button
+              onClick={() => setViewMode("grid")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono transition-colors ${
+                viewMode === "grid"
+                  ? "bg-primary text-black"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" /> Grid
+            </button>
+            <button
+              onClick={() => setViewMode("loudness")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono transition-colors ${
+                viewMode === "loudness"
+                  ? "bg-primary text-black"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Volume2 className="w-3.5 h-3.5" /> Loudness
+            </button>
+          </div>
+
+          {/* sort — only in grid mode */}
+          {viewMode === "grid" && (
+            <div className="flex items-center gap-2 bg-card border rounded-md p-1">
+              <Filter className="w-4 h-4 text-muted-foreground ml-2" />
+              <Select
+                value={`${sortBy}-${sortOrder}`}
+                onValueChange={(val) => {
+                  const [by, order] = val.split("-") as [ListReelsSortBy, ListReelsSortOrder];
+                  setSortBy(by);
+                  setSortOrder(order);
+                }}
+              >
+                <SelectTrigger className="w-[180px] border-0 focus:ring-0 text-xs font-mono uppercase tracking-wider bg-transparent">
+                  <SelectValue placeholder="Sort by" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="postedAt-desc">Newest First</SelectItem>
+                  <SelectItem value="postedAt-asc">Oldest First</SelectItem>
+                  <SelectItem value="likeCount-desc">Most Likes</SelectItem>
+                  <SelectItem value="commentsCount-desc">Most Comments</SelectItem>
+                  <SelectItem value="shares-desc">Most Shares</SelectItem>
+                  <SelectItem value="saves-desc">Most Saves</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
       </div>
 
@@ -60,6 +328,8 @@ export default function ReelsLog() {
             <Skeleton key={i} className="aspect-[9/16] w-full rounded-xl" />
           ))}
         </div>
+      ) : viewMode === "loudness" ? (
+        <LoudnessView reels={data?.reels ?? []} onRefresh={refresh} />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           {data?.reels.map((reel) => {
@@ -77,9 +347,9 @@ export default function ReelsLog() {
                   ) : (
                     <>
                       {reel.thumbnailUrl ? (
-                        <img 
-                          src={reel.thumbnailUrl} 
-                          alt="Thumbnail" 
+                        <img
+                          src={reel.thumbnailUrl}
+                          alt="Thumbnail"
                           className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                         />
                       ) : (
@@ -92,6 +362,18 @@ export default function ReelsLog() {
                       <div className="absolute top-2 right-2">
                         <StatusBadge status={reel.performanceStatus} />
                       </div>
+
+                      {/* LUFS badge */}
+                      {reel.lufsIntegrated != null && (
+                        <div className="absolute bottom-2 left-2">
+                          <span
+                            className="text-[10px] font-bold font-mono px-1.5 py-0.5 rounded bg-black/70"
+                            style={{ color: lufsColor(reel.lufsIntegrated) }}
+                          >
+                            {reel.lufsIntegrated.toFixed(1)} L
+                          </span>
+                        </div>
+                      )}
 
                       <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                         <button
