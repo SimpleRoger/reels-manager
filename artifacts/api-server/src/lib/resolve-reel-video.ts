@@ -15,7 +15,7 @@ interface ResolvedMedia {
 const APIFY_TOKEN = process.env["APIFY_API_TOKEN"];
 
 const INSTAGRAM_ACTOR_ID = "apify~instagram-scraper";
-const TIKTOK_ACTOR_ID = "scrape-creators/best-tiktok-video-scraper";
+const TIKTOK_ACTOR_ID = "scrape-creators~best-tiktok-video-scraper";
 
 function isTikTokUrl(url: string): boolean {
   return url.includes("tiktok.com");
