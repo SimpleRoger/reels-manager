@@ -14,7 +14,9 @@
       "backgroundColor": "#0F1015"
     },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "bundleIdentifier": "com.rogerrari.reeljournal",
+      "buildNumber": "1"
     },
     "android": {
       "backgroundColor": "#0F1015"
