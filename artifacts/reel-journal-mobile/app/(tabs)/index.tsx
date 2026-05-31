@@ -45,7 +45,7 @@ export default function ReelsScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const { data, isLoading, refetch } = useListReels({
-    sortBy: "postedAt",
+    sortBy: "likeCount",
     sortOrder: "desc",
     limit: 50,
   });

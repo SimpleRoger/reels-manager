@@ -1,7 +1,8 @@
 import { useGetReel, useGetReelNotes } from "@workspace/api-client-react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import React from "react";
+import { VideoView, useVideoPlayer } from "expo-video";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -21,9 +22,26 @@ export default function ReelDetailScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const reelId = Number(id);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   const { data: reel, isLoading } = useGetReel(reelId);
   const { data: notes } = useGetReelNotes(reelId);
+
+  const mediaUrl = (reel as any)?.mediaUrl as string | undefined | null;
+  const hasVideo = !!mediaUrl;
+
+  const player = useVideoPlayer(
+    hasVideo ? { uri: mediaUrl! } : null,
+    (p) => {
+      p.loop = true;
+    }
+  );
+
+  function handlePlay() {
+    if (!hasVideo) return;
+    setIsPlaying(true);
+    player.play();
+  }
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const status = (reel as any)?.status as string | undefined;
@@ -68,14 +86,7 @@ export default function ReelDetailScreen() {
             </Text>
           </View>
         )}
-        {reel.permalink && (
-          <Pressable
-            style={styles.igBtn}
-            onPress={() => {}}
-          >
-            <Feather name="external-link" size={18} color={colors.mutedForeground} />
-          </Pressable>
-        )}
+        <View style={{ flex: 1 }} />
       </View>
 
       <ScrollView
@@ -83,23 +94,51 @@ export default function ReelDetailScreen() {
           paddingBottom: Platform.OS === "web" ? 84 : insets.bottom + 40,
         }}
       >
-        {reel.thumbnailUrl ? (
-          <Image
-            source={{ uri: reel.thumbnailUrl }}
-            style={[styles.thumbnail, { backgroundColor: colors.muted }]}
-            resizeMode="cover"
-          />
-        ) : (
-          <View
-            style={[
-              styles.thumbnail,
-              styles.thumbPlaceholder,
-              { backgroundColor: colors.muted },
-            ]}
-          >
-            <Feather name="film" size={48} color={colors.mutedForeground} />
-          </View>
-        )}
+        {/* Video / Thumbnail */}
+        <Pressable
+          style={[styles.mediaContainer, { backgroundColor: colors.muted }]}
+          onPress={handlePlay}
+        >
+          {isPlaying && hasVideo ? (
+            <VideoView
+              player={player}
+              style={styles.mediaContainer}
+              contentFit="cover"
+              nativeControls
+            />
+          ) : (
+            <>
+              {reel.thumbnailUrl ? (
+                <Image
+                  source={{ uri: reel.thumbnailUrl }}
+                  style={styles.mediaContainer}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={styles.thumbPlaceholder}>
+                  <Feather name="film" size={48} color={colors.mutedForeground} />
+                </View>
+              )}
+              {hasVideo && (
+                <View style={styles.playOverlay}>
+                  <View
+                    style={[
+                      styles.playBtn,
+                      { backgroundColor: colors.primary },
+                    ]}
+                  >
+                    <Feather
+                      name="play"
+                      size={28}
+                      color={colors.primaryForeground}
+                      style={{ marginLeft: 3 }}
+                    />
+                  </View>
+                </View>
+              )}
+            </>
+          )}
+        </Pressable>
 
         <View style={styles.body}>
           {reel.caption && (
@@ -233,17 +272,38 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    flex: 1,
-    alignSelf: "flex-start",
   },
   statusText: { fontSize: 11, fontWeight: "700", letterSpacing: 0.5 },
-  igBtn: { padding: 4 },
-  thumbnail: {
+  mediaContainer: {
     width: "100%",
     aspectRatio: 9 / 16,
-    maxHeight: 340,
+    maxHeight: 400,
+    backgroundColor: "#000",
   },
-  thumbPlaceholder: { alignItems: "center", justifyContent: "center" },
+  thumbPlaceholder: {
+    width: "100%",
+    aspectRatio: 9 / 16,
+    maxHeight: 400,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  playOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  playBtn: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 6,
+  },
   body: { padding: 16, gap: 12 },
   caption: { fontSize: 15, lineHeight: 22 },
   date: { fontSize: 12 },
