@@ -168,7 +168,7 @@ async function runTikTokScraper(url: string): Promise<ResolvedMedia | null> {
 
   return {
     mediaUrl: item.videoUrl ?? null,
-    thumbnailUrl: item.thumbnail ?? item.thumbnailUrl ?? null,
+    thumbnailUrl: item.coverImg ?? item.thumbnail ?? item.thumbnailUrl ?? null,
     videoViewCount: item.playCount ?? null,
     commentsCount: item.commentCount ?? null,
     likesCount: item.likeCount ?? null,
