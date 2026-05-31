@@ -10,6 +10,9 @@ const ALLOWED_HOSTS = [
   "scontent-",          // prefix match for regional CDN hosts
   "instagram.f",        // e.g. instagram.fxxx1-1.fna.fbcdn.net
   "video.cdninstagram",
+  "tiktokcdn.com",      // TikTok video/thumbnail CDN
+  "tiktokcdn-us.com",   // TikTok US CDN
+  "tiktok.com",         // TikTok direct URLs
 ];
 
 function isAllowed(url: string): boolean {
