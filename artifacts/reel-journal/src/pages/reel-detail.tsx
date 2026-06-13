@@ -16,6 +16,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { formatNumber, formatDateTime } from "@/lib/format";
 import { StatusBadge } from "@/components/status-badge";
+import { VideoThumb } from "@/components/video-thumb";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -323,15 +324,9 @@ export default function ReelDetail() {
                   playsInline
                   className="absolute inset-0 w-full h-full object-cover"
                 />
-              ) : reel.thumbnailUrl ? (
-                <img 
-                  src={reel.thumbnailUrl} 
-                  alt="Thumbnail" 
-                  className="absolute inset-0 w-full h-full object-cover"
-                />
               ) : (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <PlaySquare className="w-12 h-12 text-muted-foreground/30" />
+                <div className="absolute inset-0">
+                  <VideoThumb thumbnailUrl={reel.thumbnailUrl} videoUrl={reel.mediaUrl} />
                 </div>
               )}
               <div className="absolute top-4 right-4 pointer-events-none">

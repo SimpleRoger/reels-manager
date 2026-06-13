@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowRight, Instagram, PlaySquare, Heart, MessageCircle, Share2, Bookmark } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { VideoThumb } from "@/components/video-thumb";
 
 export default function Dashboard() {
   const { data: summary, isLoading } = useGetDashboardSummary({
@@ -123,17 +124,9 @@ export default function Dashboard() {
           <Card className="bg-card border-card-border overflow-hidden">
             <div className="flex flex-col md:flex-row">
               <div className="md:w-1/3 bg-muted relative aspect-[9/16] md:aspect-auto border-r border-border">
-                {summary.latestReel.thumbnailUrl ? (
-                  <img 
-                    src={summary.latestReel.thumbnailUrl} 
-                    alt="Latest Reel thumbnail" 
-                    className="absolute inset-0 w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <PlaySquare className="w-12 h-12 text-muted-foreground/30" />
-                  </div>
-                )}
+                <div className="absolute inset-0">
+                  <VideoThumb thumbnailUrl={summary.latestReel.thumbnailUrl} videoUrl={summary.latestReel.mediaUrl} />
+                </div>
                 <div className="absolute top-4 right-4">
                   <StatusBadge status={summary.latestReel.performanceStatus} />
                 </div>

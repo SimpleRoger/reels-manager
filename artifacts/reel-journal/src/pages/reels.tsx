@@ -12,6 +12,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { InlinePlayer } from "@/components/inline-player";
+import { VideoThumb } from "@/components/video-thumb";
 import { PlaySquare, Filter, Play, LayoutGrid, Volume2, Loader2, CheckCircle2, AlertTriangle, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ListReelsSortBy, ListReelsSortOrder, Reel } from "@workspace/api-client-react";
@@ -57,13 +58,7 @@ function LoudnessRow({ reel, onAnalyzed }: { reel: Reel; onAnalyzed: () => void 
     <div className="flex items-center gap-4 py-3 px-4 rounded-lg bg-card border border-border hover:border-primary/30 transition-colors">
       {/* thumbnail */}
       <div className="w-10 h-14 flex-none rounded overflow-hidden bg-zinc-900">
-        {reel.thumbnailUrl ? (
-          <img src={reel.thumbnailUrl} alt="" className="w-full h-full object-cover" />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <PlaySquare className="w-4 h-4 text-muted-foreground/30" />
-          </div>
-        )}
+        <VideoThumb thumbnailUrl={reel.thumbnailUrl} videoUrl={reel.mediaUrl} />
       </div>
 
       {/* caption + date */}
@@ -358,17 +353,9 @@ export default function ReelsLog() {
                     />
                   ) : (
                     <>
-                      {reel.thumbnailUrl ? (
-                        <img
-                          src={reel.thumbnailUrl}
-                          alt="Thumbnail"
-                          className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                        />
-                      ) : (
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <PlaySquare className="w-8 h-8 text-muted-foreground/30" />
-                        </div>
-                      )}
+                      <div className="absolute inset-0 transition-transform duration-500 group-hover:scale-105">
+                        <VideoThumb thumbnailUrl={reel.thumbnailUrl} videoUrl={reel.mediaUrl} />
+                      </div>
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
                       <div className="absolute top-2 right-2">
