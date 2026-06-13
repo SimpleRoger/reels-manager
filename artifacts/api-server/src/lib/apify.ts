@@ -177,7 +177,9 @@ export async function scrapeInstagramProfile(username: string, limit = 100): Pro
       postedAt: item.timestamp ? new Date(item.timestamp) : null,
       likesCount: item.likesCount ?? item.likesCountFull ?? null,
       commentsCount: item.commentsCount ?? null,
-      plays: item.videoViewCount ?? item.videoPlayCount ?? null,
+      plays: (item.videoPlayCount != null && item.videoViewCount != null)
+        ? Math.max(item.videoPlayCount, item.videoViewCount)
+        : (item.videoPlayCount ?? item.videoViewCount ?? null),
       isVideo: true,
     }));
 }

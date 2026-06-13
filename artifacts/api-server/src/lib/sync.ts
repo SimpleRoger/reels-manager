@@ -84,9 +84,15 @@ export async function runInstagramSync(): Promise<{ synced: number; total: numbe
       thumbnailUrl: post.thumbnailUrl,
       mediaUrl: post.mediaUrl,
       postedAt: post.postedAt,
-      likeCount: post.likesCount,
-      commentsCount: post.commentsCount,
-      plays: post.plays,
+      likeCount: post.likesCount != null && prev?.likeCount != null
+        ? Math.max(post.likesCount, prev.likeCount)
+        : (post.likesCount ?? prev?.likeCount ?? null),
+      commentsCount: post.commentsCount != null && prev?.commentsCount != null
+        ? Math.max(post.commentsCount, prev.commentsCount)
+        : (post.commentsCount ?? prev?.commentsCount ?? null),
+      plays: post.plays != null && prev?.plays != null
+        ? Math.max(post.plays, prev.plays)
+        : (post.plays ?? prev?.plays ?? null),
       reach: prev?.reach ?? null,
       saves: prev?.saves ?? null,
       shares: prev?.shares ?? null,
