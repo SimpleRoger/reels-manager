@@ -12,33 +12,52 @@ function extractShortcode(permalink?: string | null): string | null {
   return permalink.match(/instagram\.com\/(?:reel|p)\/([A-Za-z0-9_-]+)/)?.[1] ?? null;
 }
 
-function freshThumbUrl(shortcode: string) {
-  return `${BASE}/api/instagram/thumbnail?shortcode=${encodeURIComponent(shortcode)}`;
+function isTikTok(permalink?: string | null): boolean {
+  return !!permalink && permalink.includes("tiktok.com");
+}
+
+/** URL that fetches a fresh thumbnail — Instagram via og:image scrape, TikTok via embed resolution */
+function freshThumbUrl(permalink: string): string {
+  const shortcode = extractShortcode(permalink);
+  if (shortcode) {
+    return `${BASE}/api/instagram/thumbnail?shortcode=${encodeURIComponent(shortcode)}`;
+  }
+  // TikTok or other: pass the full URL and let the server resolve it
+  return `${BASE}/api/instagram/thumbnail?url=${encodeURIComponent(permalink)}`;
 }
 
 interface VideoThumbProps {
   thumbnailUrl?: string | null;
   videoUrl?: string | null;
-  /** Reel permalink — used to fetch a fresh thumbnail when CDN URL expires */
+  /** Source URL (reel permalink / TikTok URL) — used to fetch a fresh thumbnail when CDN expires */
   permalink?: string | null;
   className?: string;
 }
 
+type Stage = "thumb" | "fresh" | "video" | "failed";
+
+function initialStage(thumbnailUrl?: string | null, permalink?: string | null, videoUrl?: string | null): Stage {
+  if (thumbnailUrl) return "thumb";
+  if (permalink) return "fresh";
+  if (videoUrl) return "video";
+  return "failed";
+}
+
 /**
- * Shows a thumbnail for a reel. Fallback chain:
+ * Shows a thumbnail for a reel/TikTok. Fallback chain:
  *  1. Proxied CDN thumbnailUrl  (fast, breaks when CDN URL expires)
- *  2. Fresh thumbnail via og:image scrape  (server fetches a live URL from IG page)
+ *  2. Fresh thumbnail via server scrape (Instagram og:image or TikTok resolution)
  *  3. First video frame captured from proxied videoUrl
  *  4. Dark placeholder with play icon
  */
 export function VideoThumb({ thumbnailUrl, videoUrl, permalink, className = "" }: VideoThumbProps) {
-  const shortcode = extractShortcode(permalink);
+  const canFresh = !!permalink && (!!extractShortcode(permalink) || isTikTok(permalink));
   const [frameUrl, setFrameUrl] = useState<string | null>(null);
-  const [stage, setStage] = useState<"thumb" | "fresh" | "video" | "failed">("thumb");
+  const [stage, setStage] = useState<Stage>(initialStage(thumbnailUrl, canFresh ? permalink : null, videoUrl));
 
   useEffect(() => {
     setFrameUrl(null);
-    setStage(thumbnailUrl ? "thumb" : shortcode ? "fresh" : videoUrl ? "video" : "failed");
+    setStage(initialStage(thumbnailUrl, canFresh ? permalink : null, videoUrl));
   }, [thumbnailUrl, videoUrl, permalink]);
 
   // Stage 1: try proxied CDN thumbnail
@@ -48,16 +67,16 @@ export function VideoThumb({ thumbnailUrl, videoUrl, permalink, className = "" }
         src={proxyUrl(thumbnailUrl)}
         alt="thumbnail"
         className={`w-full h-full object-cover ${className}`}
-        onError={() => setStage(shortcode ? "fresh" : videoUrl ? "video" : "failed")}
+        onError={() => setStage(canFresh ? "fresh" : videoUrl ? "video" : "failed")}
       />
     );
   }
 
-  // Stage 2: fetch a fresh thumbnail via server-side og:image scrape
-  if (stage === "fresh" && shortcode) {
+  // Stage 2: fetch a fresh thumbnail via server-side scrape (Instagram og:image or TikTok)
+  if (stage === "fresh" && permalink && canFresh) {
     return (
       <img
-        src={freshThumbUrl(shortcode)}
+        src={freshThumbUrl(permalink)}
         alt="thumbnail"
         className={`w-full h-full object-cover ${className}`}
         onError={() => setStage(videoUrl ? "video" : "failed")}

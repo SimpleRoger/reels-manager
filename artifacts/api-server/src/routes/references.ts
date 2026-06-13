@@ -133,6 +133,42 @@ router.post("/references/refresh-all", async (req, res): Promise<void> => {
   res.json({ queued: refs.length });
 });
 
+// GET /api/references/tiktok-embed?url=<tiktok_url>
+// Resolves a TikTok URL (including short vt.tiktok.com links) to an embeddable iframe URL.
+// Short URLs are followed server-side to extract the numeric video ID.
+router.get("/references/tiktok-embed", async (req, res): Promise<void> => {
+  const raw = req.query["url"];
+  if (typeof raw !== "string" || !raw.includes("tiktok.com")) {
+    res.status(400).json({ error: "TikTok URL required" });
+    return;
+  }
+
+  try {
+    // Follow redirects to reach the canonical URL which contains the video ID
+    const resp = await fetch(raw, {
+      method: "HEAD",
+      redirect: "follow",
+      headers: {
+        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15",
+      },
+    });
+
+    // resp.url is the final URL after redirects
+    const finalUrl = resp.url ?? raw;
+    const match = finalUrl.match(/\/video\/(\d+)/);
+    if (!match) {
+      res.status(404).json({ error: "Could not extract TikTok video ID" });
+      return;
+    }
+
+    const videoId = match[1];
+    res.json({ embedUrl: `https://www.tiktok.com/embed/v2/${videoId}` });
+  } catch (err) {
+    req.log.warn({ err, url: raw }, "Failed to resolve TikTok embed URL");
+    res.status(502).json({ error: "Failed to resolve TikTok URL" });
+  }
+});
+
 router.delete("/references/:id", async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const params = DeleteReferenceParams.safeParse({ id: parseInt(raw, 10) });

@@ -146,14 +146,77 @@ router.get("/instagram/hashtag-search", async (req, res): Promise<void> => {
   });
 });
 
-// GET /api/instagram/thumbnail?shortcode=X
-// Fetches a fresh thumbnail for a reel by scraping the og:image from Instagram's
-// public HTML page using a Googlebot UA. Signed CDN URLs in the DB expire; this
-// refreshes them on demand without needing an access token.
+// GET /api/instagram/thumbnail?shortcode=X  (Instagram)
+// GET /api/instagram/thumbnail?url=<tiktok_url>  (TikTok)
+// Fetches a fresh thumbnail for a reel/TikTok by scraping the og:image from the
+// public page. Signed CDN URLs in the DB expire; this refreshes them on demand.
 router.get("/instagram/thumbnail", async (req, res): Promise<void> => {
   const shortcode = req.query["shortcode"];
+  const urlParam = req.query["url"];
+
+  // ── TikTok branch ─────────────────────────────────────────────────────────
+  if (typeof urlParam === "string" && urlParam.includes("tiktok.com")) {
+    try {
+      // Follow redirects (short vt.tiktok.com links → canonical URL)
+      const resolveResp = await fetch(urlParam, {
+        method: "HEAD",
+        redirect: "follow",
+        headers: {
+          "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15",
+        },
+      });
+      const canonicalUrl = resolveResp.url ?? urlParam;
+
+      // Fetch the TikTok page and extract og:image
+      const pageResp = await fetch(canonicalUrl, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+          "Accept": "text/html,application/xhtml+xml",
+        },
+      });
+
+      if (!pageResp.ok) {
+        res.status(404).json({ error: "TikTok page unavailable" });
+        return;
+      }
+
+      const html = await pageResp.text();
+      const match = html.match(/og:image" content="([^"]+)"/);
+      if (!match) {
+        res.status(404).json({ error: "No og:image found on TikTok page" });
+        return;
+      }
+
+      const freshUrl = match[1].replace(/&amp;/g, "&");
+      const imgResp = await fetch(freshUrl, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15",
+        },
+      });
+
+      if (!imgResp.ok) {
+        res.status(502).json({ error: "Could not fetch TikTok thumbnail from CDN" });
+        return;
+      }
+
+      res.setHeader("Content-Type", imgResp.headers.get("content-type") ?? "image/jpeg");
+      res.setHeader("Cache-Control", "public, max-age=3600");
+      res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+      res.setHeader("Access-Control-Allow-Origin", "*");
+
+      const buffer = await imgResp.arrayBuffer();
+      res.send(Buffer.from(buffer));
+      return;
+    } catch (err) {
+      req.log.warn({ err, url: urlParam }, "Failed to fetch TikTok thumbnail via og:image");
+      res.status(502).json({ error: "Failed to fetch TikTok thumbnail" });
+      return;
+    }
+  }
+
+  // ── Instagram branch ───────────────────────────────────────────────────────
   if (typeof shortcode !== "string" || !shortcode) {
-    res.status(400).json({ error: "shortcode required" });
+    res.status(400).json({ error: "shortcode or TikTok url required" });
     return;
   }
 

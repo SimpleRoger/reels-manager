@@ -80,6 +80,7 @@ function NotesModal({
                 <VideoThumb
                   thumbnailUrl={r.thumbnailUrl ?? null}
                   videoUrl={r.mediaUrl ?? null}
+                  permalink={r.url}
                   className="absolute inset-0 w-full h-full object-cover"
                 />
                 <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
@@ -439,6 +440,7 @@ export default function RemakeList() {
                     <VideoThumb
                       thumbnailUrl={ref.thumbnailUrl ?? null}
                       videoUrl={ref.mediaUrl ?? null}
+                      permalink={ref.url}
                       className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
 
