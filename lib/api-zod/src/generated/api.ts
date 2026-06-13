@@ -20,12 +20,22 @@ export const HealthCheckResponse = zod.object({
  */
 export const ConnectInstagramBody = zod.object({
   username: zod.string(),
+  accessToken: zod
+    .string()
+    .optional()
+    .describe(
+      "Optional Instagram Graph API long-lived access token. When provided, syncs via Graph API (more accurate). When absent, syncs via Apify scraping.",
+    ),
 });
 
 export const ConnectInstagramResponse = zod.object({
   success: zod.boolean(),
   username: zod.string(),
   accountId: zod.string(),
+  tokenValid: zod
+    .boolean()
+    .optional()
+    .describe("Whether the provided access token was validated successfully"),
 });
 
 /**

@@ -7,15 +7,16 @@ import { formatDateTime } from "@/lib/format";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Instagram, RefreshCw, AlertCircle, ExternalLink, Info, MessageSquare } from "lucide-react";
+import { CheckCircle2, Instagram, RefreshCw, AlertCircle, ExternalLink, Info, MessageSquare, Key, Zap } from "lucide-react";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 const connectSchema = z.object({
   username: z.string().min(1, "Instagram username is required"),
+  accessToken: z.string().optional(),
 });
 
 const pageTokenSchema = z.object({
@@ -38,7 +39,7 @@ export default function Settings() {
 
   const form = useForm<z.infer<typeof connectSchema>>({
     resolver: zodResolver(connectSchema),
-    defaultValues: { username: "" },
+    defaultValues: { username: "", accessToken: "" },
   });
 
   const pageTokenForm = useForm<z.infer<typeof pageTokenSchema>>({
@@ -69,20 +70,26 @@ export default function Settings() {
   }
 
   function onSubmit(values: z.infer<typeof connectSchema>) {
-    connectMutation.mutate({ data: { username: values.username } }, {
-      onSuccess: () => {
-        toast({ title: "Account saved — click Sync Now to pull your Reels" });
-        queryClient.invalidateQueries({ queryKey: getGetInstagramStatusQueryKey() });
-        form.reset();
-      },
-      onError: (error) => {
-        toast({
-          title: "Failed to save",
-          description: error.error || "Please check the username.",
-          variant: "destructive"
-        });
+    connectMutation.mutate(
+      { data: { username: values.username, accessToken: values.accessToken || undefined } },
+      {
+        onSuccess: (data) => {
+          const tokenMsg = values.accessToken
+            ? (data.tokenValid ? " — Graph API token validated ✓" : " — token invalid, using Apify fallback")
+            : "";
+          toast({ title: `Account saved${tokenMsg}. Click Sync Now to pull your Reels.` });
+          queryClient.invalidateQueries({ queryKey: getGetInstagramStatusQueryKey() });
+          form.reset();
+        },
+        onError: (error) => {
+          toast({
+            title: "Failed to save",
+            description: error.error || "Please check the username.",
+            variant: "destructive"
+          });
+        }
       }
-    });
+    );
   }
 
   function handleSync() {
@@ -104,6 +111,8 @@ export default function Settings() {
     });
   }
 
+  const hasToken = !!(status as { hasToken?: boolean })?.hasToken;
+
   return (
     <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in duration-500">
       <div className="space-y-1">
@@ -117,7 +126,7 @@ export default function Settings() {
             <Instagram className="w-5 h-5" /> Instagram Account
           </CardTitle>
           <CardDescription>
-            Syncs your Reels via Apify — no access token needed, just your username.
+            Enter your username to sync via Apify. Add a Graph API token for full stats and instant access to your newest Reels.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -125,7 +134,18 @@ export default function Settings() {
             <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 flex items-start gap-4">
               <CheckCircle2 className="w-5 h-5 text-primary mt-0.5 shrink-0" />
               <div className="flex-1 min-w-0">
-                <h3 className="font-medium text-sm text-foreground">@{status.username}</h3>
+                <h3 className="font-medium text-sm text-foreground flex items-center gap-2">
+                  @{status.username}
+                  {hasToken ? (
+                    <span className="inline-flex items-center gap-1 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                      <Zap className="w-3 h-3" /> Graph API
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">
+                      Apify scraper
+                    </span>
+                  )}
+                </h3>
                 <p className="text-xs text-muted-foreground mt-1">
                   Last synced: {formatDateTime(status.lastSynced) || "Never"}
                 </p>
@@ -155,6 +175,18 @@ export default function Settings() {
             </div>
           ) : null}
 
+          {/* Sync mode info banner */}
+          {!isStatusLoading && status?.connected && !hasToken && (
+            <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-xs text-amber-200 leading-relaxed">
+                  <strong>Apify mode:</strong> Only your public profile posts visible to Instagram's web view are synced (typically the last ~50 posts). To get your newest Reels and full stats (reach, saves, shares), add a Graph API token below.
+                </p>
+              </div>
+            </div>
+          )}
+
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4 border-t border-border">
               <FormField
@@ -174,12 +206,53 @@ export default function Settings() {
                   </FormItem>
                 )}
               />
+
+              <FormField
+                control={form.control}
+                name="accessToken"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-2">
+                      <Key className="w-3.5 h-3.5" />
+                      Graph API Token
+                      <span className="text-xs font-normal text-muted-foreground">(optional but recommended)</span>
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="EAAh85pxg5vE..."
+                        type="password"
+                        {...field}
+                        className="font-mono text-xs bg-background"
+                      />
+                    </FormControl>
+                    <FormDescription className="text-xs">
+                      Enables full sync: all Reels, reach, saves, shares, plays. Long-lived tokens last 60 days.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="rounded-lg border border-blue-400/20 bg-blue-400/5 p-3 flex items-start gap-2">
+                <Info className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" />
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Get a token:{" "}
+                  <a href="https://developers.facebook.com/tools/explorer" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">
+                    Graph API Explorer <ExternalLink className="w-3 h-3" />
+                  </a>{" "}
+                  → select your app → select <strong className="text-foreground">User Token</strong> → add permissions{" "}
+                  <code className="text-blue-400 bg-blue-400/10 px-1 rounded">instagram_basic</code>{" "}
+                  <code className="text-blue-400 bg-blue-400/10 px-1 rounded">instagram_manage_insights</code> → Generate Token.
+                  Then exchange it for a long-lived token using the debug tool.
+                </p>
+              </div>
+
               <Button
                 type="submit"
                 disabled={connectMutation.isPending}
                 className="font-mono text-xs uppercase tracking-wider"
               >
-                {status?.connected ? "Update Username" : "Connect Account"}
+                {status?.connected ? "Update Account" : "Connect Account"}
               </Button>
             </form>
           </Form>

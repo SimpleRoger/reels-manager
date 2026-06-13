@@ -15,12 +15,16 @@ export interface ErrorResponse {
 
 export interface ConnectInstagramBody {
   username: string;
+  /** Optional Instagram Graph API long-lived access token. When provided, syncs via Graph API (more accurate). When absent, syncs via Apify scraping. */
+  accessToken?: string;
 }
 
 export interface ConnectInstagramResponse {
   success: boolean;
   username: string;
   accountId: string;
+  /** Whether the provided access token was validated successfully */
+  tokenValid?: boolean;
 }
 
 export interface InstagramStatus {

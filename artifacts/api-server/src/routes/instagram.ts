@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, instagramAccountsTable } from "@workspace/db";
 import { ConnectInstagramBody } from "@workspace/api-zod";
-import { getHashtagId, searchHashtagMedia } from "../lib/instagram";
+import { getHashtagId, searchHashtagMedia, verifyToken } from "../lib/instagram";
 import { runInstagramSync } from "../lib/sync";
 
 const router: IRouter = Router();
@@ -14,7 +14,7 @@ router.post("/instagram/connect", async (req, res): Promise<void> => {
     return;
   }
 
-  const { username } = parsed.data;
+  const { username, accessToken } = parsed.data;
   const cleanUsername = username.replace(/^@/, "").trim();
 
   if (!cleanUsername) {
@@ -22,22 +22,42 @@ router.post("/instagram/connect", async (req, res): Promise<void> => {
     return;
   }
 
+  // If a token was provided, validate it and get the real account ID
+  let resolvedAccountId = cleanUsername;
+  let tokenValid = false;
+
+  if (accessToken && accessToken.trim()) {
+    const tokenInfo = await verifyToken(accessToken.trim());
+    if (tokenInfo) {
+      resolvedAccountId = tokenInfo.id;
+      tokenValid = true;
+      req.log.info({ username: tokenInfo.username, accountId: tokenInfo.id }, "Graph API token validated");
+    } else {
+      req.log.warn({ username: cleanUsername }, "Provided token is invalid or expired — saving username only");
+    }
+  }
+
   const existing = await db.select().from(instagramAccountsTable).limit(1);
 
   if (existing.length > 0) {
     await db
       .update(instagramAccountsTable)
-      .set({ username: cleanUsername, accountId: cleanUsername })
+      .set({
+        username: cleanUsername,
+        accountId: resolvedAccountId,
+        accessToken: accessToken?.trim() || null,
+      })
       .where(eq(instagramAccountsTable.id, existing[0].id));
   } else {
     await db.insert(instagramAccountsTable).values({
-      accountId: cleanUsername,
+      accountId: resolvedAccountId,
       username: cleanUsername,
+      accessToken: accessToken?.trim() || null,
     });
   }
 
-  req.log.info({ username: cleanUsername }, "Instagram account connected via Apify");
-  res.json({ success: true, username: cleanUsername, accountId: cleanUsername });
+  req.log.info({ username: cleanUsername, tokenValid }, "Instagram account connected");
+  res.json({ success: true, username: cleanUsername, accountId: resolvedAccountId, tokenValid });
 });
 
 router.get("/instagram/status", async (req, res): Promise<void> => {
@@ -54,6 +74,7 @@ router.get("/instagram/status", async (req, res): Promise<void> => {
     username: account.username,
     accountId: account.accountId,
     lastSynced: account.lastSynced?.toISOString() ?? null,
+    hasToken: !!account.accessToken,
   });
 });
 

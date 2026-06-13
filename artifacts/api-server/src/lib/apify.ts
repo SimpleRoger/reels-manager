@@ -118,7 +118,10 @@ export async function scrapeInstagramProfile(username: string, limit = 100): Pro
     return [];
   }
 
+  // Scrape both the main profile grid AND the dedicated Reels tab to maximise coverage.
+  // Profile grid catches all post types; reels tab specifically surfaces videos.
   const profileUrl = `https://www.instagram.com/${username}/`;
+  const reelsTabUrl = `https://www.instagram.com/${username}/reels/`;
 
   const startRes = await fetch(
     `https://api.apify.com/v2/acts/${ACTOR_ID}/runs?token=${APIFY_TOKEN}`,
@@ -126,7 +129,7 @@ export async function scrapeInstagramProfile(username: string, limit = 100): Pro
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        directUrls: [profileUrl],
+        directUrls: [profileUrl, reelsTabUrl],
         resultsType: "posts",
         resultsLimit: limit,
         addParentData: false,

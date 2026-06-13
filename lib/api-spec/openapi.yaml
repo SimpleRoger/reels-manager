@@ -700,6 +700,9 @@ components:
       properties:
         username:
           type: string
+        accessToken:
+          type: string
+          description: Optional Instagram Graph API long-lived access token. When provided, syncs via Graph API (more accurate). When absent, syncs via Apify scraping.
       required:
         - username
 
@@ -712,6 +715,9 @@ components:
           type: string
         accountId:
           type: string
+        tokenValid:
+          type: boolean
+          description: Whether the provided access token was validated successfully
       required:
         - success
         - username
