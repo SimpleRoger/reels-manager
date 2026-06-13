@@ -7,35 +7,57 @@ function proxyUrl(url: string) {
   return `${BASE}/api/media-proxy?url=${encodeURIComponent(url)}`;
 }
 
+function extractShortcode(permalink?: string | null): string | null {
+  if (!permalink) return null;
+  return permalink.match(/instagram\.com\/(?:reel|p)\/([A-Za-z0-9_-]+)/)?.[1] ?? null;
+}
+
+function freshThumbUrl(shortcode: string) {
+  return `${BASE}/api/instagram/thumbnail?shortcode=${encodeURIComponent(shortcode)}`;
+}
+
 interface VideoThumbProps {
-  /** CDN thumbnail image URL — tried first via proxy */
   thumbnailUrl?: string | null;
-  /** CDN video URL — used to capture a frame if thumbnail fails */
   videoUrl?: string | null;
+  /** Reel permalink — used to fetch a fresh thumbnail when CDN URL expires */
+  permalink?: string | null;
   className?: string;
 }
 
 /**
- * Shows a thumbnail for a reel when the direct CDN URL is blocked by CORP.
- * Strategy:
- *  1. Try to load thumbnailUrl through the server proxy (strips CORP headers)
- *  2. If that fails, try to capture the first video frame through the server proxy
- *  3. Fall back to a dark placeholder with a play icon
+ * Shows a thumbnail for a reel. Fallback chain:
+ *  1. Proxied CDN thumbnailUrl  (fast, breaks when CDN URL expires)
+ *  2. Fresh thumbnail via og:image scrape  (server fetches a live URL from IG page)
+ *  3. First video frame captured from proxied videoUrl
+ *  4. Dark placeholder with play icon
  */
-export function VideoThumb({ thumbnailUrl, videoUrl, className = "" }: VideoThumbProps) {
+export function VideoThumb({ thumbnailUrl, videoUrl, permalink, className = "" }: VideoThumbProps) {
+  const shortcode = extractShortcode(permalink);
   const [frameUrl, setFrameUrl] = useState<string | null>(null);
-  const [stage, setStage] = useState<"thumb" | "video" | "failed">("thumb");
+  const [stage, setStage] = useState<"thumb" | "fresh" | "video" | "failed">("thumb");
 
   useEffect(() => {
     setFrameUrl(null);
-    setStage(thumbnailUrl ? "thumb" : videoUrl ? "video" : "failed");
-  }, [thumbnailUrl, videoUrl]);
+    setStage(thumbnailUrl ? "thumb" : shortcode ? "fresh" : videoUrl ? "video" : "failed");
+  }, [thumbnailUrl, videoUrl, permalink]);
 
-  // Stage 1: try proxied thumbnail image
+  // Stage 1: try proxied CDN thumbnail
   if (stage === "thumb" && thumbnailUrl) {
     return (
       <img
         src={proxyUrl(thumbnailUrl)}
+        alt="thumbnail"
+        className={`w-full h-full object-cover ${className}`}
+        onError={() => setStage(shortcode ? "fresh" : videoUrl ? "video" : "failed")}
+      />
+    );
+  }
+
+  // Stage 2: fetch a fresh thumbnail via server-side og:image scrape
+  if (stage === "fresh" && shortcode) {
+    return (
+      <img
+        src={freshThumbUrl(shortcode)}
         alt="thumbnail"
         className={`w-full h-full object-cover ${className}`}
         onError={() => setStage(videoUrl ? "video" : "failed")}
@@ -43,12 +65,12 @@ export function VideoThumb({ thumbnailUrl, videoUrl, className = "" }: VideoThum
     );
   }
 
-  // Stage 2: try to capture first frame from proxied video
+  // Stage 3: capture first frame from proxied video
   if (stage === "video" && videoUrl) {
     return <VideoFrameCapture videoUrl={videoUrl} className={className} onFail={() => setStage("failed")} onCapture={setFrameUrl} frameUrl={frameUrl} />;
   }
 
-  // Stage 3: plain dark fallback
+  // Stage 4: dark fallback
   return (
     <div className={`w-full h-full flex items-center justify-center bg-zinc-900 ${className}`}>
       <Play className="w-10 h-10 text-muted-foreground/30" />
@@ -107,6 +129,5 @@ function VideoFrameCapture({ videoUrl, frameUrl, onCapture, onFail, className = 
     return <img src={frameUrl} alt="thumbnail" className={`w-full h-full object-cover ${className}`} />;
   }
 
-  // While loading show shimmer
   return <div className={`w-full h-full bg-zinc-900 animate-pulse ${className}`} />;
 }

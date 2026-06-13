@@ -326,7 +326,7 @@ export default function ReelDetail() {
                 />
               ) : (
                 <div className="absolute inset-0">
-                  <VideoThumb thumbnailUrl={reel.thumbnailUrl} videoUrl={reel.mediaUrl} />
+                  <VideoThumb thumbnailUrl={reel.thumbnailUrl} videoUrl={reel.mediaUrl} permalink={reel.permalink} />
                 </div>
               )}
               <div className="absolute top-4 right-4 pointer-events-none">

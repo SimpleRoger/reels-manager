@@ -146,4 +146,62 @@ router.get("/instagram/hashtag-search", async (req, res): Promise<void> => {
   });
 });
 
+// GET /api/instagram/thumbnail?shortcode=X
+// Fetches a fresh thumbnail for a reel by scraping the og:image from Instagram's
+// public HTML page using a Googlebot UA. Signed CDN URLs in the DB expire; this
+// refreshes them on demand without needing an access token.
+router.get("/instagram/thumbnail", async (req, res): Promise<void> => {
+  const shortcode = req.query["shortcode"];
+  if (typeof shortcode !== "string" || !shortcode) {
+    res.status(400).json({ error: "shortcode required" });
+    return;
+  }
+
+  try {
+    const igResp = await fetch(`https://www.instagram.com/p/${shortcode}/`, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+        "Accept": "text/html,application/xhtml+xml",
+      },
+    });
+
+    if (!igResp.ok) {
+      res.status(404).json({ error: "Instagram page unavailable" });
+      return;
+    }
+
+    const html = await igResp.text();
+    const match = html.match(/og:image" content="([^"]+)"/);
+    if (!match) {
+      res.status(404).json({ error: "No og:image found on page" });
+      return;
+    }
+
+    // Decode HTML entities in the URL (&amp; → &)
+    const freshUrl = match[1].replace(/&amp;/g, "&");
+
+    const imgResp = await fetch(freshUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15",
+      },
+    });
+
+    if (!imgResp.ok) {
+      res.status(502).json({ error: "Could not fetch thumbnail from CDN" });
+      return;
+    }
+
+    res.setHeader("Content-Type", imgResp.headers.get("content-type") ?? "image/jpeg");
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+
+    const buffer = await imgResp.arrayBuffer();
+    res.send(Buffer.from(buffer));
+  } catch (err) {
+    req.log.warn({ err, shortcode }, "Failed to fetch Instagram thumbnail via og:image");
+    res.status(502).json({ error: "Failed to fetch thumbnail" });
+  }
+});
+
 export default router;

@@ -125,7 +125,7 @@ export default function Dashboard() {
             <div className="flex flex-col md:flex-row">
               <div className="md:w-1/3 bg-muted relative aspect-[9/16] md:aspect-auto border-r border-border">
                 <div className="absolute inset-0">
-                  <VideoThumb thumbnailUrl={summary.latestReel.thumbnailUrl} videoUrl={summary.latestReel.mediaUrl} />
+                  <VideoThumb thumbnailUrl={summary.latestReel.thumbnailUrl} videoUrl={summary.latestReel.mediaUrl} permalink={summary.latestReel.permalink} />
                 </div>
                 <div className="absolute top-4 right-4">
                   <StatusBadge status={summary.latestReel.performanceStatus} />
