@@ -1,14 +1,8 @@
 import { Router, type IRouter } from "express";
-import { eq, desc } from "drizzle-orm";
-import { db, instagramAccountsTable, reelsTable } from "@workspace/db";
-import {
-  ConnectInstagramBody,
-} from "@workspace/api-zod";
-import {
-  verifyToken,
-  getHashtagId,
-  searchHashtagMedia,
-} from "../lib/instagram";
+import { eq } from "drizzle-orm";
+import { db, instagramAccountsTable } from "@workspace/db";
+import { ConnectInstagramBody } from "@workspace/api-zod";
+import { getHashtagId, searchHashtagMedia } from "../lib/instagram";
 import { runInstagramSync } from "../lib/sync";
 
 const router: IRouter = Router();
@@ -20,39 +14,35 @@ router.post("/instagram/connect", async (req, res): Promise<void> => {
     return;
   }
 
-  const { accessToken } = parsed.data;
+  const { username } = parsed.data;
+  const cleanUsername = username.replace(/^@/, "").trim();
 
-  const user = await verifyToken(accessToken);
-  if (!user) {
-    res.status(400).json({ error: "Invalid access token or unable to verify Instagram account" });
+  if (!cleanUsername) {
+    res.status(400).json({ error: "Username is required" });
     return;
   }
 
-  const existing = await db
-    .select()
-    .from(instagramAccountsTable)
-    .limit(1);
+  const existing = await db.select().from(instagramAccountsTable).limit(1);
 
   if (existing.length > 0) {
     await db
       .update(instagramAccountsTable)
-      .set({ accountId: user.id, username: user.username, accessToken })
+      .set({ username: cleanUsername, accountId: cleanUsername })
       .where(eq(instagramAccountsTable.id, existing[0].id));
   } else {
     await db.insert(instagramAccountsTable).values({
-      accountId: user.id,
-      username: user.username,
-      accessToken,
+      accountId: cleanUsername,
+      username: cleanUsername,
     });
   }
 
-  req.log.info({ username: user.username }, "Instagram account connected");
-  res.json({ success: true, username: user.username, accountId: user.id });
+  req.log.info({ username: cleanUsername }, "Instagram account connected via Apify");
+  res.json({ success: true, username: cleanUsername, accountId: cleanUsername });
 });
 
 router.get("/instagram/status", async (req, res): Promise<void> => {
   const accounts = await db.select().from(instagramAccountsTable).limit(1);
-  
+
   if (accounts.length === 0) {
     res.json({ connected: false, username: null, accountId: null, lastSynced: null });
     return;
@@ -77,7 +67,7 @@ router.post("/instagram/sync", async (req, res): Promise<void> => {
   try {
     const result = await runInstagramSync();
     if (!result) {
-      res.status(400).json({ error: "Failed to fetch Instagram media. Token may be expired." });
+      res.status(400).json({ error: "Sync failed — Apify returned no posts. Check the username is correct." });
       return;
     }
     res.json({
@@ -87,7 +77,7 @@ router.post("/instagram/sync", async (req, res): Promise<void> => {
     });
   } catch (err) {
     req.log.error({ err }, "Failed to sync Instagram media");
-    res.status(400).json({ error: "Failed to fetch Instagram media. Token may be expired." });
+    res.status(400).json({ error: "Sync failed. Check server logs." });
   }
 });
 
@@ -107,15 +97,18 @@ router.get("/instagram/hashtag-search", async (req, res): Promise<void> => {
   }
 
   const account = accounts[0];
+  if (!account.accessToken) {
+    res.status(400).json({ error: "Hashtag search requires an Instagram access token" });
+    return;
+  }
 
-  const hashtagId = await getHashtagId(hashtag, account.accessToken, account.accountId);
+  const hashtagId = await getHashtagId(hashtag, account.accessToken, account.accountId ?? "");
   if (!hashtagId) {
     res.json({ hashtag, media: [] });
     return;
   }
 
-  const mediaResults = await searchHashtagMedia(hashtagId, account.accessToken, account.accountId, limit);
-
+  const mediaResults = await searchHashtagMedia(hashtagId, account.accessToken, account.accountId ?? "", limit);
   const sorted = [...mediaResults].sort((a, b) => (b.comments_count ?? 0) - (a.comments_count ?? 0));
 
   res.json({

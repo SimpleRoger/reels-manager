@@ -1,10 +1,7 @@
-import { eq, desc, avg, isNotNull } from "drizzle-orm";
+import { eq, isNotNull, avg } from "drizzle-orm";
 import { db, instagramAccountsTable, reelsTable } from "@workspace/db";
-import {
-  fetchUserMedia,
-  fetchMediaInsights,
-  computePerformanceStatus,
-} from "./instagram";
+import { computePerformanceStatus } from "./instagram";
+import { scrapeInstagramProfile } from "./apify";
 import { logger } from "./logger";
 
 export async function runInstagramSync(): Promise<{ synced: number; total: number } | null> {
@@ -15,18 +12,22 @@ export async function runInstagramSync(): Promise<{ synced: number; total: numbe
   }
 
   const account = accounts[0];
+  const username = account.username;
 
-  let media;
+  logger.info({ username }, "Auto-sync: scraping profile via Apify");
+
+  let posts;
   try {
-    media = await fetchUserMedia(account.accessToken);
+    posts = await scrapeInstagramProfile(username, 100);
   } catch (err) {
-    logger.error({ err }, "Auto-sync: failed to fetch Instagram media");
+    logger.error({ err }, "Auto-sync: failed to scrape Instagram profile via Apify");
     return null;
   }
 
-  const reelMedia = media.filter(
-    (m) => m.media_type === "VIDEO" || m.media_product_type === "REELS"
-  );
+  if (posts.length === 0) {
+    logger.warn({ username }, "Auto-sync: Apify returned no posts");
+    return null;
+  }
 
   const recentReels = await db
     .select({
@@ -46,6 +47,7 @@ export async function runInstagramSync(): Promise<{ synced: number; total: numbe
     avgSaves: null,
     avgShares: null,
   };
+
   const averages = {
     avgLikes: Number(avgs.avgLikes ?? 0),
     avgComments: Number(avgs.avgComments ?? 0),
@@ -55,35 +57,29 @@ export async function runInstagramSync(): Promise<{ synced: number; total: numbe
   };
 
   let synced = 0;
-  for (const m of reelMedia) {
-    const insights = await fetchMediaInsights(m.id, account.accessToken);
 
+  for (const post of posts) {
     const existing = await db
       .select()
       .from(reelsTable)
-      .where(eq(reelsTable.instagramId, m.id))
+      .where(eq(reelsTable.instagramId, post.instagramId))
       .limit(1);
 
     const prev = existing[0];
 
-    const reach = insights.reach ?? prev?.reach ?? null;
-    const saves = insights.saved ?? prev?.saves ?? null;
-    const shares = insights.shares ?? prev?.shares ?? null;
-    const plays = insights.views ?? prev?.plays ?? null;
-
     const reelData = {
-      instagramId: m.id,
-      caption: m.caption ?? null,
-      permalink: m.permalink ?? null,
-      thumbnailUrl: m.thumbnail_url ?? null,
-      mediaUrl: m.media_url ?? null,
-      postedAt: m.timestamp ? new Date(m.timestamp) : null,
-      likeCount: m.like_count ?? null,
-      commentsCount: m.comments_count ?? null,
-      reach,
-      saves,
-      shares,
-      plays,
+      instagramId: post.instagramId,
+      caption: post.caption,
+      permalink: post.permalink,
+      thumbnailUrl: post.thumbnailUrl,
+      mediaUrl: post.mediaUrl,
+      postedAt: post.postedAt,
+      likeCount: post.likesCount,
+      commentsCount: post.commentsCount,
+      plays: post.plays,
+      reach: prev?.reach ?? null,
+      saves: prev?.saves ?? null,
+      shares: prev?.shares ?? null,
       performanceStatus: null as string | null,
     };
 
@@ -94,7 +90,7 @@ export async function runInstagramSync(): Promise<{ synced: number; total: numbe
       await db
         .update(reelsTable)
         .set(reelData)
-        .where(eq(reelsTable.instagramId, m.id));
+        .where(eq(reelsTable.instagramId, post.instagramId));
     } else {
       await db.insert(reelsTable).values({ ...reelData, tags: [] });
       synced++;
@@ -106,8 +102,8 @@ export async function runInstagramSync(): Promise<{ synced: number; total: numbe
     .set({ lastSynced: new Date() })
     .where(eq(instagramAccountsTable.id, account.id));
 
-  logger.info({ synced, total: reelMedia.length }, "Instagram sync complete");
-  return { synced, total: reelMedia.length };
+  logger.info({ synced, total: posts.length }, "Instagram sync complete");
+  return { synced, total: posts.length };
 }
 
 const THIRTY_MINUTES = 30 * 60 * 1000;

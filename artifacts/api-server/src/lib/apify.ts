@@ -13,6 +13,19 @@ export interface ApifyReelResult {
   accountName: string | null;
 }
 
+export interface ApifyProfilePost {
+  instagramId: string;
+  caption: string | null;
+  permalink: string | null;
+  thumbnailUrl: string | null;
+  mediaUrl: string | null;
+  postedAt: Date | null;
+  likesCount: number | null;
+  commentsCount: number | null;
+  plays: number | null;
+  isVideo: boolean;
+}
+
 export async function pollRun(runId: string): Promise<boolean> {
   const maxWait = 120_000;
   const interval = 3_000;
@@ -96,4 +109,73 @@ export async function scrapeInstagramReel(url: string): Promise<ApifyReelResult 
     caption: item.caption ?? null,
     accountName: item.ownerUsername ?? null,
   };
+}
+
+export async function scrapeInstagramProfile(username: string, limit = 100): Promise<ApifyProfilePost[]> {
+  if (!APIFY_TOKEN) {
+    logger.warn("APIFY_API_TOKEN not set — skipping profile scrape");
+    return [];
+  }
+
+  const profileUrl = `https://www.instagram.com/${username}/`;
+
+  const startRes = await fetch(
+    `https://api.apify.com/v2/acts/${ACTOR_ID}/runs?token=${APIFY_TOKEN}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        directUrls: [profileUrl],
+        resultsType: "posts",
+        resultsLimit: limit,
+        addParentData: false,
+      }),
+    }
+  );
+
+  if (!startRes.ok) {
+    const err = await startRes.text();
+    logger.error({ status: startRes.status, err }, "Apify profile scrape start failed");
+    return [];
+  }
+
+  const startData = (await startRes.json()) as { data: { id: string } };
+  const runId = startData?.data?.id;
+  if (!runId) {
+    logger.error("Apify profile scrape returned no runId");
+    return [];
+  }
+
+  logger.info({ runId, username }, "Apify profile scrape started");
+
+  const succeeded = await pollRun(runId);
+  if (!succeeded) return [];
+
+  const itemsRes = await fetch(
+    `https://api.apify.com/v2/actor-runs/${runId}/dataset/items?token=${APIFY_TOKEN}`
+  );
+  if (!itemsRes.ok) return [];
+
+  const items = (await itemsRes.json()) as any[];
+  if (!Array.isArray(items) || items.length === 0) {
+    logger.warn({ runId }, "Apify profile scrape returned no items");
+    return [];
+  }
+
+  logger.info({ runId, count: items.length }, "Apify profile scrape complete");
+
+  return items
+    .filter((item: any) => item.type === "Video" || item.videoUrl || item.isVideo)
+    .map((item: any): ApifyProfilePost => ({
+      instagramId: item.id ?? item.shortCode ?? String(item.timestamp),
+      caption: item.caption ?? null,
+      permalink: item.url ?? (item.shortCode ? `https://www.instagram.com/p/${item.shortCode}/` : null),
+      thumbnailUrl: item.displayUrl ?? item.thumbnailUrl ?? null,
+      mediaUrl: item.videoUrl ?? null,
+      postedAt: item.timestamp ? new Date(item.timestamp) : null,
+      likesCount: item.likesCount ?? item.likesCountFull ?? null,
+      commentsCount: item.commentsCount ?? null,
+      plays: item.videoViewCount ?? item.videoPlayCount ?? null,
+      isVideo: true,
+    }));
 }

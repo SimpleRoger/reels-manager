@@ -47,7 +47,7 @@ paths:
     post:
       operationId: connectInstagram
       tags: [instagram]
-      summary: Save Instagram access token
+      summary: Save Instagram username for Apify sync
       requestBody:
         required: true
         content:
@@ -698,10 +698,10 @@ components:
     ConnectInstagramBody:
       type: object
       properties:
-        accessToken:
+        username:
           type: string
       required:
-        - accessToken
+        - username
 
     ConnectInstagramResponse:
       type: object

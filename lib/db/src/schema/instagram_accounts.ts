@@ -4,9 +4,9 @@ import { z } from "zod/v4";
 
 export const instagramAccountsTable = pgTable("instagram_accounts", {
   id: serial("id").primaryKey(),
-  accountId: text("account_id").notNull().unique(),
+  accountId: text("account_id").unique(),
   username: text("username").notNull(),
-  accessToken: text("access_token").notNull(),
+  accessToken: text("access_token"),
   pageAccessToken: text("page_access_token"),
   lastSynced: timestamp("last_synced", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

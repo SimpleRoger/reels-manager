@@ -14,7 +14,7 @@ export interface ErrorResponse {
 }
 
 export interface ConnectInstagramBody {
-  accessToken: string;
+  username: string;
 }
 
 export interface ConnectInstagramResponse {

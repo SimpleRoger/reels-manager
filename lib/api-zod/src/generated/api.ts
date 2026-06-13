@@ -16,10 +16,10 @@ export const HealthCheckResponse = zod.object({
 });
 
 /**
- * @summary Save Instagram access token
+ * @summary Save Instagram username for Apify sync
  */
 export const ConnectInstagramBody = zod.object({
-  accessToken: zod.string(),
+  username: zod.string(),
 });
 
 export const ConnectInstagramResponse = zod.object({

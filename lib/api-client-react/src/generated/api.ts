@@ -139,7 +139,7 @@ export function useHealthCheck<
 }
 
 /**
- * @summary Save Instagram access token
+ * @summary Save Instagram username for Apify sync
  */
 export const getConnectInstagramUrl = () => {
   return `/api/instagram/connect`;
@@ -202,7 +202,7 @@ export type ConnectInstagramMutationBody = BodyType<ConnectInstagramBody>;
 export type ConnectInstagramMutationError = ErrorType<ErrorResponse>;
 
 /**
- * @summary Save Instagram access token
+ * @summary Save Instagram username for Apify sync
  */
 export const useConnectInstagram = <
   TError = ErrorType<ErrorResponse>,
