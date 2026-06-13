@@ -1,4 +1,4 @@
-import { eq, isNotNull, avg } from "drizzle-orm";
+import { eq, isNotNull, avg, sql } from "drizzle-orm";
 import { db, instagramAccountsTable, reelsTable } from "@workspace/db";
 import { computePerformanceStatus } from "./instagram";
 import { scrapeInstagramProfile } from "./apify";
@@ -59,11 +59,21 @@ export async function runInstagramSync(): Promise<{ synced: number; total: numbe
   let synced = 0;
 
   for (const post of posts) {
-    const existing = await db
+    // Primary lookup by instagramId
+    let existing = await db
       .select()
       .from(reelsTable)
       .where(eq(reelsTable.instagramId, post.instagramId))
       .limit(1);
+
+    // Fallback: match by shortCode in permalink (handles Graph API /reel/ vs Apify /p/ mismatch)
+    if (existing.length === 0 && post.shortCode) {
+      existing = await db
+        .select()
+        .from(reelsTable)
+        .where(sql`${reelsTable.permalink} LIKE ${"%" + post.shortCode + "%"}`)
+        .limit(1);
+    }
 
     const prev = existing[0];
 
@@ -90,7 +100,7 @@ export async function runInstagramSync(): Promise<{ synced: number; total: numbe
       await db
         .update(reelsTable)
         .set(reelData)
-        .where(eq(reelsTable.instagramId, post.instagramId));
+        .where(eq(reelsTable.id, prev.id));
     } else {
       await db.insert(reelsTable).values({ ...reelData, tags: [] });
       synced++;

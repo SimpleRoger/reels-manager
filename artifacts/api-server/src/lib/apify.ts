@@ -15,6 +15,7 @@ export interface ApifyReelResult {
 
 export interface ApifyProfilePost {
   instagramId: string;
+  shortCode: string | null;
   caption: string | null;
   permalink: string | null;
   thumbnailUrl: string | null;
@@ -168,6 +169,7 @@ export async function scrapeInstagramProfile(username: string, limit = 100): Pro
     .filter((item: any) => item.type === "Video" || item.videoUrl || item.isVideo)
     .map((item: any): ApifyProfilePost => ({
       instagramId: item.id ?? item.shortCode ?? String(item.timestamp),
+      shortCode: item.shortCode ?? null,
       caption: item.caption ?? null,
       permalink: item.url ?? (item.shortCode ? `https://www.instagram.com/p/${item.shortCode}/` : null),
       thumbnailUrl: item.displayUrl ?? item.thumbnailUrl ?? null,
