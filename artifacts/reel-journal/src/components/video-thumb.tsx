@@ -4,8 +4,8 @@ import { Play } from "lucide-react";
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 function proxyUrl(url: string) {
-  // Data URLs are already embedded — no proxy needed
-  if (url.startsWith("data:")) return url;
+  // Data URLs and same-server /api/ paths need no proxy
+  if (url.startsWith("data:") || url.startsWith("/api/")) return `${BASE}${url}`;
   return `${BASE}/api/media-proxy?url=${encodeURIComponent(url)}`;
 }
 

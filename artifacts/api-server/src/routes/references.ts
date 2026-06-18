@@ -12,12 +12,46 @@ import { resolveReelMedia, enrichReferenceWithApify } from "../lib/resolve-reel-
 const router: IRouter = Router();
 
 function formatReference(ref: typeof savedReferencesTable.$inferSelect) {
+  // Replace stored data URLs with a proper image endpoint URL so the client
+  // never has to embed a 48KB base64 string in a JSON response or img src attr.
+  const thumb = ref.thumbnailUrl?.startsWith("data:")
+    ? `/api/references/${ref.id}/thumbnail`
+    : ref.thumbnailUrl;
   return {
     ...ref,
+    thumbnailUrl: thumb ?? null,
     createdAt: ref.createdAt.toISOString(),
     updatedAt: ref.updatedAt.toISOString(),
   };
 }
+
+// GET /api/references/:id/thumbnail — serves the stored image bytes for this reference.
+// If the DB has a data URL it streams the decoded bytes; otherwise it proxies the CDN URL.
+router.get("/references/:id/thumbnail", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).end(); return; }
+
+  const [ref] = await db
+    .select({ thumbnailUrl: savedReferencesTable.thumbnailUrl })
+    .from(savedReferencesTable)
+    .where(eq(savedReferencesTable.id, id))
+    .limit(1);
+
+  if (!ref?.thumbnailUrl) { res.status(404).end(); return; }
+
+  if (ref.thumbnailUrl.startsWith("data:")) {
+    const [meta, b64] = ref.thumbnailUrl.split(",", 2);
+    const mime = meta.replace("data:", "").replace(";base64", "");
+    const buf = Buffer.from(b64, "base64");
+    res.set("Content-Type", mime);
+    res.set("Cache-Control", "public, max-age=31536000, immutable");
+    res.send(buf);
+    return;
+  }
+
+  // Fall back: redirect to CDN (may expire, but that's the best we have)
+  res.redirect(302, ref.thumbnailUrl);
+});
 
 router.get("/references", async (_req, res): Promise<void> => {
   const refs = await db
