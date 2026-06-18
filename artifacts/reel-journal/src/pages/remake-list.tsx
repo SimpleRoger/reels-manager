@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useSearch, useLocation } from "wouter";
 import {
   useListReferences,
   getListReferencesQueryKey,
@@ -348,6 +349,20 @@ export default function RemakeList() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
+  const search = useSearch();
+  const [, navigate] = useLocation();
+
+  // Tag filter is driven by the URL ?tag= param so sidebar links work
+  const tagFilter = new URLSearchParams(search).get("tag");
+
+  function setTagFilter(tag: string | null) {
+    if (tag) {
+      navigate(`/remake-list?tag=${encodeURIComponent(tag.toLowerCase())}`);
+    } else {
+      navigate("/remake-list");
+    }
+  }
+
   const [playingId, setPlayingId] = useState<number | null>(null);
   const [notesId, setNotesId] = useState<number | null>(null);
   const [addMode, setAddMode] = useState<"single" | "batch" | null>(null);
@@ -355,7 +370,6 @@ export default function RemakeList() {
   const [batchUrls, setBatchUrls] = useState("");
   const [addingBatch, setAddingBatch] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [tagFilter, setTagFilter] = useState<string | null>(null);
 
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: getListReferencesQueryKey() });
