@@ -1143,6 +1143,11 @@ components:
           type: ["integer", "null"]
         likeCount:
           type: ["integer", "null"]
+        tags:
+          type: array
+          items:
+            type: string
+          default: []
         createdAt:
           type: string
         updatedAt:
@@ -1188,6 +1193,11 @@ components:
           type: ["integer", "null"]
         likeCount:
           type: ["integer", "null"]
+        tags:
+          type: array
+          items:
+            type: string
+          default: []
       required:
         - url
 
@@ -1210,6 +1220,10 @@ components:
           type: ["integer", "null"]
         likeCount:
           type: ["integer", "null"]
+        tags:
+          type: array
+          items:
+            type: string
 
     # ─── CALENDAR ──────────────────────────────────────────────────────────────
     CalendarPost:

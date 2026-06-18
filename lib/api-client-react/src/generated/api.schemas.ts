@@ -306,6 +306,7 @@ export interface SavedReference {
   commentsCount?: number | null;
   /** @nullable */
   likeCount?: number | null;
+  tags?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -336,6 +337,7 @@ export interface CreateReferenceBody {
   commentsCount?: number | null;
   /** @nullable */
   likeCount?: number | null;
+  tags?: string[];
 }
 
 export interface UpdateReferenceBody {
@@ -355,6 +357,7 @@ export interface UpdateReferenceBody {
   commentsCount?: number | null;
   /** @nullable */
   likeCount?: number | null;
+  tags?: string[];
 }
 
 export interface CalendarPost {

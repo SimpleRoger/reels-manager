@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import {
   useListReferences,
   getListReferencesQueryKey,
@@ -11,10 +11,29 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Trash2, ExternalLink, Bookmark, Plus, Link2, Loader2, X, Play, Eye, Heart, MessageCircle, FileText } from "lucide-react";
+import {
+  Trash2, ExternalLink, Bookmark, Plus, Link2, Loader2,
+  X, Play, Eye, Heart, MessageCircle, FileText, Tag,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { InlinePlayer } from "@/components/inline-player";
 import { VideoThumb } from "@/components/video-thumb";
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const PRESET_TAGS = ["Music", "Content", "Health"] as const;
+
+const TAG_COLORS: Record<string, string> = {
+  music:   "bg-purple-500/20 text-purple-300 border-purple-500/30",
+  content: "bg-amber-500/20 text-amber-300 border-amber-500/30",
+  health:  "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+};
+
+function tagColor(tag: string) {
+  return TAG_COLORS[tag.toLowerCase()] ?? "bg-zinc-500/20 text-zinc-300 border-zinc-500/30";
+}
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type Ref = {
   id: number;
@@ -29,7 +48,130 @@ type Ref = {
   whyItsgood?: string | null;
   whatToChange?: string | null;
   howToRemake?: string | null;
+  tags?: string[] | null;
 };
+
+// ─── Tag Chip ─────────────────────────────────────────────────────────────────
+
+function TagChip({
+  tag,
+  onRemove,
+  small = false,
+}: {
+  tag: string;
+  onRemove?: () => void;
+  small?: boolean;
+}) {
+  return (
+    <span
+      className={`inline-flex items-center gap-0.5 border rounded-full font-mono ${
+        small ? "text-[8px] px-1.5 py-0 leading-4" : "text-[10px] px-2 py-0.5"
+      } ${tagColor(tag)}`}
+    >
+      {tag}
+      {onRemove && (
+        <button onClick={onRemove} className="ml-0.5 opacity-60 hover:opacity-100">
+          <X className="w-2 h-2" />
+        </button>
+      )}
+    </span>
+  );
+}
+
+// ─── Tag Picker ───────────────────────────────────────────────────────────────
+
+function TagPicker({
+  tags,
+  onChange,
+}: {
+  tags: string[];
+  onChange: (tags: string[]) => void;
+}) {
+  const [customInput, setCustomInput] = useState("");
+
+  function toggle(tag: string) {
+    const lc = tag.toLowerCase();
+    const norm = tags.map((t) => t.toLowerCase());
+    if (norm.includes(lc)) {
+      onChange(tags.filter((t) => t.toLowerCase() !== lc));
+    } else {
+      onChange([...tags, tag]);
+    }
+  }
+
+  function addCustom() {
+    const val = customInput.trim();
+    if (!val) return;
+    const norm = tags.map((t) => t.toLowerCase());
+    if (!norm.includes(val.toLowerCase())) {
+      onChange([...tags, val]);
+    }
+    setCustomInput("");
+  }
+
+  const tagLower = tags.map((t) => t.toLowerCase());
+
+  return (
+    <div className="space-y-2">
+      <label className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+        Categories
+      </label>
+
+      {/* Preset buttons */}
+      <div className="flex flex-wrap gap-1.5">
+        {PRESET_TAGS.map((t) => {
+          const active = tagLower.includes(t.toLowerCase());
+          return (
+            <button
+              key={t}
+              onClick={() => toggle(t)}
+              className={`text-[10px] font-mono px-2.5 py-1 rounded-full border transition-all ${
+                active
+                  ? `${tagColor(t)} border-current`
+                  : "border-border text-muted-foreground hover:border-muted-foreground"
+              }`}
+            >
+              {t}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Custom tag input */}
+      <div className="flex gap-1.5">
+        <Input
+          value={customInput}
+          onChange={(e) => setCustomInput(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && addCustom()}
+          placeholder="Custom tag…"
+          className="h-7 text-xs bg-background font-mono"
+        />
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={addCustom}
+          disabled={!customInput.trim()}
+          className="h-7 px-2 text-xs"
+        >
+          <Plus className="w-3 h-3" />
+        </Button>
+      </div>
+
+      {/* Applied tags */}
+      {tags.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {tags.map((t) => (
+            <TagChip
+              key={t}
+              tag={t}
+              onRemove={() => onChange(tags.filter((x) => x !== t))}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── Notes Modal ──────────────────────────────────────────────────────────────
 
@@ -41,7 +183,10 @@ function NotesModal({
 }: {
   reference: Ref;
   onClose: () => void;
-  onSave: (id: number, data: { whyItsgood: string; whatToChange: string; howToRemake: string }) => void;
+  onSave: (
+    id: number,
+    data: { whyItsgood: string; whatToChange: string; howToRemake: string; tags: string[] }
+  ) => void;
   onDelete: (id: number) => void;
 }) {
   const [form, setForm] = useState({
@@ -49,6 +194,7 @@ function NotesModal({
     whatToChange: r.whatToChange ?? "",
     howToRemake: r.howToRemake ?? "",
   });
+  const [tags, setTags] = useState<string[]>(r.tags ?? []);
   const [playing, setPlaying] = useState(true);
 
   function set(field: keyof typeof form, value: string) {
@@ -122,7 +268,7 @@ function NotesModal({
                 target="_blank"
                 rel="noopener noreferrer"
                 className="p-1.5 rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
-                title="Open in Instagram"
+                title="Open original"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
               </a>
@@ -149,6 +295,9 @@ function NotesModal({
               </p>
             )}
 
+            {/* Tag picker */}
+            <TagPicker tags={tags} onChange={setTags} />
+
             {(
               [
                 { key: "whyItsgood", label: "Why It's Good" },
@@ -164,7 +313,7 @@ function NotesModal({
                   value={form[key]}
                   onChange={(e) => set(key, e.target.value)}
                   className="h-16 text-xs resize-none bg-background"
-                  placeholder={`Add notes about ${label.toLowerCase()}...`}
+                  placeholder={`Add notes about ${label.toLowerCase()}…`}
                 />
               </div>
             ))}
@@ -174,7 +323,7 @@ function NotesModal({
           <div className="sticky bottom-0 bg-card border-t border-border px-5 py-3 shrink-0">
             <Button
               size="sm"
-              onClick={() => { onSave(r.id, form); onClose(); }}
+              onClick={() => { onSave(r.id, { ...form, tags }); onClose(); }}
               className="w-full font-mono uppercase text-[10px] tracking-wider"
             >
               Save Notes
@@ -206,6 +355,7 @@ export default function RemakeList() {
   const [batchUrls, setBatchUrls] = useState("");
   const [addingBatch, setAddingBatch] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
 
   function invalidate() {
     queryClient.invalidateQueries({ queryKey: getListReferencesQueryKey() });
@@ -221,13 +371,13 @@ export default function RemakeList() {
     return () => clearInterval(timer);
   }, [data?.references]);
 
-  // Auto-refresh stale CDN URLs once per browser session (survives React remounts)
+  // Auto-refresh stale CDN URLs once per browser session
   useEffect(() => {
     if (!data?.references.length) return;
     const SESSION_KEY = "remake_refreshed_at";
     const lastRefresh = Number(sessionStorage.getItem(SESSION_KEY) ?? 0);
     const hoursSinceRefresh = (Date.now() - lastRefresh) / 3_600_000;
-    if (hoursSinceRefresh < 2) return; // already refreshed recently this session
+    if (hoursSinceRefresh < 2) return;
     const anyStale = data.references.some((r) => {
       const ageHours = (Date.now() - new Date((r as any).updatedAt ?? 0).getTime()) / 3_600_000;
       return ageHours > 4;
@@ -235,7 +385,6 @@ export default function RemakeList() {
     if (!anyStale) return;
     sessionStorage.setItem(SESSION_KEY, String(Date.now()));
     fetch("/api/references/refresh-all", { method: "POST" }).catch(() => {});
-    // Poll every 30s for up to 3 min to pick up fresh URLs as Apify finishes
     const start = Date.now();
     const poll = setInterval(() => {
       if (Date.now() - start > 180_000) { clearInterval(poll); return; }
@@ -245,7 +394,10 @@ export default function RemakeList() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!!data?.references.length]);
 
-  function handleSave(id: number, values: { whyItsgood: string; whatToChange: string; howToRemake: string }) {
+  function handleSave(
+    id: number,
+    values: { whyItsgood: string; whatToChange: string; howToRemake: string; tags: string[] }
+  ) {
     updateMutation.mutate(
       { id, data: values },
       {
@@ -279,10 +431,9 @@ export default function RemakeList() {
         onSuccess: () => {
           setSingleUrl("");
           setAddMode(null);
-          toast({ title: "Reel added to your list" });
+          toast({ title: "Reel added — scraping stats in background" });
           invalidate();
         },
-        onError: () => toast({ title: "Failed to add reel", variant: "destructive" }),
       }
     );
   }
@@ -319,6 +470,41 @@ export default function RemakeList() {
       setRefreshing(false);
     }
   }
+
+  // Collect all unique tags across references (presets first, then custom)
+  const allTags: string[] = (() => {
+    const seen = new Set<string>();
+    const result: string[] = [];
+    const refs = data?.references ?? [];
+
+    // Presets first (only if they appear in data)
+    for (const preset of PRESET_TAGS) {
+      const lc = preset.toLowerCase();
+      if (refs.some((r) => (r.tags ?? []).some((t) => t.toLowerCase() === lc))) {
+        seen.add(lc);
+        result.push(preset);
+      }
+    }
+    // Then any custom tags
+    for (const ref of refs) {
+      for (const tag of ref.tags ?? []) {
+        const lc = tag.toLowerCase();
+        if (!seen.has(lc)) {
+          seen.add(lc);
+          result.push(tag);
+        }
+      }
+    }
+    return result;
+  })();
+
+  // Filtered + sorted references
+  const references = [...(data?.references ?? [])]
+    .sort((a, b) => (b.viewCount ?? -1) - (a.viewCount ?? -1))
+    .filter((r) => {
+      if (!tagFilter) return true;
+      return (r.tags ?? []).some((t) => t.toLowerCase() === tagFilter.toLowerCase());
+    });
 
   const selectedRef = notesId != null
     ? data?.references.find((r) => r.id === notesId) as Ref | undefined
@@ -404,22 +590,68 @@ export default function RemakeList() {
         </div>
       )}
 
+      {/* Category filter tabs */}
+      {allTags.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <Tag className="w-3 h-3 text-muted-foreground shrink-0" />
+          <button
+            onClick={() => setTagFilter(null)}
+            className={`text-[10px] font-mono uppercase tracking-wider px-3 py-1 rounded-full border transition-all ${
+              tagFilter === null
+                ? "bg-primary text-black border-primary"
+                : "border-border text-muted-foreground hover:border-muted-foreground"
+            }`}
+          >
+            All ({data?.references.length ?? 0})
+          </button>
+          {allTags.map((tag) => {
+            const count = (data?.references ?? []).filter((r) =>
+              (r.tags ?? []).some((t) => t.toLowerCase() === tag.toLowerCase())
+            ).length;
+            const active = tagFilter?.toLowerCase() === tag.toLowerCase();
+            return (
+              <button
+                key={tag}
+                onClick={() => setTagFilter(active ? null : tag)}
+                className={`text-[10px] font-mono uppercase tracking-wider px-3 py-1 rounded-full border transition-all ${
+                  active
+                    ? `${tagColor(tag)} border-current`
+                    : "border-border text-muted-foreground hover:border-muted-foreground"
+                }`}
+              >
+                {tag} ({count})
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Grid */}
       {isLoading ? (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
           {[...Array(10)].map((_, i) => <Skeleton key={i} className="aspect-[9/16] w-full rounded-xl" />)}
         </div>
-      ) : data?.references.length === 0 ? (
+      ) : references.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center border rounded-xl bg-card border-dashed">
           <Bookmark className="w-12 h-12 text-muted-foreground/50 mb-4" />
-          <p className="text-muted-foreground font-medium">Your remake list is empty</p>
-          <p className="text-muted-foreground/60 text-sm mt-1">Paste a reel link above to get started</p>
+          {tagFilter ? (
+            <>
+              <p className="text-muted-foreground font-medium">No reels tagged "{tagFilter}"</p>
+              <button onClick={() => setTagFilter(null)} className="text-xs text-primary mt-2 hover:underline">Show all</button>
+            </>
+          ) : (
+            <>
+              <p className="text-muted-foreground font-medium">Your remake list is empty</p>
+              <p className="text-muted-foreground/60 text-sm mt-1">Paste a reel link above to get started</p>
+            </>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-          {[...(data?.references ?? [])].sort((a, b) => (b.viewCount ?? -1) - (a.viewCount ?? -1)).map((ref) => {
+          {references.map((ref) => {
             const isPlaying = playingId === ref.id;
             const hasNotes = !!(ref as any).whyItsgood || !!(ref as any).whatToChange || !!(ref as any).howToRemake;
+            const refTags: string[] = (ref as any).tags ?? [];
 
             return (
               <div
@@ -444,17 +676,27 @@ export default function RemakeList() {
                       className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
 
-                    {/* Pending stats spinner */}
-                    {ref.viewCount == null && ref.likeCount == null && (
-                      <div className="absolute top-2 left-2">
+                    {/* Top-left indicators */}
+                    <div className="absolute top-2 left-2 flex flex-col gap-1">
+                      {ref.viewCount == null && ref.likeCount == null && (
                         <Loader2 className="w-3 h-3 animate-spin text-white/60" />
-                      </div>
-                    )}
+                      )}
+                      {hasNotes && (
+                        <div className="bg-primary/80 rounded-full p-1">
+                          <FileText className="w-2.5 h-2.5 text-black" />
+                        </div>
+                      )}
+                    </div>
 
-                    {/* Notes indicator */}
-                    {hasNotes && (
-                      <div className="absolute top-2 left-2 bg-primary/80 rounded-full p-1">
-                        <FileText className="w-2.5 h-2.5 text-black" />
+                    {/* Tag chips — top right */}
+                    {refTags.length > 0 && (
+                      <div className="absolute top-2 right-2 flex flex-col gap-0.5 items-end">
+                        {refTags.slice(0, 2).map((t) => (
+                          <TagChip key={t} tag={t} small />
+                        ))}
+                        {refTags.length > 2 && (
+                          <span className="text-[8px] font-mono text-white/50">+{refTags.length - 2}</span>
+                        )}
                       </div>
                     )}
 
@@ -470,7 +712,7 @@ export default function RemakeList() {
                   </>
                 )}
 
-                {/* Stats — always visible over thumbnail AND player */}
+                {/* Stats — always visible */}
                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2 space-y-1 pointer-events-none">
                   {ref.accountName && (
                     <p className="text-[10px] font-semibold text-white/90 truncate">@{ref.accountName}</p>

@@ -550,6 +550,8 @@ export const DeletePlaybookLessonParams = zod.object({
 /**
  * @summary List saved viral references
  */
+export const listReferencesResponseReferencesItemTagsDefault = [];
+
 export const ListReferencesResponse = zod.object({
   references: zod.array(
     zod.object({
@@ -565,6 +567,9 @@ export const ListReferencesResponse = zod.object({
       viewCount: zod.number().nullish(),
       commentsCount: zod.number().nullish(),
       likeCount: zod.number().nullish(),
+      tags: zod
+        .array(zod.string())
+        .default(listReferencesResponseReferencesItemTagsDefault),
       createdAt: zod.string(),
       updatedAt: zod.string(),
     }),
@@ -574,6 +579,8 @@ export const ListReferencesResponse = zod.object({
 /**
  * @summary Save a reference Reel to remake list
  */
+export const createReferenceBodyTagsDefault = [];
+
 export const CreateReferenceBody = zod.object({
   url: zod.string(),
   mediaUrl: zod.string().nullish(),
@@ -586,6 +593,7 @@ export const CreateReferenceBody = zod.object({
   viewCount: zod.number().nullish(),
   commentsCount: zod.number().nullish(),
   likeCount: zod.number().nullish(),
+  tags: zod.array(zod.string()).default(createReferenceBodyTagsDefault),
 });
 
 /**
@@ -604,7 +612,10 @@ export const UpdateReferenceBody = zod.object({
   viewCount: zod.number().nullish(),
   commentsCount: zod.number().nullish(),
   likeCount: zod.number().nullish(),
+  tags: zod.array(zod.string()).optional(),
 });
+
+export const updateReferenceResponseTagsDefault = [];
 
 export const UpdateReferenceResponse = zod.object({
   id: zod.number(),
@@ -619,6 +630,7 @@ export const UpdateReferenceResponse = zod.object({
   viewCount: zod.number().nullish(),
   commentsCount: zod.number().nullish(),
   likeCount: zod.number().nullish(),
+  tags: zod.array(zod.string()).default(updateReferenceResponseTagsDefault),
   createdAt: zod.string(),
   updatedAt: zod.string(),
 });
