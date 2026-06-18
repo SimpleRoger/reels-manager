@@ -114,6 +114,59 @@ async function runInstagramScraper(url: string): Promise<ResolvedMedia | null> {
   };
 }
 
+/**
+ * Downloads an image URL and returns a base64 data URL so it never expires.
+ * Falls back to the original URL string if the download fails.
+ */
+async function heicToJpeg(buf: Buffer): Promise<Buffer> {
+  const { execFile } = await import("child_process");
+  const { writeFile, readFile, unlink } = await import("fs/promises");
+  const { randomBytes } = await import("crypto");
+
+  const id = randomBytes(8).toString("hex");
+  const src = `/tmp/heic_${id}.heic`;
+  const dst = `/tmp/heic_${id}.jpg`;
+  try {
+    await writeFile(src, buf);
+    await new Promise<void>((resolve, reject) =>
+      execFile("magick", [src, dst], (err) => (err ? reject(err) : resolve()))
+    );
+    return await readFile(dst);
+  } finally {
+    unlink(src).catch(() => {});
+    unlink(dst).catch(() => {});
+  }
+}
+
+async function toDataUrl(imageUrl: string): Promise<string> {
+  try {
+    const resp = await fetch(imageUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15",
+        "Accept": "image/*",
+      },
+    });
+    if (!resp.ok) return imageUrl;
+    let buffer = Buffer.from(await resp.arrayBuffer());
+    const contentType = resp.headers.get("content-type") ?? "";
+
+    // HEIC is not displayable in browsers — convert to JPEG via ImageMagick
+    if (contentType.includes("heic") || contentType.includes("heif") || imageUrl.includes(".heic")) {
+      try {
+        buffer = await heicToJpeg(buffer);
+        return `data:image/jpeg;base64,${buffer.toString("base64")}`;
+      } catch (convErr) {
+        logger.warn({ convErr }, "HEIC→JPEG conversion failed; storing raw HEIC data URL");
+      }
+    }
+
+    const mime = contentType.split(";")[0].trim() || "image/jpeg";
+    return `data:${mime};base64,${buffer.toString("base64")}`;
+  } catch {
+    return imageUrl; // fall back to original URL
+  }
+}
+
 async function runTikTokScraper(url: string): Promise<ResolvedMedia | null> {
   if (!APIFY_TOKEN) {
     logger.warn("APIFY_API_TOKEN not set — skipping TikTok scrape");
@@ -166,9 +219,13 @@ async function runTikTokScraper(url: string): Promise<ResolvedMedia | null> {
 
   logger.info({ runId, hasVideo: !!item.videoUrl }, "TikTok Apify scrape complete");
 
+  // Download thumbnail immediately as a data URL so the signed CDN URL never expires
+  const rawThumb: string | null = item.coverImg ?? item.thumbnail ?? item.thumbnailUrl ?? null;
+  const thumbnailUrl = rawThumb ? await toDataUrl(rawThumb) : null;
+
   return {
     mediaUrl: item.videoUrl ?? null,
-    thumbnailUrl: item.coverImg ?? item.thumbnail ?? item.thumbnailUrl ?? null,
+    thumbnailUrl,
     videoViewCount: item.playCount ?? null,
     commentsCount: item.commentCount ?? null,
     likesCount: item.likeCount ?? null,
