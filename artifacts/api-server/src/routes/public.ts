@@ -1,22 +1,27 @@
 import { Router, type IRouter } from "express";
 import { db, reelsTable } from "@workspace/db";
 import { desc } from "drizzle-orm";
+import { runInstagramSync } from "../lib/sync";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
+const SYNC_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
+let syncInFlight = false;
+
 /**
  * GET /api/public/latest-reel
- * Returns stats for the most recently posted reel.
- * No auth required — safe to hit from widgets, scripts, etc.
+ * Returns stats for the most recently posted reel immediately from cache.
+ * If data is older than 5 minutes, kicks off a background sync so the next
+ * call gets fresher numbers. No auth required — safe to hit from anywhere.
  */
 router.get("/public/latest-reel", async (_req, res): Promise<void> => {
   const [reel] = await db
     .select({
-      id: reelsTable.id,
-      instagramId: reelsTable.instagramId,
       permalink: reelsTable.permalink,
       caption: reelsTable.caption,
       postedAt: reelsTable.postedAt,
+      updatedAt: reelsTable.updatedAt,
       plays: reelsTable.plays,
       likeCount: reelsTable.likeCount,
       commentsCount: reelsTable.commentsCount,
@@ -34,6 +39,16 @@ router.get("/public/latest-reel", async (_req, res): Promise<void> => {
     return;
   }
 
+  // Trigger a background sync if data is stale and no sync is already running
+  const ageMs = reel.updatedAt ? Date.now() - reel.updatedAt.getTime() : Infinity;
+  if (ageMs > SYNC_COOLDOWN_MS && !syncInFlight) {
+    syncInFlight = true;
+    logger.info({ ageMs }, "public/latest-reel: stale data, syncing in background");
+    runInstagramSync()
+      .catch((err) => logger.warn({ err }, "public/latest-reel: background sync failed"))
+      .finally(() => { syncInFlight = false; });
+  }
+
   res.json({
     views: reel.plays,
     likes: reel.likeCount,
@@ -44,7 +59,9 @@ router.get("/public/latest-reel", async (_req, res): Promise<void> => {
     permalink: reel.permalink,
     caption: reel.caption,
     postedAt: reel.postedAt,
+    updatedAt: reel.updatedAt,
     performanceStatus: reel.performanceStatus,
+    syncingInBackground: ageMs > SYNC_COOLDOWN_MS,
   });
 });
 
