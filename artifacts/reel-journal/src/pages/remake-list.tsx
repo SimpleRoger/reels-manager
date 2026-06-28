@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Trash2, ExternalLink, Bookmark, Plus, Link2, Loader2,
-  X, Play, Eye, Heart, MessageCircle, FileText, Tag,
+  X, Play, Eye, Heart, MessageCircle, FileText, Tag, ArrowUpDown,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { InlinePlayer } from "@/components/inline-player";
