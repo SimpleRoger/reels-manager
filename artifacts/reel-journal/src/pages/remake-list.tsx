@@ -354,6 +354,7 @@ export default function RemakeList() {
 
   // Tag filter is driven by the URL ?tag= param so sidebar links work
   const tagFilter = new URLSearchParams(search).get("tag");
+  const [sortBy, setSortBy] = useState<"recent" | "views" | "likes" | "comments">("recent");
 
   function setTagFilter(tag: string | null) {
     if (tag) {
@@ -514,10 +515,16 @@ export default function RemakeList() {
 
   // Filtered + sorted references
   const references = [...(data?.references ?? [])]
-    .sort((a, b) => (b.viewCount ?? -1) - (a.viewCount ?? -1))
     .filter((r) => {
       if (!tagFilter) return true;
       return (r.tags ?? []).some((t) => t.toLowerCase() === tagFilter.toLowerCase());
+    })
+    .sort((a, b) => {
+      if (sortBy === "recent") return new Date((b as any).createdAt ?? 0).getTime() - new Date((a as any).createdAt ?? 0).getTime();
+      if (sortBy === "views")    return (b.viewCount ?? -1) - (a.viewCount ?? -1);
+      if (sortBy === "likes")    return (b.likeCount ?? -1) - (a.likeCount ?? -1);
+      if (sortBy === "comments") return (b.commentsCount ?? -1) - (a.commentsCount ?? -1);
+      return 0;
     });
 
   const selectedRef = notesId != null
@@ -604,8 +611,10 @@ export default function RemakeList() {
         </div>
       )}
 
-      {/* Category filter tabs */}
-      {allTags.length > 0 && (
+      {/* Sort + filter row */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        {/* Category filter tabs */}
+        {allTags.length > 0 && (
         <div className="flex items-center gap-2 flex-wrap">
           <Tag className="w-3 h-3 text-muted-foreground shrink-0" />
           <button
@@ -638,7 +647,26 @@ export default function RemakeList() {
             );
           })}
         </div>
-      )}
+        )}
+
+        {/* Sort controls */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
+          {(["recent", "views", "likes", "comments"] as const).map((opt) => (
+            <button
+              key={opt}
+              onClick={() => setSortBy(opt)}
+              className={`text-[10px] font-mono uppercase tracking-wider px-3 py-1 rounded-full border transition-all ${
+                sortBy === opt
+                  ? "bg-primary text-black border-primary"
+                  : "border-border text-muted-foreground hover:border-muted-foreground"
+              }`}
+            >
+              {opt === "recent" ? "Recent" : opt === "views" ? "Views" : opt === "likes" ? "Likes" : "Comments"}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* Grid */}
       {isLoading ? (
