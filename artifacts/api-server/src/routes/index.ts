@@ -15,6 +15,7 @@ import trendingReelsRouter from "./trending-reels";
 import mediaProxyRouter from "./media-proxy";
 import calendarRouter from "./calendar";
 import loudnessRouter from "./loudness";
+import publicRouter from "./public";
 
 const router: IRouter = Router();
 
@@ -34,5 +35,6 @@ router.use(trendingReelsRouter);
 router.use(mediaProxyRouter);
 router.use(calendarRouter);
 router.use(loudnessRouter);
+router.use(publicRouter);
 
 export default router;
