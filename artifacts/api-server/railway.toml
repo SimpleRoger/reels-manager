@@ -1,5 +1,2 @@
 [build]
 watchPatterns = ["**", "../../pnpm-lock.yaml", "../../pnpm-workspace.yaml"]
-
-[deploy]
-startCommand = "pnpm --filter @workspace/db run push-force && pnpm --filter @workspace/api-server run start"
