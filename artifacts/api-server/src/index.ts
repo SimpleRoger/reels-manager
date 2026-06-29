@@ -4,6 +4,7 @@ import { startAutoSync, scheduleDailySydneySync } from "./lib/sync";
 import { enrichMissingReferences } from "./lib/resolve-reel-video";
 import { seedProductionIfEmpty } from "./lib/seeder";
 import { runMigrations } from "@workspace/db";
+import path from "path";
 
 const rawPort = process.env["PORT"];
 
@@ -19,7 +20,9 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-runMigrations()
+// __dirname is injected by the esbuild banner and points to the dist/ directory.
+// The build script copies lib/db/drizzle/ → dist/drizzle/ so it's always alongside the bundle.
+runMigrations(path.join(__dirname, "drizzle"))
   .then(() => {
     logger.info("Database migrations applied");
     app.listen(port, (err) => {
