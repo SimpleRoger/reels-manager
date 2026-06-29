@@ -65,6 +65,7 @@ export async function scrapeInstagramReel(url: string): Promise<ApifyReelResult 
         resultsType: "posts",
         resultsLimit: 1,
         addParentData: false,
+        proxyConfiguration: { useApifyProxy: true, apifyProxyGroups: ["RESIDENTIAL"] },
       }),
     }
   );
@@ -133,6 +134,7 @@ export async function scrapeInstagramProfile(username: string, limit = 100): Pro
         resultsType: "posts",
         resultsLimit: limit,
         addParentData: false,
+        proxyConfiguration: { useApifyProxy: true, apifyProxyGroups: ["RESIDENTIAL"] },
       }),
     }
   );
