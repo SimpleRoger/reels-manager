@@ -2,6 +2,7 @@ import { logger } from "./logger";
 
 const APIFY_TOKEN = process.env["APIFY_API_TOKEN"];
 const ACTOR_ID = "apify~instagram-scraper";
+const PROFILE_ACTOR_ID = "apify~instagram-profile-scraper";
 
 export interface ApifyReelResult {
   mediaUrl: string | null;
@@ -113,27 +114,19 @@ export async function scrapeInstagramReel(url: string): Promise<ApifyReelResult 
   };
 }
 
-export async function scrapeInstagramProfile(username: string, limit = 100): Promise<ApifyProfilePost[]> {
+export async function scrapeInstagramProfile(username: string, _limit = 100): Promise<ApifyProfilePost[]> {
   if (!APIFY_TOKEN) {
     logger.warn("APIFY_API_TOKEN not set — skipping profile scrape");
     return [];
   }
 
-  // Scrape both the main profile grid AND the dedicated Reels tab to maximise coverage.
-  // Profile grid catches all post types; reels tab specifically surfaces videos.
-  const profileUrl = `https://www.instagram.com/${username}/`;
-  const reelsTabUrl = `https://www.instagram.com/${username}/reels/`;
-
   const startRes = await fetch(
-    `https://api.apify.com/v2/acts/${ACTOR_ID}/runs?token=${APIFY_TOKEN}`,
+    `https://api.apify.com/v2/acts/${PROFILE_ACTOR_ID}/runs?token=${APIFY_TOKEN}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        directUrls: [profileUrl, reelsTabUrl],
-        resultsType: "posts",
-        resultsLimit: limit,
-        addParentData: false,
+        usernames: [username],
         proxyConfiguration: { useApifyProxy: true, apifyProxyGroups: ["RESIDENTIAL"] },
       }),
     }
@@ -162,16 +155,18 @@ export async function scrapeInstagramProfile(username: string, limit = 100): Pro
   );
   if (!itemsRes.ok) return [];
 
-  const items = (await itemsRes.json()) as any[];
-  if (!Array.isArray(items) || items.length === 0) {
-    logger.warn({ runId }, "Apify profile scrape returned no items");
+  const profiles = (await itemsRes.json()) as any[];
+  const posts: any[] = profiles.flatMap((p: any) => p.latestPosts ?? []);
+
+  if (posts.length === 0) {
+    logger.warn({ runId }, "Apify profile scrape returned no posts");
     return [];
   }
 
-  logger.info({ runId, count: items.length }, "Apify profile scrape complete");
+  logger.info({ runId, count: posts.length }, "Apify profile scrape complete");
 
-  return items
-    .filter((item: any) => item.type === "Video" || item.videoUrl || item.isVideo)
+  return posts
+    .filter((item: any) => item.type === "Video" || item.videoUrl)
     .map((item: any): ApifyProfilePost => ({
       instagramId: item.id ?? item.shortCode ?? String(item.timestamp),
       shortCode: item.shortCode ?? null,
@@ -180,11 +175,9 @@ export async function scrapeInstagramProfile(username: string, limit = 100): Pro
       thumbnailUrl: item.displayUrl ?? item.thumbnailUrl ?? null,
       mediaUrl: item.videoUrl ?? null,
       postedAt: item.timestamp ? new Date(item.timestamp) : null,
-      likesCount: item.likesCount ?? item.likesCountFull ?? null,
+      likesCount: item.likesCount ?? null,
       commentsCount: item.commentsCount ?? null,
-      plays: (item.videoPlayCount != null && item.videoViewCount != null)
-        ? Math.max(item.videoPlayCount, item.videoViewCount)
-        : (item.videoPlayCount ?? item.videoViewCount ?? null),
+      plays: item.videoViewCount ?? item.videoPlayCount ?? null,
       isVideo: true,
     }));
 }
