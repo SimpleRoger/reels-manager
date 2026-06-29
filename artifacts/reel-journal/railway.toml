@@ -1,2 +1,5 @@
 [build]
 watchPatterns = ["**", "../../pnpm-lock.yaml", "../../pnpm-workspace.yaml"]
+
+[deploy]
+startCommand = "pnpm --filter @workspace/reel-journal run serve"
