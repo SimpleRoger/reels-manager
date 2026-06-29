@@ -1,6 +1,6 @@
 import { logger } from "./logger";
 
-const INSTAGRAM_GRAPH_API = "https://graph.instagram.com/v21.0";
+const INSTAGRAM_GRAPH_API = "https://graph.facebook.com/v21.0";
 
 export interface IGMedia {
   id: string;
@@ -24,13 +24,19 @@ export interface IGInsights {
 
 export async function verifyToken(accessToken: string): Promise<{ id: string; username: string } | null> {
   try {
-    const resp = await fetch(
-      `${INSTAGRAM_GRAPH_API}/me?fields=id,username&access_token=${accessToken}`
+    // Tokens from Graph API Explorer are Facebook User Tokens — look up the linked
+    // Instagram Business/Creator account through the user's Facebook Pages.
+    const pagesResp = await fetch(
+      `${INSTAGRAM_GRAPH_API}/me/accounts?fields=id,instagram_business_account{id,username}&access_token=${accessToken}`
     );
-    if (!resp.ok) return null;
-    const data = await resp.json() as { id?: string; username?: string; error?: unknown };
-    if (!data.id || !data.username) return null;
-    return { id: data.id, username: data.username };
+    if (pagesResp.ok) {
+      const pagesData = await pagesResp.json() as { data?: Array<{ id: string; instagram_business_account?: { id: string; username: string } }> };
+      for (const page of pagesData.data ?? []) {
+        const ig = page.instagram_business_account;
+        if (ig?.id && ig?.username) return { id: ig.id, username: ig.username };
+      }
+    }
+    return null;
   } catch (err) {
     logger.error({ err }, "Error verifying Instagram token");
     return null;
@@ -46,10 +52,10 @@ export interface IGUserProfile {
   accountType?: string;
 }
 
-export async function fetchUserProfile(accessToken: string): Promise<IGUserProfile | null> {
+export async function fetchUserProfile(accessToken: string, accountId = "me"): Promise<IGUserProfile | null> {
   try {
     const resp = await fetch(
-      `${INSTAGRAM_GRAPH_API}/me?fields=id,username,followers_count,media_count,biography,account_type&access_token=${accessToken}`
+      `${INSTAGRAM_GRAPH_API}/${accountId}?fields=id,username,followers_count,media_count,biography,account_type&access_token=${accessToken}`
     );
     if (!resp.ok) return null;
     const data = await resp.json() as {
@@ -76,7 +82,7 @@ export async function fetchUserProfile(accessToken: string): Promise<IGUserProfi
   }
 }
 
-export async function fetchUserMedia(accessToken: string): Promise<IGMedia[]> {
+export async function fetchUserMedia(accessToken: string, accountId = "me"): Promise<IGMedia[]> {
   const fields = "id,media_type,media_product_type,caption,permalink,thumbnail_url,media_url,timestamp,like_count,comments_count";
   const PAGE_SIZE = 100;
   const MAX_PAGES = 20; // safety cap — 2,000 posts max
@@ -87,7 +93,7 @@ export async function fetchUserMedia(accessToken: string): Promise<IGMedia[]> {
   };
 
   const all: IGMedia[] = [];
-  let url: string | null = `${INSTAGRAM_GRAPH_API}/me/media?fields=${fields}&limit=${PAGE_SIZE}&access_token=${accessToken}`;
+  let url: string | null = `${INSTAGRAM_GRAPH_API}/${accountId}/media?fields=${fields}&limit=${PAGE_SIZE}&access_token=${accessToken}`;
   let pages = 0;
 
   while (url && pages < MAX_PAGES) {

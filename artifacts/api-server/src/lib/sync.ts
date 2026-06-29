@@ -6,11 +6,12 @@ import { logger } from "./logger";
 
 async function syncViaGraphApi(
   token: string,
+  accountId: string,
   averages: { avgLikes: number; avgComments: number; avgReach: number | null; avgSaves: number | null; avgShares: number | null }
 ): Promise<{ synced: number; total: number }> {
   logger.info("Sync: using Graph API (token present)");
 
-  const media = await fetchUserMedia(token);
+  const media = await fetchUserMedia(token, accountId);
   const reels = media.filter(
     (m) => m.media_type === "VIDEO" || m.media_product_type === "REELS"
   );
@@ -187,7 +188,7 @@ export async function runInstagramSync(): Promise<{ synced: number; total: numbe
   // Fall back to Apify scraping when no token is present (token expired or never set).
   if (account.accessToken) {
     try {
-      result = await syncViaGraphApi(account.accessToken, averages);
+      result = await syncViaGraphApi(account.accessToken, account.accountId, averages);
     } catch (err) {
       logger.error({ err }, "Graph API sync failed — falling back to Apify");
       result = await syncViaApify(account.username, averages);
