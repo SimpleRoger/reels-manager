@@ -20,7 +20,7 @@ const navigation = [
   { name: "Playbook", shortName: "Playbook", href: "/playbook", icon: BookOpen },
   { name: "Viral Finder", shortName: "Viral", href: "/viral-finder", icon: Search },
   { name: "Remake List", shortName: "Remakes", href: "/remake-list", icon: ListChecks },
-  { name: "DM Importer", shortName: "DMs", href: "/dm-importer", icon: MessageSquare },
+  // { name: "DM Importer", shortName: "DMs", href: "/dm-importer", icon: MessageSquare },
 ];
 
 const remakeCategories = [
