@@ -202,6 +202,47 @@ router.post("/references/ingest", async (req, res): Promise<void> => {
   res.status(201).json(formatReference(ref));
 });
 
+// Proxy a Cobalt request server-side to get a playable video URL for any
+// public Instagram or TikTok reel. Set COBALT_API_URL env var to your
+// self-hosted instance (e.g. https://cobalt.up.railway.app).
+router.get("/references/video-url", async (req, res): Promise<void> => {
+  const url = req.query["url"];
+  if (typeof url !== "string") {
+    res.status(400).json({ error: "url required" });
+    return;
+  }
+
+  const cobaltBase = process.env.COBALT_API_URL?.replace(/\/+$/, "");
+  if (!cobaltBase) {
+    res.status(503).json({ error: "COBALT_API_URL not configured" });
+    return;
+  }
+
+  const cobaltResp = await fetch(cobaltBase, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Accept": "application/json" },
+    body: JSON.stringify({ url }),
+  });
+
+  if (!cobaltResp.ok) {
+    res.status(502).json({ error: `Cobalt returned ${cobaltResp.status}` });
+    return;
+  }
+
+  const data = await cobaltResp.json() as {
+    status: string;
+    url?: string;
+    error?: { code: string };
+  };
+
+  if (!data.url || data.status === "error") {
+    res.status(404).json({ error: data.error?.code ?? "no video URL returned" });
+    return;
+  }
+
+  res.json({ videoUrl: data.url });
+});
+
 // Re-run Apify on ALL saved references to refresh expired CDN URLs
 router.post("/references/refresh-all", async (req, res): Promise<void> => {
   const refs = await db.select({ id: savedReferencesTable.id, url: savedReferencesTable.url }).from(savedReferencesTable);

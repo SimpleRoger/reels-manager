@@ -43,18 +43,34 @@ export function InlinePlayer({ mediaUrl, thumbnailUrl, instagramUrl, onClose, cl
     }
   }, [mediaUrl, freshMediaUrl, videoFailed]);
 
-  // Try Graph API for a fresh media URL when:
-  // (a) there's no stored media URL at all, OR (b) the stored URL expired and video failed
+  // When there's no stored media URL or the CDN URL has expired, ask our server
+  // to fetch a fresh one. Strategy: Graph API first (own reels), then Cobalt (anyone's).
   useEffect(() => {
     const needsFresh = !mediaUrl || videoFailed;
-    if (needsFresh && !isTikTok(instagramUrl) && instagramUrl && !freshFetchDone) {
+    if (needsFresh && instagramUrl && !freshFetchDone) {
       setFreshFetchDone(true);
-      fetch(`${API_BASE}/api/instagram/fresh-media?url=${encodeURIComponent(instagramUrl)}`)
-        .then((r) => r.json())
-        .then((d: { mediaUrl?: string }) => {
-          if (d.mediaUrl) setFreshMediaUrl(d.mediaUrl);
-        })
-        .catch(() => {});
+
+      const fetchFresh = async () => {
+        // Strategy 1: Graph API — works instantly for your own reels
+        if (!isTikTok(instagramUrl)) {
+          try {
+            const r = await fetch(`${API_BASE}/api/instagram/fresh-media?url=${encodeURIComponent(instagramUrl)}`);
+            const d = await r.json() as { mediaUrl?: string };
+            if (d.mediaUrl) { setFreshMediaUrl(d.mediaUrl); return; }
+          } catch { /* fall through */ }
+        }
+
+        // Strategy 2: Cobalt — works for anyone's public IG or TikTok reel
+        try {
+          const r = await fetch(`${API_BASE}/api/references/video-url?url=${encodeURIComponent(instagramUrl)}`);
+          if (r.ok) {
+            const d = await r.json() as { videoUrl?: string };
+            if (d.videoUrl) { setFreshMediaUrl(d.videoUrl); return; }
+          }
+        } catch { /* fall through to embed */ }
+      };
+
+      fetchFresh();
     }
   }, [mediaUrl, videoFailed, instagramUrl, freshFetchDone]);
 
