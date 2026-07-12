@@ -58,7 +58,7 @@ function LoudnessRow({ reel, onAnalyzed }: { reel: Reel; onAnalyzed: () => void 
     <div className="flex items-center gap-4 py-3 px-4 rounded-lg bg-card border border-border hover:border-primary/30 transition-colors">
       {/* thumbnail */}
       <div className="w-10 h-14 flex-none rounded overflow-hidden bg-zinc-900">
-        <VideoThumb thumbnailUrl={reel.thumbnailUrl} videoUrl={reel.mediaUrl} permalink={reel.permalink} />
+        <VideoThumb thumbnailUrl={reel.thumbnailUrl} videoUrl={reel.mediaUrl} permalink={reel.permalink} instagramId={reel.instagramId} />
       </div>
 
       {/* caption + date */}
@@ -355,7 +355,7 @@ export default function ReelsLog() {
                   ) : (
                     <>
                       <div className="absolute inset-0 transition-transform duration-500 group-hover:scale-105">
-                        <VideoThumb thumbnailUrl={reel.thumbnailUrl} videoUrl={reel.mediaUrl} permalink={reel.permalink} />
+                        <VideoThumb thumbnailUrl={reel.thumbnailUrl} videoUrl={reel.mediaUrl} permalink={reel.permalink} instagramId={reel.instagramId} />
                       </div>
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 

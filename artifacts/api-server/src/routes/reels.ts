@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, desc, asc, sql, count } from "drizzle-orm";
+import { eq, desc, asc, sql, count, and } from "drizzle-orm";
 import { db, reelsTable, reelNotesTable, reelAnalysisTable } from "@workspace/db";
 import {
   GetReelParams,

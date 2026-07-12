@@ -1,13 +1,22 @@
-import { eq, isNotNull, avg, sql } from "drizzle-orm";
+import { eq, isNotNull, avg, sql, and } from "drizzle-orm";
 import { db, instagramAccountsTable, reelsTable } from "@workspace/db";
 import { computePerformanceStatus, fetchUserMedia, fetchMediaInsights } from "./instagram";
 import { scrapeInstagramProfile } from "./apify";
 import { logger } from "./logger";
 
+type Averages = {
+  avgLikes: number;
+  avgComments: number;
+  avgReach: number | null;
+  avgSaves: number | null;
+  avgShares: number | null;
+};
+
 async function syncViaGraphApi(
   token: string,
   accountId: string,
-  averages: { avgLikes: number; avgComments: number; avgReach: number | null; avgSaves: number | null; avgShares: number | null }
+  accountDbId: number,
+  averages: Averages
 ): Promise<{ synced: number; total: number }> {
   logger.info("Sync: using Graph API (token present)");
 
@@ -21,7 +30,6 @@ async function syncViaGraphApi(
   let synced = 0;
 
   for (const reel of reels) {
-    // Fetch insights for accurate reach/saves/shares/plays
     const insights = await fetchMediaInsights(reel.id, token);
 
     const existing = await db
@@ -33,6 +41,7 @@ async function syncViaGraphApi(
     const prev = existing[0];
 
     const reelData = {
+      accountId: accountDbId,
       instagramId: reel.id,
       caption: reel.caption ?? null,
       permalink: reel.permalink ?? null,
@@ -75,7 +84,8 @@ async function syncViaGraphApi(
 
 async function syncViaApify(
   username: string,
-  averages: { avgLikes: number; avgComments: number; avgReach: number | null; avgSaves: number | null; avgShares: number | null }
+  accountDbId: number,
+  averages: Averages
 ): Promise<{ synced: number; total: number } | null> {
   logger.info({ username }, "Sync: using Apify scraper (no token)");
 
@@ -112,6 +122,7 @@ async function syncViaApify(
     const prev = existing[0];
 
     const reelData = {
+      accountId: accountDbId,
       instagramId: post.instagramId,
       caption: post.caption,
       permalink: post.permalink,
@@ -146,16 +157,8 @@ async function syncViaApify(
   return { synced, total: posts.length };
 }
 
-export async function runInstagramSync(): Promise<{ synced: number; total: number } | null> {
-  const accounts = await db.select().from(instagramAccountsTable).limit(1);
-  if (accounts.length === 0) {
-    logger.info("Auto-sync: no Instagram account connected, skipping");
-    return null;
-  }
-
-  const account = accounts[0];
-
-  const recentReels = await db
+async function getAccountAverages(accountDbId: number): Promise<Averages> {
+  const rows = await db
     .select({
       avgLikes: avg(reelsTable.likeCount),
       avgComments: avg(reelsTable.commentsCount),
@@ -164,48 +167,63 @@ export async function runInstagramSync(): Promise<{ synced: number; total: numbe
       avgShares: avg(reelsTable.shares),
     })
     .from(reelsTable)
-    .where(isNotNull(reelsTable.likeCount));
+    .where(and(isNotNull(reelsTable.likeCount), eq(reelsTable.accountId, accountDbId)));
 
-  const avgs = recentReels[0] ?? {
-    avgLikes: null,
-    avgComments: null,
-    avgReach: null,
-    avgSaves: null,
-    avgShares: null,
-  };
-
-  const averages = {
+  const avgs = rows[0] ?? {};
+  return {
     avgLikes: Number(avgs.avgLikes ?? 0),
     avgComments: Number(avgs.avgComments ?? 0),
     avgReach: avgs.avgReach != null ? Number(avgs.avgReach) : null,
     avgSaves: avgs.avgSaves != null ? Number(avgs.avgSaves) : null,
     avgShares: avgs.avgShares != null ? Number(avgs.avgShares) : null,
   };
+}
 
-  let result: { synced: number; total: number } | null = null;
+export async function runInstagramSync(filterAccountDbId?: number): Promise<{ synced: number; total: number } | null> {
+  const accounts = filterAccountDbId
+    ? await db.select().from(instagramAccountsTable).where(eq(instagramAccountsTable.id, filterAccountDbId))
+    : await db.select().from(instagramAccountsTable);
 
-  // Prefer Graph API when a token is stored — it returns all reels with full stats.
-  // Fall back to Apify scraping when no token is present (token expired or never set).
-  if (account.accessToken) {
-    try {
-      result = await syncViaGraphApi(account.accessToken, account.accountId, averages);
-    } catch (err) {
-      logger.error({ err }, "Graph API sync failed — falling back to Apify");
-      result = await syncViaApify(account.username, averages);
-    }
-  } else {
-    result = await syncViaApify(account.username, averages);
+  if (accounts.length === 0) {
+    logger.info("Auto-sync: no Instagram accounts connected, skipping");
+    return null;
   }
 
-  if (!result) return null;
+  let totalSynced = 0;
+  let totalCount = 0;
 
-  await db
-    .update(instagramAccountsTable)
-    .set({ lastSynced: new Date() })
-    .where(eq(instagramAccountsTable.id, account.id));
+  for (const account of accounts) {
+    logger.info({ username: account.username, accountDbId: account.id }, "Syncing account");
 
-  logger.info({ synced: result.synced, total: result.total }, "Instagram sync complete");
-  return result;
+    const averages = await getAccountAverages(account.id);
+
+    let result: { synced: number; total: number } | null = null;
+
+    if (account.accessToken) {
+      try {
+        result = await syncViaGraphApi(account.accessToken, account.accountId ?? account.username, account.id, averages);
+      } catch (err) {
+        logger.error({ err, username: account.username }, "Graph API sync failed — falling back to Apify");
+        result = await syncViaApify(account.username, account.id, averages);
+      }
+    } else {
+      result = await syncViaApify(account.username, account.id, averages);
+    }
+
+    if (result) {
+      await db
+        .update(instagramAccountsTable)
+        .set({ lastSynced: new Date() })
+        .where(eq(instagramAccountsTable.id, account.id));
+
+      logger.info({ username: account.username, synced: result.synced, total: result.total }, "Instagram sync complete");
+      totalSynced += result.synced;
+      totalCount += result.total;
+    }
+  }
+
+  if (totalCount === 0) return null;
+  return { synced: totalSynced, total: totalCount };
 }
 
 const THIRTY_MINUTES = 30 * 60 * 1000;

@@ -1,66 +1,32 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
-import { db, instagramAccountsTable } from "@workspace/db";
+import { eq, asc } from "drizzle-orm";
+import { db, instagramAccountsTable, reelsTable } from "@workspace/db";
 import { ConnectInstagramBody } from "@workspace/api-zod";
 import { getHashtagId, searchHashtagMedia, verifyToken } from "../lib/instagram";
 import { runInstagramSync } from "../lib/sync";
 
 const router: IRouter = Router();
 
-router.post("/instagram/connect", async (req, res): Promise<void> => {
-  const parsed = ConnectInstagramBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
-    return;
-  }
+// List all connected accounts
+router.get("/instagram/accounts", async (_req, res): Promise<void> => {
+  const accounts = await db
+    .select()
+    .from(instagramAccountsTable)
+    .orderBy(asc(instagramAccountsTable.createdAt));
 
-  const { username, accessToken } = parsed.data;
-  const cleanUsername = username.replace(/^@/, "").trim();
-
-  if (!cleanUsername) {
-    res.status(400).json({ error: "Username is required" });
-    return;
-  }
-
-  // If a token was provided, validate it and get the real account ID
-  let resolvedAccountId = cleanUsername;
-  let tokenValid = false;
-
-  if (accessToken && accessToken.trim()) {
-    const tokenInfo = await verifyToken(accessToken.trim());
-    if (tokenInfo) {
-      resolvedAccountId = tokenInfo.id;
-      tokenValid = true;
-      req.log.info({ username: tokenInfo.username, accountId: tokenInfo.id }, "Graph API token validated");
-    } else {
-      req.log.warn({ username: cleanUsername }, "Provided token is invalid or expired — saving username only");
-    }
-  }
-
-  const existing = await db.select().from(instagramAccountsTable).limit(1);
-
-  if (existing.length > 0) {
-    await db
-      .update(instagramAccountsTable)
-      .set({
-        username: cleanUsername,
-        accountId: resolvedAccountId,
-        accessToken: accessToken?.trim() || null,
-      })
-      .where(eq(instagramAccountsTable.id, existing[0].id));
-  } else {
-    await db.insert(instagramAccountsTable).values({
-      accountId: resolvedAccountId,
-      username: cleanUsername,
-      accessToken: accessToken?.trim() || null,
-    });
-  }
-
-  req.log.info({ username: cleanUsername, tokenValid }, "Instagram account connected");
-  res.json({ success: true, username: cleanUsername, accountId: resolvedAccountId, tokenValid });
+  res.json(
+    accounts.map((a) => ({
+      id: a.id,
+      username: a.username,
+      accountId: a.accountId,
+      hasToken: !!a.accessToken,
+      lastSynced: a.lastSynced?.toISOString() ?? null,
+    }))
+  );
 });
 
-router.get("/instagram/status", async (req, res): Promise<void> => {
+// Backwards-compat status (first account)
+router.get("/instagram/status", async (_req, res): Promise<void> => {
   const accounts = await db.select().from(instagramAccountsTable).limit(1);
 
   if (accounts.length === 0) {
@@ -78,8 +44,104 @@ router.get("/instagram/status", async (req, res): Promise<void> => {
   });
 });
 
+// Connect / update an account
+router.post("/instagram/connect", async (req, res): Promise<void> => {
+  const parsed = ConnectInstagramBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const { username, accessToken } = parsed.data;
+  const cleanUsername = username.replace(/^@/, "").trim();
+
+  if (!cleanUsername) {
+    res.status(400).json({ error: "Username is required" });
+    return;
+  }
+
+  let resolvedAccountId = cleanUsername;
+  let tokenValid = false;
+
+  if (accessToken && accessToken.trim()) {
+    const tokenInfo = await verifyToken(accessToken.trim());
+    if (tokenInfo) {
+      resolvedAccountId = tokenInfo.id;
+      tokenValid = true;
+      req.log.info({ username: tokenInfo.username, accountId: tokenInfo.id }, "Graph API token validated");
+    } else {
+      req.log.warn({ username: cleanUsername }, "Provided token is invalid or expired — saving username only");
+    }
+  }
+
+  // Upsert: look up by accountId first, then by username
+  const existingByAccountId = resolvedAccountId !== cleanUsername
+    ? await db.select().from(instagramAccountsTable).where(eq(instagramAccountsTable.accountId, resolvedAccountId)).limit(1)
+    : [];
+
+  const existingByUsername = existingByAccountId.length === 0
+    ? await db.select().from(instagramAccountsTable).where(eq(instagramAccountsTable.username, cleanUsername)).limit(1)
+    : [];
+
+  const existing = existingByAccountId[0] ?? existingByUsername[0];
+
+  if (existing) {
+    await db
+      .update(instagramAccountsTable)
+      .set({ username: cleanUsername, accountId: resolvedAccountId, accessToken: accessToken?.trim() || null })
+      .where(eq(instagramAccountsTable.id, existing.id));
+  } else {
+    await db.insert(instagramAccountsTable).values({
+      accountId: resolvedAccountId,
+      username: cleanUsername,
+      accessToken: accessToken?.trim() || null,
+    });
+  }
+
+  req.log.info({ username: cleanUsername, tokenValid }, "Instagram account connected");
+  res.json({ success: true, username: cleanUsername, accountId: resolvedAccountId, tokenValid });
+});
+
+// Delete an account
+router.delete("/instagram/account/:id", async (req, res): Promise<void> => {
+  const id = parseInt(req.params["id"] ?? "");
+  if (isNaN(id)) {
+    res.status(400).json({ error: "Invalid account id" });
+    return;
+  }
+
+  await db.delete(instagramAccountsTable).where(eq(instagramAccountsTable.id, id));
+  res.json({ success: true });
+});
+
+// Sync a specific account
+router.post("/instagram/account/:id/sync", async (req, res): Promise<void> => {
+  const id = parseInt(req.params["id"] ?? "");
+  if (isNaN(id)) {
+    res.status(400).json({ error: "Invalid account id" });
+    return;
+  }
+
+  try {
+    const result = await runInstagramSync(id);
+    if (!result) {
+      res.status(400).json({ error: "Sync failed — no posts returned" });
+      return;
+    }
+    res.json({
+      synced: result.synced,
+      total: result.total,
+      message: `Synced ${result.synced} new Reels, updated ${result.total - result.synced} existing`,
+    });
+  } catch (err) {
+    req.log.error({ err }, "Failed to sync account");
+    res.status(400).json({ error: "Sync failed. Check server logs." });
+  }
+});
+
+// Sync all accounts
 router.post("/instagram/sync", async (req, res): Promise<void> => {
-  const accounts = await db.select().from(instagramAccountsTable).limit(1);
+  const accounts = await db.select().from(instagramAccountsTable);
   if (accounts.length === 0) {
     res.status(400).json({ error: "No Instagram account connected" });
     return;
@@ -100,6 +162,40 @@ router.post("/instagram/sync", async (req, res): Promise<void> => {
     req.log.error({ err }, "Failed to sync Instagram media");
     res.status(400).json({ error: "Sync failed. Check server logs." });
   }
+});
+
+// Refresh a fresh thumbnail URL for a reel using the Graph API token.
+// Called when the stored CDN URL has expired (they expire within hours).
+router.get("/instagram/fresh-thumbnail/:instagramId", async (req, res): Promise<void> => {
+  const instagramId = req.params["instagramId"];
+  if (!instagramId) {
+    res.status(400).json({ error: "instagramId required" });
+    return;
+  }
+
+  const accounts = await db.select().from(instagramAccountsTable).limit(1);
+  const token = accounts[0]?.accessToken;
+  if (!token) {
+    res.status(400).json({ error: "No access token available" });
+    return;
+  }
+
+  const base = token.startsWith("IGAA") ? "https://graph.instagram.com/v21.0" : "https://graph.facebook.com/v21.0";
+  const resp = await fetch(`${base}/${instagramId}?fields=thumbnail_url,media_url&access_token=${token}`);
+  if (!resp.ok) {
+    res.status(502).json({ error: "Graph API error" });
+    return;
+  }
+
+  const data = await resp.json() as { thumbnail_url?: string; media_url?: string };
+  const freshUrl = data.thumbnail_url ?? data.media_url ?? null;
+
+  if (freshUrl) {
+    // Update the DB so future loads are instant
+    await db.update(reelsTable).set({ thumbnailUrl: freshUrl }).where(eq(reelsTable.instagramId, instagramId));
+  }
+
+  res.json({ thumbnailUrl: freshUrl });
 });
 
 router.get("/instagram/hashtag-search", async (req, res): Promise<void> => {
@@ -148,16 +244,12 @@ router.get("/instagram/hashtag-search", async (req, res): Promise<void> => {
 
 // GET /api/instagram/thumbnail?shortcode=X  (Instagram)
 // GET /api/instagram/thumbnail?url=<tiktok_url>  (TikTok)
-// Fetches a fresh thumbnail for a reel/TikTok by scraping the og:image from the
-// public page. Signed CDN URLs in the DB expire; this refreshes them on demand.
 router.get("/instagram/thumbnail", async (req, res): Promise<void> => {
   const shortcode = req.query["shortcode"];
   const urlParam = req.query["url"];
 
-  // ── TikTok branch ─────────────────────────────────────────────────────────
   if (typeof urlParam === "string" && urlParam.includes("tiktok.com")) {
     try {
-      // Follow redirects (short vt.tiktok.com links → canonical URL)
       const resolveResp = await fetch(urlParam, {
         method: "HEAD",
         redirect: "follow",
@@ -167,7 +259,6 @@ router.get("/instagram/thumbnail", async (req, res): Promise<void> => {
       });
       const canonicalUrl = resolveResp.url ?? urlParam;
 
-      // Fetch the TikTok page and extract og:image
       const pageResp = await fetch(canonicalUrl, {
         headers: {
           "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
@@ -214,7 +305,6 @@ router.get("/instagram/thumbnail", async (req, res): Promise<void> => {
     }
   }
 
-  // ── Instagram branch ───────────────────────────────────────────────────────
   if (typeof shortcode !== "string" || !shortcode) {
     res.status(400).json({ error: "shortcode or TikTok url required" });
     return;
@@ -240,7 +330,6 @@ router.get("/instagram/thumbnail", async (req, res): Promise<void> => {
       return;
     }
 
-    // Decode HTML entities in the URL (&amp; → &)
     const freshUrl = match[1].replace(/&amp;/g, "&");
 
     const imgResp = await fetch(freshUrl, {

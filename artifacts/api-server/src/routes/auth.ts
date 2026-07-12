@@ -86,12 +86,16 @@ router.get("/auth/instagram/callback", async (req, res): Promise<void> => {
     const accountId = userData.id ?? String(tokenData.user_id);
     const username = userData.username ?? String(tokenData.user_id);
 
-    // Upsert into DB
-    const existing = await db.select().from(instagramAccountsTable).limit(1);
+    // Upsert by accountId — update token if account already exists, insert if new
+    const existing = await db
+      .select()
+      .from(instagramAccountsTable)
+      .where(eq(instagramAccountsTable.accountId, accountId))
+      .limit(1);
     if (existing.length > 0) {
       await db
         .update(instagramAccountsTable)
-        .set({ username, accountId, accessToken: finalToken })
+        .set({ username, accessToken: finalToken })
         .where(eq(instagramAccountsTable.id, existing[0].id));
     } else {
       await db.insert(instagramAccountsTable).values({ accountId, username, accessToken: finalToken });

@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 
 export const reelsTable = pgTable("reels", {
   id: serial("id").primaryKey(),
+  accountId: integer("account_id"),
   instagramId: text("instagram_id").notNull().unique(),
   caption: text("caption"),
   permalink: text("permalink"),
