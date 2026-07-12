@@ -474,11 +474,12 @@ router.get("/instagram/my-stats", async (req, res): Promise<void> => {
   // Fetch play count via insights
   let plays: number | null = null;
   const insightsResp = await fetch(
-    `${base}/${item.id}/insights?metric=plays&access_token=${token}`
+    `${base}/${item.id}/insights?metric=plays,video_views&access_token=${token}`
   ).catch(() => null);
   if (insightsResp?.ok) {
-    const insights = await insightsResp.json() as { data?: Array<{ name: string; value?: number }> };
-    plays = insights.data?.find((m) => m.name === "plays")?.value ?? null;
+    const insights = await insightsResp.json() as { data?: Array<{ name: string; values?: Array<{ value: number }>; value?: number }> };
+    const metric = insights.data?.find((m) => m.name === "plays") ?? insights.data?.find((m) => m.name === "video_views");
+    plays = metric?.values?.[0]?.value ?? metric?.value ?? null;
   }
 
   res.json({
