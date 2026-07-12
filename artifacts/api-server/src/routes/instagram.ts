@@ -229,34 +229,8 @@ router.get("/instagram/fresh-media", async (req, res): Promise<void> => {
     }
   }
 
-  // --- Strategy 2: Scrape og:video from the public Instagram page ---
-  try {
-    const pageResp = await fetch(`https://www.instagram.com/reel/${shortcode}/`, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
-        "Accept": "text/html,application/xhtml+xml",
-      },
-    });
-
-    if (pageResp.ok) {
-      const html = await pageResp.text();
-      // og:video:secure_url is the MP4 source; og:video is sometimes the same
-      const videoMatch = html.match(/og:video(?::secure_url)?[^>]*content="([^"]+\.mp4[^"]*)"/i)
-        ?? html.match(/og:video[^>]*content="([^"]+)"/i);
-      const imageMatch = html.match(/og:image[^>]*content="([^"]+)"/i);
-
-      const mediaUrl   = videoMatch ? videoMatch[1].replace(/&amp;/g, "&") : null;
-      const thumbUrl   = imageMatch ? imageMatch[1].replace(/&amp;/g, "&") : null;
-
-      if (mediaUrl) {
-        res.json({ mediaUrl, thumbnailUrl: thumbUrl });
-        return;
-      }
-    }
-  } catch {
-    // fall through
-  }
-
+  // Instagram does not expose og:video in their page HTML — CDN video URLs
+  // for other accounts' content are not obtainable without a third-party service.
   res.json({ mediaUrl: null, thumbnailUrl: null });
 });
 

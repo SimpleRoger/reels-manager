@@ -43,9 +43,11 @@ export function InlinePlayer({ mediaUrl, thumbnailUrl, instagramUrl, onClose, cl
     }
   }, [mediaUrl, freshMediaUrl, videoFailed]);
 
-  // When CDN video fails on an Instagram URL, try to get a fresh media URL from Graph API
+  // Try Graph API for a fresh media URL when:
+  // (a) there's no stored media URL at all, OR (b) the stored URL expired and video failed
   useEffect(() => {
-    if (videoFailed && !isTikTok(instagramUrl) && instagramUrl && !freshFetchDone) {
+    const needsFresh = !mediaUrl || videoFailed;
+    if (needsFresh && !isTikTok(instagramUrl) && instagramUrl && !freshFetchDone) {
       setFreshFetchDone(true);
       fetch(`${API_BASE}/api/instagram/fresh-media?url=${encodeURIComponent(instagramUrl)}`)
         .then((r) => r.json())
@@ -54,7 +56,7 @@ export function InlinePlayer({ mediaUrl, thumbnailUrl, instagramUrl, onClose, cl
         })
         .catch(() => {});
     }
-  }, [videoFailed, instagramUrl, freshFetchDone]);
+  }, [mediaUrl, videoFailed, instagramUrl, freshFetchDone]);
 
   // When CDN video fails and the source is TikTok, resolve the embed URL server-side
   useEffect(() => {
