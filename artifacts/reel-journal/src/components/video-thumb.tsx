@@ -1,20 +1,18 @@
 import { useEffect, useState } from "react";
 import { Play } from "lucide-react";
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+// API server base — needed for proxy/fresh-thumbnail calls.
+// VITE_API_URL is set in production; falls back to same-origin for local dev.
+const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/+$/, "");
 
 function proxyUrl(url: string) {
-  if (url.startsWith("data:") || url.startsWith("/api/")) return `${BASE}${url}`;
-  return `${BASE}/api/media-proxy?url=${encodeURIComponent(url)}`;
+  if (url.startsWith("data:")) return url;
+  return `${API_BASE}/api/media-proxy?url=${encodeURIComponent(url)}`;
 }
 
 function extractShortcode(permalink?: string | null): string | null {
   if (!permalink) return null;
   return permalink.match(/instagram\.com\/(?:reel|p)\/([A-Za-z0-9_-]+)/)?.[1] ?? null;
-}
-
-function extractInstagramId(permalink?: string | null): string | null {
-  return extractShortcode(permalink);
 }
 
 function isTikTok(permalink?: string | null): boolean {
@@ -28,9 +26,7 @@ function isInstagram(permalink?: string | null): boolean {
 interface VideoThumbProps {
   thumbnailUrl?: string | null;
   videoUrl?: string | null;
-  /** Source URL (reel permalink / TikTok URL) — used to fetch a fresh thumbnail when CDN expires */
   permalink?: string | null;
-  /** Instagram media ID — used to refresh thumbnail via Graph API when CDN URL expires */
   instagramId?: string | null;
   className?: string;
 }
@@ -45,7 +41,7 @@ function initialStage(thumbnailUrl?: string | null, videoUrl?: string | null): S
 
 /**
  * Shows a thumbnail for a reel/TikTok. Fallback chain:
- *  1. Proxied CDN thumbnailUrl  (fast, breaks when CDN URL expires)
+ *  1. Direct CDN thumbnailUrl  (fast, img loads without proxy — no CORS issues)
  *  2. Fresh thumbnail via Graph API refresh (Instagram only — updates DB too)
  *  3. First video frame captured from proxied videoUrl
  *  4. Dark placeholder with play icon
@@ -62,10 +58,10 @@ export function VideoThumb({ thumbnailUrl, videoUrl, permalink, instagramId, cla
   }, [thumbnailUrl, videoUrl, permalink, instagramId]);
 
   const handleThumbError = () => {
-    // For Instagram reels, fetch a fresh URL from Graph API (updates DB too)
-    const id = instagramId ?? (permalink ? extractInstagramId(permalink) : null);
-    if (id && isInstagram(permalink ?? "")) {
-      fetch(`${BASE}/api/instagram/fresh-thumbnail/${encodeURIComponent(id)}`)
+    const id = instagramId;
+    if (id && (isInstagram(permalink) || id.match(/^\d+$/))) {
+      // Fetch a fresh thumbnail URL from the Graph API
+      fetch(`${API_BASE}/api/instagram/fresh-thumbnail/${encodeURIComponent(id)}`)
         .then((r) => r.json())
         .then((data: { thumbnailUrl?: string | null }) => {
           if (data.thumbnailUrl) {
@@ -77,8 +73,7 @@ export function VideoThumb({ thumbnailUrl, videoUrl, permalink, instagramId, cla
         })
         .catch(() => setStage(videoUrl ? "video" : "failed"));
     } else if (isTikTok(permalink)) {
-      // For TikTok, fall through to og:image scrape via the existing thumbnail endpoint
-      const url = `${BASE}/api/instagram/thumbnail?url=${encodeURIComponent(permalink!)}`;
+      const url = `${API_BASE}/api/instagram/thumbnail?url=${encodeURIComponent(permalink!)}`;
       setFreshUrl(url);
       setStage("graph-api");
     } else {
@@ -86,31 +81,31 @@ export function VideoThumb({ thumbnailUrl, videoUrl, permalink, instagramId, cla
     }
   };
 
-  // Stage 1: try proxied CDN thumbnail
+  // Stage 1: load CDN thumbnail directly (no proxy — <img> doesn't need CORS)
   if (stage === "thumb" && thumbnailUrl) {
     return (
       <img
-        src={proxyUrl(thumbnailUrl)}
-        alt="thumbnail"
+        src={thumbnailUrl}
+        alt=""
         className={`w-full h-full object-cover ${className}`}
         onError={handleThumbError}
       />
     );
   }
 
-  // Stage 2: fresh URL from Graph API (or TikTok og:image)
+  // Stage 2: fresh URL from Graph API
   if (stage === "graph-api" && freshUrl) {
     return (
       <img
-        src={proxyUrl(freshUrl)}
-        alt="thumbnail"
+        src={freshUrl}
+        alt=""
         className={`w-full h-full object-cover ${className}`}
         onError={() => setStage(videoUrl ? "video" : "failed")}
       />
     );
   }
 
-  // Stage 3: capture first frame from proxied video
+  // Stage 3: capture first frame from proxied video (needs proxy for CORS/canvas)
   if (stage === "video" && videoUrl) {
     return <VideoFrameCapture videoUrl={videoUrl} className={className} onFail={() => setStage("failed")} onCapture={setFrameUrl} frameUrl={frameUrl} />;
   }
@@ -171,7 +166,7 @@ function VideoFrameCapture({ videoUrl, frameUrl, onCapture, onFail, className = 
   }, [videoUrl]);
 
   if (frameUrl) {
-    return <img src={frameUrl} alt="thumbnail" className={`w-full h-full object-cover ${className}`} />;
+    return <img src={frameUrl} alt="" className={`w-full h-full object-cover ${className}`} />;
   }
 
   return <div className={`w-full h-full bg-zinc-900 animate-pulse ${className}`} />;

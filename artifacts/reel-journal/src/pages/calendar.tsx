@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type AccountType = "ig_reel" | "clothing" | "dancing";
+type AccountType = "ig_reel" | "clothing";
 type Status = "idea" | "filmed" | "edited" | "posted";
 
 interface CalendarPost {
@@ -50,12 +50,6 @@ const ACCOUNT_CONFIG: Record<AccountType, { label: string; color: string; bg: st
     bg: "bg-violet-500/15",
     border: "border-violet-500/30",
   },
-  dancing: {
-    label: "Dancing",
-    color: "text-rose-400",
-    bg: "bg-rose-500/15",
-    border: "border-rose-500/30",
-  },
 };
 
 const STATUS_CONFIG: Record<Status, { label: string; color: string }> = {
@@ -68,18 +62,18 @@ const STATUS_CONFIG: Record<Status, { label: string; color: string }> = {
 // Recurring schedule: day of week (0=Sun) → account type
 const SCHEDULE: Record<number, AccountType> = {
   0: "ig_reel",   // Sun
-  1: "dancing",   // Mon
+  1: "ig_reel",   // Mon
   2: "ig_reel",   // Tue
-  3: "dancing",   // Wed
+  3: "ig_reel",   // Wed
   4: "clothing",  // Thu
   5: "ig_reel",   // Fri (trial reel)
   6: "clothing",  // Sat
 };
 
 const SCHEDULE_ITEMS = [
-  { day: "Mon", type: "dancing" as AccountType },
+  { day: "Mon", type: "ig_reel" as AccountType },
   { day: "Tue", type: "ig_reel" as AccountType },
-  { day: "Wed", type: "dancing" as AccountType },
+  { day: "Wed", type: "ig_reel" as AccountType },
   { day: "Thu", type: "clothing" as AccountType },
   { day: "Fri", type: "ig_reel" as AccountType, label: "Trial Reel" },
   { day: "Sat", type: "clothing" as AccountType },
@@ -276,7 +270,6 @@ function DetailModal({ post, onClose, onSave, onDelete }: DetailModalProps) {
               >
                 <option value="ig_reel">IG Reel</option>
                 <option value="clothing">Clothing</option>
-                <option value="dancing">Dancing</option>
               </select>
             </div>
             <div>

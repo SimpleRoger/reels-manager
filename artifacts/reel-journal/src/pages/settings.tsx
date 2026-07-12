@@ -13,7 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Instagram, RefreshCw, AlertCircle, ExternalLink, Info, MessageSquare, Key, Zap, Trash2, Plus } from "lucide-react";
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/+$/, "");
 
 const connectSchema = z.object({
   username: z.string().min(1, "Instagram username is required"),
@@ -54,7 +54,7 @@ export default function Settings() {
   const fetchAccounts = useCallback(async () => {
     try {
       setAccountsLoading(true);
-      const r = await fetch(`${BASE}/api/instagram/accounts`);
+      const r = await fetch(`${API_BASE}/api/instagram/accounts`);
       const data = await r.json() as InstagramAccount[];
       setAccounts(Array.isArray(data) ? data : []);
     } catch {
@@ -82,7 +82,7 @@ export default function Settings() {
   async function handleAccountSync(id: number) {
     setSyncingId(id);
     try {
-      const r = await fetch(`${BASE}/api/instagram/account/${id}/sync`, { method: "POST" });
+      const r = await fetch(`${API_BASE}/api/instagram/account/${id}/sync`, { method: "POST" });
       const data = await r.json() as { message?: string; error?: string };
       if (!r.ok) throw new Error(data.error ?? "Sync failed");
       toast({ title: "Sync complete", description: data.message });
@@ -98,7 +98,7 @@ export default function Settings() {
     if (!confirm(`Remove @${username}? Their reels will stay in the database.`)) return;
     setDeletingId(id);
     try {
-      await fetch(`${BASE}/api/instagram/account/${id}`, { method: "DELETE" });
+      await fetch(`${API_BASE}/api/instagram/account/${id}`, { method: "DELETE" });
       toast({ title: `@${username} disconnected` });
       fetchAccounts();
       queryClient.invalidateQueries({ queryKey: getGetInstagramStatusQueryKey() });
@@ -112,7 +112,7 @@ export default function Settings() {
   async function onPageTokenSubmit(values: z.infer<typeof pageTokenSchema>) {
     setPageTokenLoading(true);
     try {
-      const r = await fetch(`${BASE}/api/dm-importer/page-token`, {
+      const r = await fetch(`${API_BASE}/api/dm-importer/page-token`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pageAccessToken: values.pageAccessToken }),

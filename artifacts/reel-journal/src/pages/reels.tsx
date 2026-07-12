@@ -260,10 +260,10 @@ export default function ReelsLog() {
   const [accounts, setAccounts] = useState<InstagramAccount[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<number | undefined>(undefined);
 
-  const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+  const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/+$/, "");
 
   useEffect(() => {
-    fetch(`${BASE}/api/instagram/accounts`)
+    fetch(`${API_BASE}/api/instagram/accounts`)
       .then(r => r.json())
       .then((data: InstagramAccount[]) => setAccounts(Array.isArray(data) ? data : []))
       .catch(() => setAccounts([]));
