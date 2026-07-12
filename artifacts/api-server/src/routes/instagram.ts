@@ -473,13 +473,17 @@ router.get("/instagram/my-stats", async (req, res): Promise<void> => {
 
   // Fetch play count via insights
   let plays: number | null = null;
+  let insightsDebug: unknown = null;
   const insightsResp = await fetch(
     `${base}/${item.id}/insights?metric=plays,video_views&access_token=${token}`
   ).catch(() => null);
-  if (insightsResp?.ok) {
-    const insights = await insightsResp.json() as { data?: Array<{ name: string; values?: Array<{ value: number }>; value?: number }> };
-    const metric = insights.data?.find((m) => m.name === "plays") ?? insights.data?.find((m) => m.name === "video_views");
-    plays = metric?.values?.[0]?.value ?? metric?.value ?? null;
+  if (insightsResp) {
+    insightsDebug = await insightsResp.json();
+    if (insightsResp.ok) {
+      const insights = insightsDebug as { data?: Array<{ name: string; values?: Array<{ value: number }>; value?: number }> };
+      const metric = insights.data?.find((m) => m.name === "plays") ?? insights.data?.find((m) => m.name === "video_views");
+      plays = metric?.values?.[0]?.value ?? metric?.value ?? null;
+    }
   }
 
   res.json({
@@ -490,6 +494,7 @@ router.get("/instagram/my-stats", async (req, res): Promise<void> => {
     plays,
     likes: item.like_count ?? null,
     comments: item.comments_count ?? null,
+    _insightsDebug: insightsDebug,
   });
 });
 
