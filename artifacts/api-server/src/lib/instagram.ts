@@ -158,8 +158,12 @@ export async function fetchMediaInsights(mediaId: string, accessToken: string): 
     return insights;
   };
 
+  const insightsBase = accessToken.startsWith("IGAA")
+    ? "https://graph.instagram.com/v21.0"
+    : INSTAGRAM_GRAPH_API;
+
   const fetchMetrics = async (metricList: string): Promise<InsightMetric[] | null> => {
-    const url = `${INSTAGRAM_GRAPH_API}/${mediaId}/insights?metric=${metricList}&access_token=${accessToken}`;
+    const url = `${insightsBase}/${mediaId}/insights?metric=${metricList}&access_token=${accessToken}`;
     const resp = await fetch(url);
     if (!resp.ok) {
       const body = await resp.json().catch(() => ({})) as InsightResponse;
