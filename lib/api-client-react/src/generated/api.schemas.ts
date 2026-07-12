@@ -37,6 +37,16 @@ export interface InstagramStatus {
   lastSynced: string | null;
 }
 
+export interface InstagramAccount {
+  id: number;
+  username: string;
+  /** @nullable */
+  accountId: string | null;
+  hasToken: boolean;
+  /** @nullable */
+  lastSynced: string | null;
+}
+
 export interface SyncResult {
   synced: number;
   total: number;
@@ -498,6 +508,8 @@ export type ListReelsParams = {
   tags?: string;
   limit?: number;
   offset?: number;
+  /** Filter reels by account DB id */
+  accountId?: number;
 };
 
 export type ListReelsSortBy =

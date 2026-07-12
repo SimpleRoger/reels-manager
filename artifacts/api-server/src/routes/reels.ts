@@ -46,6 +46,7 @@ router.get("/reels", async (req, res): Promise<void> => {
   }
 
   const { sortBy = "createdAt", sortOrder = "desc", limit = 20, offset = 0, tags } = query.data;
+  const accountId = req.query["accountId"] ? parseInt(req.query["accountId"] as string, 10) : undefined;
 
   const columnMap: Record<string, typeof reelsTable.createdAt> = {
     createdAt: reelsTable.createdAt,
@@ -62,18 +63,27 @@ router.get("/reels", async (req, res): Promise<void> => {
 
   let baseQuery = db.select().from(reelsTable).$dynamic();
 
+  const conditions = [];
   if (tags) {
     const tagList = tags.split(",").map((t) => t.trim()).filter(Boolean);
     if (tagList.length > 0) {
-      baseQuery = baseQuery.where(
-        sql`${reelsTable.tags} && ARRAY[${sql.join(tagList.map(t => sql`${t}`), sql`, `)}]::text[]`
-      );
+      conditions.push(sql`${reelsTable.tags} && ARRAY[${sql.join(tagList.map(t => sql`${t}`), sql`, `)}]::text[]`);
     }
+  }
+  if (accountId && !isNaN(accountId)) {
+    conditions.push(eq(reelsTable.accountId, accountId));
+  }
+  if (conditions.length > 0) {
+    baseQuery = baseQuery.where(conditions.length === 1 ? conditions[0] : and(...conditions));
   }
 
   const reels = await baseQuery.orderBy(orderFn(sortColumn)).limit(limit).offset(offset);
 
-  const totalResult = await db.select({ count: count() }).from(reelsTable);
+  const countQuery = db.select({ count: count() }).from(reelsTable).$dynamic();
+  if (conditions.length > 0) {
+    countQuery.where(conditions.length === 1 ? conditions[0] : and(...conditions));
+  }
+  const totalResult = await countQuery;
   const total = Number(totalResult[0]?.count ?? 0);
 
   res.json({ reels: reels.map(formatReel), total });

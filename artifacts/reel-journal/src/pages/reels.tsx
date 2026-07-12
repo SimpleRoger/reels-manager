@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   useListReels,
   getListReelsQueryKey,
   useAnalyzeReelLoudness,
   useAnalyzeAllLoudness,
 } from "@workspace/api-client-react";
+import type { InstagramAccount } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { formatNumber, formatDate } from "@/lib/format";
 import { StatusBadge } from "@/components/status-badge";
@@ -256,23 +257,63 @@ export default function ReelsLog() {
   const [sortOrder, setSortOrder] = useState<ListReelsSortOrder>("desc");
   const [playingId, setPlayingId] = useState<number | null>(null);
   const [viewMode, setViewMode]   = useState<ViewMode>("grid");
+  const [accounts, setAccounts] = useState<InstagramAccount[]>([]);
+  const [selectedAccountId, setSelectedAccountId] = useState<number | undefined>(undefined);
+
+  const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+  useEffect(() => {
+    fetch(`${BASE}/api/instagram/accounts`)
+      .then(r => r.json())
+      .then((data: InstagramAccount[]) => setAccounts(Array.isArray(data) ? data : []))
+      .catch(() => setAccounts([]));
+  }, []);
 
   const queryClient = useQueryClient();
-  const qKey = getListReelsQueryKey({ sortBy, sortOrder, limit: 500 });
+  const params = { sortBy, sortOrder, limit: 500, ...(selectedAccountId ? { accountId: selectedAccountId } : {}) };
+  const qKey = getListReelsQueryKey(params);
 
-  const { data, isLoading } = useListReels({ sortBy, sortOrder, limit: 500 }, {
+  const { data, isLoading } = useListReels(params, {
     query: { queryKey: qKey },
   });
 
-  const refresh = () => queryClient.invalidateQueries({ queryKey: getListReelsQueryKey({ sortBy, sortOrder, limit: 500 }) });
+  const refresh = () => queryClient.invalidateQueries({ queryKey: qKey });
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       {/* header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-        <div className="space-y-1">
+        <div className="space-y-2">
           <h1 className="text-3xl font-bold tracking-tight">Reels Log</h1>
           <p className="text-muted-foreground text-sm">Your complete content history.</p>
+          {/* Account filter tabs — only shown when multiple accounts exist */}
+          {accounts.length > 1 && (
+            <div className="flex items-center gap-1.5 flex-wrap pt-1">
+              <button
+                onClick={() => setSelectedAccountId(undefined)}
+                className={`px-3 py-1 rounded-full text-xs font-mono transition-colors ${
+                  selectedAccountId === undefined
+                    ? "bg-primary text-black"
+                    : "bg-card border border-border text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                All
+              </button>
+              {accounts.map(a => (
+                <button
+                  key={a.id}
+                  onClick={() => setSelectedAccountId(a.id)}
+                  className={`px-3 py-1 rounded-full text-xs font-mono transition-colors ${
+                    selectedAccountId === a.id
+                      ? "bg-primary text-black"
+                      : "bg-card border border-border text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  @{a.username}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
