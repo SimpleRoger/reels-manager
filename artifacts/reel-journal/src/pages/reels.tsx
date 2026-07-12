@@ -384,7 +384,7 @@ export default function ReelsLog() {
             const isPlaying = playingId === reel.id;
             return (
               <Card key={reel.id} className="overflow-hidden bg-card hover:border-primary/50 transition-colors group cursor-pointer h-full flex flex-col hover-elevate">
-                <div className="aspect-[9/16] relative bg-muted border-b border-border">
+                <div className="aspect-[9/16] relative bg-muted border-b border-border overflow-hidden">
                   {isPlaying ? (
                     <InlinePlayer
                       mediaUrl={reel.mediaUrl}
