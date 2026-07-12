@@ -113,15 +113,35 @@ export function InlinePlayer({ mediaUrl, thumbnailUrl, instagramUrl, onClose, cl
           onError={() => setVideoFailed(true)}
         />
       ) : shortcode ? (
-        // Fallback: Instagram embed iframe
-        <iframe
-          src={`https://www.instagram.com/reel/${shortcode}/embed/`}
-          className="w-full h-full"
-          style={{ border: "none" }}
-          allowFullScreen
-          scrolling="no"
-          allow="autoplay; clipboard-write; encrypted-media; picture-in-picture"
-        />
+        // Fallback: Instagram embed with header/footer clipped via overflow:hidden
+        // so only the video content is visible (no Instagram UI chrome).
+        <div className="absolute inset-0 overflow-hidden">
+          <iframe
+            src={`https://www.instagram.com/reel/${shortcode}/embed/`}
+            style={{
+              border: "none",
+              position: "absolute",
+              top: "-56px",
+              left: 0,
+              width: "100%",
+              height: "calc(100% + 190px)",
+              pointerEvents: "auto",
+            }}
+            allowFullScreen
+            scrolling="no"
+            allow="autoplay; clipboard-write; encrypted-media; picture-in-picture"
+          />
+          {/* External link so users can still open in Instagram */}
+          <a
+            href={instagramUrl!}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="absolute bottom-2 right-2 z-10 flex items-center gap-1 bg-black/60 hover:bg-black/80 text-white/80 hover:text-white text-[10px] font-mono px-2 py-1 rounded-full transition-colors"
+          >
+            <ExternalLink className="w-2.5 h-2.5" /> Open in IG
+          </a>
+        </div>
       ) : tiktokEmbedUrl ? (
         // Fallback: TikTok embed iframe
         <iframe
