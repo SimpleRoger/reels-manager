@@ -24,8 +24,19 @@ export interface IGInsights {
 
 export async function verifyToken(accessToken: string): Promise<{ id: string; username: string } | null> {
   try {
-    // Tokens from Graph API Explorer are Facebook User Tokens — look up the linked
-    // Instagram Business/Creator account through the user's Facebook Pages.
+    // IGAA tokens — Instagram Business Login OAuth tokens
+    if (accessToken.startsWith("IGAA")) {
+      const resp = await fetch(
+        `https://graph.instagram.com/v21.0/me?fields=id,username&access_token=${accessToken}`
+      );
+      if (resp.ok) {
+        const data = await resp.json() as { id?: string; username?: string };
+        if (data.id && data.username) return { id: data.id, username: data.username };
+      }
+    }
+
+    // EAA tokens — Facebook User Tokens from Graph API Explorer
+    // Look up the linked Instagram Business Account through the user's Facebook Pages.
     const pagesResp = await fetch(
       `${INSTAGRAM_GRAPH_API}/me/accounts?fields=id,instagram_business_account{id,username}&access_token=${accessToken}`
     );
@@ -54,8 +65,10 @@ export interface IGUserProfile {
 
 export async function fetchUserProfile(accessToken: string, accountId = "me"): Promise<IGUserProfile | null> {
   try {
+    const base = accessToken.startsWith("IGAA") ? "https://graph.instagram.com/v21.0" : INSTAGRAM_GRAPH_API;
+    const id = accessToken.startsWith("IGAA") ? "me" : accountId;
     const resp = await fetch(
-      `${INSTAGRAM_GRAPH_API}/${accountId}?fields=id,username,followers_count,media_count,biography,account_type&access_token=${accessToken}`
+      `${base}/${id}?fields=id,username,followers_count,media_count,biography,account_type&access_token=${accessToken}`
     );
     if (!resp.ok) return null;
     const data = await resp.json() as {
@@ -87,13 +100,19 @@ export async function fetchUserMedia(accessToken: string, accountId = "me"): Pro
   const PAGE_SIZE = 100;
   const MAX_PAGES = 20; // safety cap — 2,000 posts max
 
+  // IGAA tokens use graph.instagram.com with /me/media
+  const base = accessToken.startsWith("IGAA")
+    ? "https://graph.instagram.com/v21.0"
+    : INSTAGRAM_GRAPH_API;
+  const id = accessToken.startsWith("IGAA") ? "me" : accountId;
+
   type PageResponse = {
     data?: IGMedia[];
     paging?: { cursors?: { after?: string }; next?: string };
   };
 
   const all: IGMedia[] = [];
-  let url: string | null = `${INSTAGRAM_GRAPH_API}/${accountId}/media?fields=${fields}&limit=${PAGE_SIZE}&access_token=${accessToken}`;
+  let url: string | null = `${base}/${id}/media?fields=${fields}&limit=${PAGE_SIZE}&access_token=${accessToken}`;
   let pages = 0;
 
   while (url && pages < MAX_PAGES) {
