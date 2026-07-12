@@ -28,6 +28,7 @@ interface VideoThumbProps {
   videoUrl?: string | null;
   permalink?: string | null;
   instagramId?: string | null;
+  referenceId?: number | null;
   className?: string;
 }
 
@@ -46,7 +47,7 @@ function initialStage(thumbnailUrl?: string | null, videoUrl?: string | null): S
  *  3. First video frame captured from proxied videoUrl
  *  4. Dark placeholder with play icon
  */
-export function VideoThumb({ thumbnailUrl, videoUrl, permalink, instagramId, className = "" }: VideoThumbProps) {
+export function VideoThumb({ thumbnailUrl, videoUrl, permalink, instagramId, referenceId, className = "" }: VideoThumbProps) {
   const [frameUrl, setFrameUrl] = useState<string | null>(null);
   const [freshUrl, setFreshUrl] = useState<string | null>(null);
   const [stage, setStage] = useState<Stage>(initialStage(thumbnailUrl, videoUrl));
@@ -60,11 +61,24 @@ export function VideoThumb({ thumbnailUrl, videoUrl, permalink, instagramId, cla
   const handleThumbError = () => {
     const id = instagramId;
     if (id && (isInstagram(permalink) || id.match(/^\d+$/))) {
-      // Fetch a fresh thumbnail URL from the Graph API
+      // Own reel — refresh via Graph API (has instagramId)
       fetch(`${API_BASE}/api/instagram/fresh-thumbnail/${encodeURIComponent(id)}`)
         .then((r) => r.json())
         .then((data: { thumbnailUrl?: string | null }) => {
           if (data.thumbnailUrl) {
+            setFreshUrl(data.thumbnailUrl);
+            setStage("graph-api");
+          } else {
+            setStage(videoUrl ? "video" : "failed");
+          }
+        })
+        .catch(() => setStage(videoUrl ? "video" : "failed"));
+    } else if (referenceId) {
+      // Saved reference — refresh thumbnail via snapsave (works for IG + TikTok)
+      fetch(`${API_BASE}/api/references/${referenceId}/refresh-thumbnail`, { method: "POST" })
+        .then((r) => r.ok ? r.json() : null)
+        .then((data: { thumbnailUrl?: string | null } | null) => {
+          if (data?.thumbnailUrl) {
             setFreshUrl(data.thumbnailUrl);
             setStage("graph-api");
           } else {

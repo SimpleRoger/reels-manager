@@ -202,9 +202,9 @@ router.post("/references/ingest", async (req, res): Promise<void> => {
   res.status(201).json(formatReference(ref));
 });
 
-// Scrape snapsave.app to get a direct video URL for any public Instagram reel.
-// The site returns obfuscated JS; we deobfuscate it server-side and extract the CDN URL.
-async function getSnapsaveVideoUrl(instagramUrl: string): Promise<string | null> {
+// Scrape snapsave.app to get direct video + thumbnail URLs for any public IG/TikTok reel.
+// Returns a server-proxied video URL and a base64 data URL thumbnail.
+async function getSnapsaveMedia(sourceUrl: string): Promise<{ videoUrl: string | null; thumbDataUrl: string | null }> {
   const resp = await fetch("https://snapsave.app/action.php?lang=en", {
     method: "POST",
     headers: {
@@ -213,48 +213,67 @@ async function getSnapsaveVideoUrl(instagramUrl: string): Promise<string | null>
       "Origin": "https://snapsave.app",
       "Referer": "https://snapsave.app/",
     },
-    body: `url=${encodeURIComponent(instagramUrl)}`,
+    body: `url=${encodeURIComponent(sourceUrl)}`,
   }).catch(() => null);
 
-  if (!resp?.ok) return null;
+  if (!resp?.ok) return { videoUrl: null, thumbDataUrl: null };
 
   const obfJs = await resp.text().catch(() => null);
-  if (!obfJs) return null;
+  if (!obfJs) return { videoUrl: null, thumbDataUrl: null };
 
   try {
     // Response is: [helper fns] eval(deobfuscator_call)
     // Splitting on 'eval(' lets us run only the pure deobfuscation step (no DOM APIs needed).
     // The deobfuscator returns an HTML string containing download links.
     const parts = obfJs.split("eval(");
-    if (parts.length < 2) return null;
+    if (parts.length < 2) return { videoUrl: null, thumbDataUrl: null };
 
     const helpers = parts[0];
     const inner = parts.slice(1).join("eval("); // 'func(args))' — trailing ) closes outer eval
     // eslint-disable-next-line no-eval
     const html: unknown = eval(`${helpers}; (${inner.slice(0, -1)})`);
-    if (typeof html !== "string") return null;
+    if (typeof html !== "string") return { videoUrl: null, thumbDataUrl: null };
 
-    // Find the video download link (d.rapidcdn.app/v2) — skip thumbnail (d.rapidcdn.app/thumb)
-    const matches = [...html.matchAll(/(https?:\/\/d\.rapidcdn\.app\/v2\?token=[^\s"'<>\\]+)/g)];
-    const proxyUrl = matches[0]?.[1];
-    if (!proxyUrl) return null;
-
-    // Decode the JWT to get the underlying Instagram CDN URL, then return it
-    // as a server-side proxy path so the browser avoids CORS restrictions.
-    try {
-      const token = new URL(proxyUrl).searchParams.get("token");
-      if (token) {
+    function decodeJwtUrl(rapidUrl: string): string | null {
+      try {
+        const token = new URL(rapidUrl).searchParams.get("token");
+        if (!token) return null;
         const payload = JSON.parse(Buffer.from(token.split(".")[1], "base64").toString());
-        if (typeof payload?.url === "string" && payload.url.startsWith("http")) {
-          return `/api/references/proxy-video?url=${encodeURIComponent(payload.url)}`;
-        }
-      }
-    } catch { /* fall through */ }
+        return typeof payload?.url === "string" && payload.url.startsWith("http") ? payload.url : null;
+      } catch { return null; }
+    }
 
-    return null;
+    // Video: d.rapidcdn.app/v2
+    const videoMatches = [...html.matchAll(/(https?:\/\/d\.rapidcdn\.app\/v2\?token=[^\s"'<>\\]+)/g)];
+    const videoCdnUrl = videoMatches[0]?.[1] ? decodeJwtUrl(videoMatches[0][1]) : null;
+    const videoUrl = videoCdnUrl ? `/api/references/proxy-video?url=${encodeURIComponent(videoCdnUrl)}` : null;
+
+    // Thumbnail: d.rapidcdn.app/thumb — download and store as permanent base64 data URL
+    const thumbMatches = [...html.matchAll(/(https?:\/\/d\.rapidcdn\.app\/thumb\?token=[^\s"'<>\\]+)/g)];
+    const thumbCdnUrl = thumbMatches[0]?.[1] ? decodeJwtUrl(thumbMatches[0][1]) : null;
+    let thumbDataUrl: string | null = null;
+    if (thumbCdnUrl) {
+      try {
+        const imgResp = await fetch(thumbCdnUrl, {
+          headers: { "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15" },
+        });
+        if (imgResp.ok) {
+          const buf = Buffer.from(await imgResp.arrayBuffer());
+          const mime = imgResp.headers.get("content-type")?.split(";")[0] ?? "image/jpeg";
+          thumbDataUrl = `data:${mime};base64,${buf.toString("base64")}`;
+        }
+      } catch { /* skip thumbnail */ }
+    }
+
+    return { videoUrl, thumbDataUrl };
   } catch {
-    return null;
+    return { videoUrl: null, thumbDataUrl: null };
   }
+}
+
+async function getSnapsaveVideoUrl(sourceUrl: string): Promise<string | null> {
+  const { videoUrl } = await getSnapsaveMedia(sourceUrl);
+  return videoUrl;
 }
 
 // Proxy an Instagram CDN video through the server to avoid browser CORS restrictions.
@@ -343,6 +362,30 @@ router.get("/references/video-url", async (req, res): Promise<void> => {
   }
 
   res.status(404).json({ error: "Could not retrieve video URL" });
+});
+
+// Fast thumbnail refresh using snapsave — no Apify needed, updates DB and returns data URL.
+router.post("/references/:id/refresh-thumbnail", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).end(); return; }
+
+  const [ref] = await db
+    .select({ url: savedReferencesTable.url })
+    .from(savedReferencesTable)
+    .where(eq(savedReferencesTable.id, id))
+    .limit(1);
+
+  if (!ref) { res.status(404).end(); return; }
+
+  const { thumbDataUrl } = await getSnapsaveMedia(ref.url);
+  if (!thumbDataUrl) { res.status(502).json({ error: "Could not fetch thumbnail" }); return; }
+
+  await db
+    .update(savedReferencesTable)
+    .set({ thumbnailUrl: thumbDataUrl })
+    .where(eq(savedReferencesTable.id, id));
+
+  res.json({ thumbnailUrl: thumbDataUrl });
 });
 
 // Re-run Apify on ALL saved references to refresh expired CDN URLs

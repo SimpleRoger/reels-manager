@@ -103,9 +103,12 @@ async function runInstagramScraper(url: string): Promise<ResolvedMedia | null> {
 
   logger.info({ runId, hasVideo: !!item.videoUrl }, "Apify scrape complete");
 
+  const rawThumb: string | null = item.displayUrl ?? item.thumbnailUrl ?? null;
+  const thumbnailUrl = rawThumb ? await toDataUrl(rawThumb) : null;
+
   return {
     mediaUrl: item.videoUrl ?? null,
-    thumbnailUrl: item.displayUrl ?? item.thumbnailUrl ?? null,
+    thumbnailUrl,
     videoViewCount: item.videoViewCount ?? item.videoPlayCount ?? null,
     commentsCount: item.commentsCount ?? null,
     likesCount: item.likesCount ?? item.likesCountFull ?? null,
