@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState } from "react";
 import { X, ExternalLink } from "lucide-react";
 
-const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/+$/, "");
 
 interface InlinePlayerProps {
   mediaUrl?: string | null;
@@ -23,25 +23,43 @@ function isTikTok(url?: string | null): boolean {
 export function InlinePlayer({ mediaUrl, thumbnailUrl, instagramUrl, onClose, className = "" }: InlinePlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoFailed, setVideoFailed] = useState(false);
+  const [freshMediaUrl, setFreshMediaUrl] = useState<string | null>(null);
+  const [freshFetchDone, setFreshFetchDone] = useState(false);
   const [tiktokEmbedUrl, setTiktokEmbedUrl] = useState<string | null>(null);
   const [tiktokResolveFailed, setTiktokResolveFailed] = useState(false);
 
   useEffect(() => {
     setVideoFailed(false);
+    setFreshMediaUrl(null);
+    setFreshFetchDone(false);
     setTiktokEmbedUrl(null);
     setTiktokResolveFailed(false);
-  }, [mediaUrl]);
+  }, [mediaUrl, instagramUrl]);
 
   useEffect(() => {
-    if (videoRef.current && mediaUrl && !videoFailed) {
+    const url = freshMediaUrl ?? mediaUrl;
+    if (videoRef.current && url && !videoFailed) {
       videoRef.current.play().catch(() => {});
     }
-  }, [mediaUrl, videoFailed]);
+  }, [mediaUrl, freshMediaUrl, videoFailed]);
+
+  // When CDN video fails on an Instagram URL, try to get a fresh media URL from Graph API
+  useEffect(() => {
+    if (videoFailed && !isTikTok(instagramUrl) && instagramUrl && !freshFetchDone) {
+      setFreshFetchDone(true);
+      fetch(`${API_BASE}/api/instagram/fresh-media?url=${encodeURIComponent(instagramUrl)}`)
+        .then((r) => r.json())
+        .then((d: { mediaUrl?: string }) => {
+          if (d.mediaUrl) setFreshMediaUrl(d.mediaUrl);
+        })
+        .catch(() => {});
+    }
+  }, [videoFailed, instagramUrl, freshFetchDone]);
 
   // When CDN video fails and the source is TikTok, resolve the embed URL server-side
   useEffect(() => {
     if (videoFailed && isTikTok(instagramUrl) && !tiktokEmbedUrl && !tiktokResolveFailed) {
-      fetch(`${BASE}/api/references/tiktok-embed?url=${encodeURIComponent(instagramUrl!)}`)
+      fetch(`${API_BASE}/api/references/tiktok-embed?url=${encodeURIComponent(instagramUrl!)}`)
         .then((r) => r.json())
         .then((d: { embedUrl?: string }) => {
           if (d.embedUrl) setTiktokEmbedUrl(d.embedUrl);
@@ -52,7 +70,8 @@ export function InlinePlayer({ mediaUrl, thumbnailUrl, instagramUrl, onClose, cl
   }, [videoFailed, instagramUrl]);
 
   const shortcode = extractShortcode(instagramUrl);
-  const useDirectVideo = mediaUrl && !videoFailed;
+  const activeMediaUrl = freshMediaUrl ?? mediaUrl;
+  const useDirectVideo = activeMediaUrl && (!videoFailed || freshMediaUrl);
 
   return (
     <div className={`relative bg-black w-full h-full ${className}`}>
@@ -66,7 +85,7 @@ export function InlinePlayer({ mediaUrl, thumbnailUrl, instagramUrl, onClose, cl
       {useDirectVideo ? (
         <video
           ref={videoRef}
-          src={mediaUrl}
+          src={activeMediaUrl!}
           poster={thumbnailUrl ?? undefined}
           controls
           playsInline

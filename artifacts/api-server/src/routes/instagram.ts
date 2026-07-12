@@ -171,6 +171,64 @@ router.post("/instagram/dedup", async (_req, res): Promise<void> => {
   res.json({ deleted, message: `Removed ${deleted} duplicate reels` });
 });
 
+// Decode an Instagram shortcode (e.g. from a permalink) to its numeric media ID.
+// Instagram shortcodes are base64url-encoded big integers.
+function shortcodeToId(shortcode: string): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+  let id = BigInt(0);
+  for (const char of shortcode) {
+    const idx = chars.indexOf(char);
+    if (idx !== -1) id = id * BigInt(64) + BigInt(idx);
+  }
+  return id.toString();
+}
+
+// Fetch fresh media_url + thumbnail_url from Graph API given a permalink URL.
+// Called by the inline player when the stored CDN URL has expired.
+router.get("/instagram/fresh-media", async (req, res): Promise<void> => {
+  const url = req.query["url"];
+  if (typeof url !== "string") {
+    res.status(400).json({ error: "url query parameter required" });
+    return;
+  }
+
+  const shortcode = url.match(/instagram\.com\/(?:reel|p)\/([A-Za-z0-9_-]+)/)?.[1];
+  if (!shortcode) {
+    res.status(400).json({ error: "Could not extract shortcode from URL" });
+    return;
+  }
+
+  const accounts = await db.select().from(instagramAccountsTable).limit(1);
+  const token = accounts[0]?.accessToken;
+  if (!token) {
+    res.status(400).json({ error: "No access token available" });
+    return;
+  }
+
+  const numericId = shortcodeToId(shortcode);
+  const base = token.startsWith("IGAA") ? "https://graph.instagram.com/v21.0" : "https://graph.facebook.com/v21.0";
+  const resp = await fetch(`${base}/${numericId}?fields=thumbnail_url,media_url&access_token=${token}`);
+
+  if (!resp.ok) {
+    res.status(502).json({ error: "Graph API error" });
+    return;
+  }
+
+  const data = await resp.json() as { thumbnail_url?: string; media_url?: string };
+
+  // Persist fresh URLs back to our reels table if we have this reel
+  if (data.thumbnail_url || data.media_url) {
+    await db.update(reelsTable)
+      .set({
+        ...(data.thumbnail_url ? { thumbnailUrl: data.thumbnail_url } : {}),
+        ...(data.media_url    ? { mediaUrl:    data.media_url }    : {}),
+      })
+      .where(eq(reelsTable.instagramId, numericId));
+  }
+
+  res.json({ mediaUrl: data.media_url ?? null, thumbnailUrl: data.thumbnail_url ?? null });
+});
+
 // Refresh a fresh thumbnail URL for a reel using the Graph API token.
 // Called when the stored CDN URL has expired (they expire within hours).
 router.get("/instagram/fresh-thumbnail/:instagramId", async (req, res): Promise<void> => {
