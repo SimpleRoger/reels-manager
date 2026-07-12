@@ -309,22 +309,23 @@ router.get("/references/video-url", async (req, res): Promise<void> => {
   const ytdlpBase = process.env.YTDLP_API_URL?.replace(/\/+$/, "");
   const cobaltBase = process.env.COBALT_API_URL?.replace(/\/+$/, "");
 
-  // For Instagram: snapsave first — no cookies needed, returns a stable proxy URL
-  if (isInstagram) {
-    const snapsaveUrl = await getSnapsaveVideoUrl(url);
-    if (snapsaveUrl) { res.json({ videoUrl: snapsaveUrl }); return; }
-  }
+  // snapsave first for all platforms — returns a stable server-proxied URL, no CDN auth issues
+  const snapsaveUrl = await getSnapsaveVideoUrl(url);
+  if (snapsaveUrl) { res.json({ videoUrl: snapsaveUrl }); return; }
 
-  // For TikTok (or Instagram fallback): try yt-dlp
+  // yt-dlp fallback — wrap raw CDN URLs in our proxy to avoid 403s in the browser
   if (ytdlpBase) {
     const ytResp = await fetch(`${ytdlpBase}/api/video-url?url=${encodeURIComponent(url)}`).catch(() => null);
     if (ytResp?.ok) {
       const d = await ytResp.json() as { videoUrl?: string };
-      if (d.videoUrl) { res.json({ videoUrl: d.videoUrl }); return; }
+      if (d.videoUrl) {
+        const proxied = `/api/references/proxy-video?url=${encodeURIComponent(d.videoUrl)}`;
+        res.json({ videoUrl: proxied }); return;
+      }
     }
   }
 
-  // Cobalt as last resort (TikTok only — its tunnel URLs expire too fast for Instagram)
+  // Cobalt as last resort (skip for Instagram — tunnel URLs expire too fast)
   if (cobaltBase && !isInstagram) {
     const cobaltResp = await fetch(cobaltBase, {
       method: "POST",
@@ -334,7 +335,10 @@ router.get("/references/video-url", async (req, res): Promise<void> => {
 
     if (cobaltResp?.ok) {
       const data = await cobaltResp.json() as { status: string; url?: string; error?: { code: string } };
-      if (data.url && data.status !== "error") { res.json({ videoUrl: data.url }); return; }
+      if (data.url && data.status !== "error") {
+        const proxied = `/api/references/proxy-video?url=${encodeURIComponent(data.url)}`;
+        res.json({ videoUrl: proxied }); return;
+      }
     }
   }
 
