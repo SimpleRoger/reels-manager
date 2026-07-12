@@ -294,7 +294,10 @@ function uploadToR2Background(referenceId: number, sourceUrl: string, videoCdnUr
       const updates: Record<string, string> = { mediaUrl: r2Url };
       if (thumbDataUrl) updates.thumbnailUrl = thumbDataUrl;
       await db.update(savedReferencesTable).set(updates).where(eq(savedReferencesTable.id, referenceId));
-    } catch { /* silently skip — proxy URL still works */ }
+      console.log(`[R2] Saved ${r2Url} for reference ${referenceId}`);
+    } catch (err) {
+      console.error(`[R2] Upload failed for reference ${referenceId}:`, err);
+    }
   })();
 }
 
@@ -354,11 +357,12 @@ router.get("/references/video-url", async (req, res): Promise<void> => {
   const { videoUrl: snapsaveUrl, thumbDataUrl, videoCdnUrl } = await getSnapsaveMedia(url);
   if (snapsaveUrl) {
     const refId = typeof req.query["referenceId"] === "string" ? parseInt(req.query["referenceId"], 10) : null;
-    // Persist thumbnail now (fast), kick off R2 video upload in background
     if (refId && !isNaN(refId)) {
-      if (thumbDataUrl) {
-        db.update(savedReferencesTable).set({ thumbnailUrl: thumbDataUrl }).where(eq(savedReferencesTable.id, refId)).catch(() => {});
-      }
+      // Save proxy URL + thumbnail to DB immediately so next page load skips snapsave
+      const immediateUpdate: Record<string, string> = { mediaUrl: snapsaveUrl };
+      if (thumbDataUrl) immediateUpdate.thumbnailUrl = thumbDataUrl;
+      db.update(savedReferencesTable).set(immediateUpdate).where(eq(savedReferencesTable.id, refId)).catch(() => {});
+      // Then upgrade to permanent R2 URL in background
       if (videoCdnUrl) uploadToR2Background(refId, url, videoCdnUrl, thumbDataUrl);
     }
     res.json({ videoUrl: snapsaveUrl, thumbnailUrl: thumbDataUrl }); return;
