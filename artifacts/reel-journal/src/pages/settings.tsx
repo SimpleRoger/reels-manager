@@ -2,7 +2,7 @@ import { useGetInstagramStatus, useSyncReels, useConnectInstagram, getGetInstagr
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { formatDateTime } from "@/lib/format";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -113,6 +113,20 @@ export default function Settings() {
 
   const hasToken = !!(status as { hasToken?: boolean })?.hasToken;
 
+  const apiUrl = import.meta.env.VITE_API_URL ?? "";
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("connected") === "true") {
+      toast({ title: "Instagram connected via OAuth ✓" });
+      queryClient.invalidateQueries({ queryKey: getGetInstagramStatusQueryKey() });
+      window.history.replaceState({}, "", window.location.pathname);
+    } else if (params.get("error")) {
+      toast({ title: "Instagram connection failed", description: params.get("error") ?? undefined, variant: "destructive" });
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
   return (
     <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in duration-500">
       <div className="space-y-1">
@@ -187,8 +201,20 @@ export default function Settings() {
             </div>
           )}
 
+          {/* OAuth connect button */}
+          <div className="pt-4 border-t border-border space-y-3">
+            <p className="text-sm font-medium">Connect via Instagram Login</p>
+            <a href={`${apiUrl}/auth/instagram`}>
+              <Button type="button" className="font-mono text-xs uppercase tracking-wider w-full flex items-center gap-2">
+                <Instagram className="w-4 h-4" /> Connect with Instagram
+              </Button>
+            </a>
+            <p className="text-xs text-muted-foreground">Securely connects your Instagram account. Works for any account.</p>
+          </div>
+
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 pt-4 border-t border-border">
+              <p className="text-sm font-medium text-muted-foreground">Or connect manually</p>
               <FormField
                 control={form.control}
                 name="username"

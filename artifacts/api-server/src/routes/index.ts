@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import healthRouter from "./health";
+import authRouter from "./auth";
 import instagramRouter from "./instagram";
 import dashboardRouter from "./dashboard";
 import reelsRouter from "./reels";
@@ -20,6 +21,7 @@ import publicRouter from "./public";
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use(authRouter);
 router.use(instagramRouter);
 router.use(dashboardRouter);
 router.use(reelsRouter);
