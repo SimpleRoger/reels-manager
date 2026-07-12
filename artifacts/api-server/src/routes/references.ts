@@ -202,9 +202,93 @@ router.post("/references/ingest", async (req, res): Promise<void> => {
   res.status(201).json(formatReference(ref));
 });
 
-// Proxy a Cobalt request server-side to get a playable video URL for any
-// public Instagram or TikTok reel. Set COBALT_API_URL env var to your
-// self-hosted instance (e.g. https://cobalt.up.railway.app).
+// Scrape snapsave.app to get a direct video URL for any public Instagram reel.
+// The site returns obfuscated JS; we deobfuscate it server-side and extract the CDN URL.
+async function getSnapsaveVideoUrl(instagramUrl: string): Promise<string | null> {
+  const resp = await fetch("https://snapsave.app/action.php?lang=en", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "Origin": "https://snapsave.app",
+      "Referer": "https://snapsave.app/",
+    },
+    body: `url=${encodeURIComponent(instagramUrl)}`,
+  }).catch(() => null);
+
+  if (!resp?.ok) return null;
+
+  const obfJs = await resp.text().catch(() => null);
+  if (!obfJs) return null;
+
+  try {
+    // Response is: [helper fns] eval(deobfuscator_call)
+    // Splitting on 'eval(' lets us run only the pure deobfuscation step (no DOM APIs needed).
+    // The deobfuscator returns an HTML string containing download links.
+    const parts = obfJs.split("eval(");
+    if (parts.length < 2) return null;
+
+    const helpers = parts[0];
+    const inner = parts.slice(1).join("eval("); // 'func(args))' — trailing ) closes outer eval
+    // eslint-disable-next-line no-eval
+    const html: unknown = eval(`${helpers}; (${inner.slice(0, -1)})`);
+    if (typeof html !== "string") return null;
+
+    // Find the video download link (d.rapidcdn.app/v2) — skip thumbnail (d.rapidcdn.app/thumb)
+    const matches = [...html.matchAll(/(https?:\/\/d\.rapidcdn\.app\/v2\?token=[^\s"'<>\\]+)/g)];
+    const proxyUrl = matches[0]?.[1];
+    if (!proxyUrl) return null;
+
+    // Decode the JWT to get the underlying Instagram CDN URL, then return it
+    // as a server-side proxy path so the browser avoids CORS restrictions.
+    try {
+      const token = new URL(proxyUrl).searchParams.get("token");
+      if (token) {
+        const payload = JSON.parse(Buffer.from(token.split(".")[1], "base64").toString());
+        if (typeof payload?.url === "string" && payload.url.startsWith("http")) {
+          return `/api/references/proxy-video?url=${encodeURIComponent(payload.url)}`;
+        }
+      }
+    } catch { /* fall through */ }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// Proxy an Instagram CDN video through the server to avoid browser CORS restrictions.
+// The client passes the raw CDN URL; we fetch it server-side and stream the bytes back.
+router.get("/references/proxy-video", async (req, res): Promise<void> => {
+  const url = req.query["url"];
+  if (typeof url !== "string" || !url.startsWith("http")) {
+    res.status(400).end(); return;
+  }
+
+  const upstream = await fetch(url, {
+    headers: {
+      "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15",
+      "Referer": "https://www.instagram.com/",
+    },
+  }).catch(() => null);
+
+  if (!upstream?.ok || !upstream.body) {
+    res.status(502).end(); return;
+  }
+
+  res.setHeader("Content-Type", upstream.headers.get("content-type") ?? "video/mp4");
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Cache-Control", "public, max-age=3600");
+
+  const contentLength = upstream.headers.get("content-length");
+  if (contentLength) res.setHeader("Content-Length", contentLength);
+
+  const { Readable } = await import("stream");
+  Readable.fromWeb(upstream.body as import("stream/web").ReadableStream).pipe(res);
+});
+
+// Returns a playable video URL for any public Instagram or TikTok reel.
+// Strategy order: yt-dlp (tubedl) → Cobalt → snapsave.app scrape
 router.get("/references/video-url", async (req, res): Promise<void> => {
   const url = req.query["url"];
   if (typeof url !== "string") {
@@ -212,15 +296,8 @@ router.get("/references/video-url", async (req, res): Promise<void> => {
     return;
   }
 
-  // YTDLP_API_URL → tubedl service (yt-dlp based, works for IG + TikTok)
-  // COBALT_API_URL → Cobalt service (fallback)
   const ytdlpBase = process.env.YTDLP_API_URL?.replace(/\/+$/, "");
   const cobaltBase = process.env.COBALT_API_URL?.replace(/\/+$/, "");
-
-  if (!ytdlpBase && !cobaltBase) {
-    res.status(503).json({ error: "No video URL service configured (set YTDLP_API_URL or COBALT_API_URL)" });
-    return;
-  }
 
   // Try yt-dlp first
   if (ytdlpBase) {
@@ -243,6 +320,12 @@ router.get("/references/video-url", async (req, res): Promise<void> => {
       const data = await cobaltResp.json() as { status: string; url?: string; error?: { code: string } };
       if (data.url && data.status !== "error") { res.json({ videoUrl: data.url }); return; }
     }
+  }
+
+  // Fall back to snapsave.app scrape (Instagram only)
+  if (url.includes("instagram.com")) {
+    const snapsaveUrl = await getSnapsaveVideoUrl(url);
+    if (snapsaveUrl) { res.json({ videoUrl: snapsaveUrl }); return; }
   }
 
   res.status(404).json({ error: "Could not retrieve video URL" });

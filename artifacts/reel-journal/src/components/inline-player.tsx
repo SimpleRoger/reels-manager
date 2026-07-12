@@ -65,7 +65,12 @@ export function InlinePlayer({ mediaUrl, thumbnailUrl, instagramUrl, onClose, cl
           const r = await fetch(`${API_BASE}/api/references/video-url?url=${encodeURIComponent(instagramUrl)}`);
           if (r.ok) {
             const d = await r.json() as { videoUrl?: string };
-            if (d.videoUrl) { setFreshMediaUrl(d.videoUrl); return; }
+            if (d.videoUrl) {
+              // Proxy paths are relative — prefix with API_BASE so they resolve correctly
+              const resolved = d.videoUrl.startsWith("/") ? `${API_BASE}${d.videoUrl}` : d.videoUrl;
+              setFreshMediaUrl(resolved);
+              return;
+            }
           }
         } catch { /* fall through to embed */ }
       };

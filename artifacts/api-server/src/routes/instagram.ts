@@ -207,10 +207,17 @@ router.get("/instagram/fresh-media", async (req, res): Promise<void> => {
     try {
       const numericId = shortcodeToId(shortcode);
       const base = token.startsWith("IGAA") ? "https://graph.instagram.com/v21.0" : "https://graph.facebook.com/v21.0";
-      const apiResp = await fetch(`${base}/${numericId}?fields=thumbnail_url,media_url&access_token=${token}`);
+      const fields = "media_url,thumbnail_url,permalink,media_product_type,media_type";
+      const apiResp = await fetch(`${base}/${numericId}?fields=${fields}&access_token=${token}`);
 
       if (apiResp.ok) {
-        const data = await apiResp.json() as { thumbnail_url?: string; media_url?: string };
+        const data = await apiResp.json() as {
+          media_url?: string;
+          thumbnail_url?: string;
+          permalink?: string;
+          media_product_type?: string;
+          media_type?: string;
+        };
         if (data.media_url) {
           // Persist fresh URL back to reels table if this is our own reel
           await db.update(reelsTable)
@@ -220,7 +227,13 @@ router.get("/instagram/fresh-media", async (req, res): Promise<void> => {
             })
             .where(eq(reelsTable.instagramId, numericId));
 
-          res.json({ mediaUrl: data.media_url, thumbnailUrl: data.thumbnail_url ?? null });
+          res.json({
+            mediaUrl: data.media_url,
+            thumbnailUrl: data.thumbnail_url ?? null,
+            permalink: data.permalink ?? null,
+            mediaProductType: data.media_product_type ?? null,
+            mediaType: data.media_type ?? null,
+          });
           return;
         }
       }
@@ -251,7 +264,8 @@ router.get("/instagram/fresh-thumbnail/:instagramId", async (req, res): Promise<
   }
 
   const base = token.startsWith("IGAA") ? "https://graph.instagram.com/v21.0" : "https://graph.facebook.com/v21.0";
-  const resp = await fetch(`${base}/${instagramId}?fields=thumbnail_url,media_url&access_token=${token}`);
+  const fields = "media_url,thumbnail_url,permalink,media_product_type,media_type";
+  const resp = await fetch(`${base}/${instagramId}?fields=${fields}&access_token=${token}`);
   if (!resp.ok) {
     res.status(502).json({ error: "Graph API error" });
     return;
