@@ -472,18 +472,14 @@ router.get("/instagram/my-stats", async (req, res): Promise<void> => {
   if (!item) { res.status(404).json({ error: "No media found" }); return; }
 
   // Fetch play count via insights
-  let plays: number | null = null;
-  let insightsDebug: unknown = null;
+  let views: number | null = null;
   const insightsResp = await fetch(
-    `${base}/${item.id}/insights?metric=plays,video_views&access_token=${token}`
+    `${base}/${item.id}/insights?metric=views,total_interactions&access_token=${token}`
   ).catch(() => null);
-  if (insightsResp) {
-    insightsDebug = await insightsResp.json();
-    if (insightsResp.ok) {
-      const insights = insightsDebug as { data?: Array<{ name: string; values?: Array<{ value: number }>; value?: number }> };
-      const metric = insights.data?.find((m) => m.name === "plays") ?? insights.data?.find((m) => m.name === "video_views");
-      plays = metric?.values?.[0]?.value ?? metric?.value ?? null;
-    }
+  if (insightsResp?.ok) {
+    const insights = await insightsResp.json() as { data?: Array<{ name: string; values?: Array<{ value: number }>; value?: number }> };
+    const metric = insights.data?.find((m) => m.name === "views");
+    views = metric?.values?.[0]?.value ?? metric?.value ?? null;
   }
 
   res.json({
@@ -491,10 +487,9 @@ router.get("/instagram/my-stats", async (req, res): Promise<void> => {
     permalink: item.permalink ?? null,
     caption: item.caption ? item.caption.slice(0, 120) : null,
     postedAt: item.timestamp ?? null,
-    plays,
+    views,
     likes: item.like_count ?? null,
     comments: item.comments_count ?? null,
-    _insightsDebug: insightsDebug,
   });
 });
 
