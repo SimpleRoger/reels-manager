@@ -212,35 +212,40 @@ router.get("/references/video-url", async (req, res): Promise<void> => {
     return;
   }
 
+  // YTDLP_API_URL → tubedl service (yt-dlp based, works for IG + TikTok)
+  // COBALT_API_URL → Cobalt service (fallback)
+  const ytdlpBase = process.env.YTDLP_API_URL?.replace(/\/+$/, "");
   const cobaltBase = process.env.COBALT_API_URL?.replace(/\/+$/, "");
-  if (!cobaltBase) {
-    res.status(503).json({ error: "COBALT_API_URL not configured" });
+
+  if (!ytdlpBase && !cobaltBase) {
+    res.status(503).json({ error: "No video URL service configured (set YTDLP_API_URL or COBALT_API_URL)" });
     return;
   }
 
-  const cobaltResp = await fetch(cobaltBase, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Accept": "application/json" },
-    body: JSON.stringify({ url }),
-  });
-
-  if (!cobaltResp.ok) {
-    res.status(502).json({ error: `Cobalt returned ${cobaltResp.status}` });
-    return;
+  // Try yt-dlp first
+  if (ytdlpBase) {
+    const ytResp = await fetch(`${ytdlpBase}/api/video-url?url=${encodeURIComponent(url)}`).catch(() => null);
+    if (ytResp?.ok) {
+      const d = await ytResp.json() as { videoUrl?: string };
+      if (d.videoUrl) { res.json({ videoUrl: d.videoUrl }); return; }
+    }
   }
 
-  const data = await cobaltResp.json() as {
-    status: string;
-    url?: string;
-    error?: { code: string };
-  };
+  // Fall back to Cobalt
+  if (cobaltBase) {
+    const cobaltResp = await fetch(cobaltBase, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify({ url }),
+    }).catch(() => null);
 
-  if (!data.url || data.status === "error") {
-    res.status(404).json({ error: data.error?.code ?? "no video URL returned" });
-    return;
+    if (cobaltResp?.ok) {
+      const data = await cobaltResp.json() as { status: string; url?: string; error?: { code: string } };
+      if (data.url && data.status !== "error") { res.json({ videoUrl: data.url }); return; }
+    }
   }
 
-  res.json({ videoUrl: data.url });
+  res.status(404).json({ error: "Could not retrieve video URL" });
 });
 
 // Re-run Apify on ALL saved references to refresh expired CDN URLs
