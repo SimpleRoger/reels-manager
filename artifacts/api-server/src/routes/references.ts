@@ -421,16 +421,37 @@ router.post("/references/:id/refresh-thumbnail", async (req, res): Promise<void>
   res.json({ thumbnailUrl: thumbDataUrl, videoUrl });
 });
 
-// Re-run Apify on ALL saved references to refresh expired CDN URLs
+// Fast thumbnail refresh for all references using snapsave (no Apify needed).
+// Runs up to 5 concurrent snapsave requests; responds immediately and processes in background.
 router.post("/references/refresh-all", async (req, res): Promise<void> => {
-  const refs = await db.select({ id: savedReferencesTable.id, url: savedReferencesTable.url }).from(savedReferencesTable);
-  // Fire all in background — respond immediately
+  const refs = await db
+    .select({ id: savedReferencesTable.id, url: savedReferencesTable.url, thumbnailUrl: savedReferencesTable.thumbnailUrl })
+    .from(savedReferencesTable);
+
+  // Prioritise refs with no thumbnail or expired CDN URLs (not data: or r2.dev)
+  const needsThumb = refs.filter(r =>
+    !r.thumbnailUrl || (!r.thumbnailUrl.startsWith("data:") && !r.thumbnailUrl.includes("r2.dev"))
+  );
+
+  res.json({ queued: needsThumb.length, total: refs.length });
+
+  // Process in background with concurrency of 5
   (async () => {
-    for (const ref of refs) {
-      await enrichReferenceWithApify(ref.id, ref.url).catch(() => {});
+    const CONCURRENCY = 5;
+    for (let i = 0; i < needsThumb.length; i += CONCURRENCY) {
+      const batch = needsThumb.slice(i, i + CONCURRENCY);
+      await Promise.all(batch.map(async (ref) => {
+        try {
+          const { videoUrl, thumbDataUrl } = await getSnapsaveMedia(ref.url);
+          if (!thumbDataUrl && !videoUrl) return;
+          const updates: Record<string, string> = {};
+          if (thumbDataUrl) updates.thumbnailUrl = thumbDataUrl;
+          if (videoUrl && !videoUrl.startsWith("/api/")) updates.mediaUrl = videoUrl;
+          await db.update(savedReferencesTable).set(updates).where(eq(savedReferencesTable.id, ref.id));
+        } catch { /* skip on error */ }
+      }));
     }
   })();
-  res.json({ queued: refs.length });
 });
 
 // GET /api/references/tiktok-embed?url=<tiktok_url>

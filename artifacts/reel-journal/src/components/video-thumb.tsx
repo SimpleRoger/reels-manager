@@ -56,7 +56,17 @@ export function VideoThumb({ thumbnailUrl, videoUrl, permalink, instagramId, ref
     setFrameUrl(null);
     setFreshUrl(null);
     setStage(initialStage(thumbnailUrl, videoUrl));
-  }, [thumbnailUrl, videoUrl, permalink, instagramId]);
+
+    // If no thumbnail stored at all and we have a referenceId, fetch one via snapsave
+    if (!thumbnailUrl && referenceId) {
+      fetch(`${API_BASE}/api/references/${referenceId}/refresh-thumbnail`, { method: "POST" })
+        .then((r) => r.ok ? r.json() : null)
+        .then((d: { thumbnailUrl?: string | null } | null) => {
+          if (d?.thumbnailUrl) { setFreshUrl(d.thumbnailUrl); setStage("graph-api"); }
+        })
+        .catch(() => {});
+    }
+  }, [thumbnailUrl, videoUrl, permalink, instagramId, referenceId]);
 
   const handleThumbError = () => {
     const id = instagramId;
