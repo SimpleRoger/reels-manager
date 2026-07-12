@@ -440,4 +440,56 @@ router.get("/instagram/thumbnail", async (req, res): Promise<void> => {
   }
 });
 
+// GET /api/instagram/my-stats
+// Returns view/like/comment counts for your single most recent reel.
+router.get("/instagram/my-stats", async (req, res): Promise<void> => {
+  const accounts = await db.select().from(instagramAccountsTable).limit(1);
+  const token = accounts[0]?.accessToken;
+  const accountId = accounts[0]?.accountId;
+
+  if (!token || !accountId) {
+    res.status(400).json({ error: "No Instagram account connected with a Graph API token" });
+    return;
+  }
+
+  const base = token.startsWith("IGAA") ? "https://graph.instagram.com/v21.0" : "https://graph.facebook.com/v21.0";
+  const fields = "id,caption,permalink,timestamp,media_type,media_product_type,like_count,comments_count";
+
+  const mediaResp = await fetch(
+    `${base}/${accountId}/media?fields=${fields}&limit=1&access_token=${token}`
+  ).catch(() => null);
+
+  if (!mediaResp?.ok) {
+    res.status(502).json({ error: "Failed to fetch media from Graph API" });
+    return;
+  }
+
+  const mediaData = await mediaResp.json() as {
+    data?: Array<{ id: string; caption?: string; permalink?: string; timestamp?: string; media_type?: string; media_product_type?: string; like_count?: number; comments_count?: number }>;
+  };
+
+  const item = mediaData.data?.[0];
+  if (!item) { res.status(404).json({ error: "No media found" }); return; }
+
+  // Fetch play count via insights
+  let plays: number | null = null;
+  const insightsResp = await fetch(
+    `${base}/${item.id}/insights?metric=plays&access_token=${token}`
+  ).catch(() => null);
+  if (insightsResp?.ok) {
+    const insights = await insightsResp.json() as { data?: Array<{ name: string; value?: number }> };
+    plays = insights.data?.find((m) => m.name === "plays")?.value ?? null;
+  }
+
+  res.json({
+    id: item.id,
+    permalink: item.permalink ?? null,
+    caption: item.caption ? item.caption.slice(0, 120) : null,
+    postedAt: item.timestamp ?? null,
+    plays,
+    likes: item.like_count ?? null,
+    comments: item.comments_count ?? null,
+  });
+});
+
 export default router;
