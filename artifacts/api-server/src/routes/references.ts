@@ -204,8 +204,8 @@ router.post("/references/ingest", async (req, res): Promise<void> => {
 });
 
 // Scrape snapsave.app to get direct video + thumbnail URLs for any public IG/TikTok reel.
-// Returns a server-proxied video URL and a base64 data URL thumbnail.
-async function getSnapsaveMedia(sourceUrl: string): Promise<{ videoUrl: string | null; thumbDataUrl: string | null }> {
+// Returns a proxy videoUrl immediately (fast) plus the raw CDN URL for background R2 upload.
+async function getSnapsaveMedia(sourceUrl: string): Promise<{ videoUrl: string | null; thumbDataUrl: string | null; videoCdnUrl: string | null }> {
   const resp = await fetch("https://snapsave.app/action.php?lang=en", {
     method: "POST",
     headers: {
@@ -217,23 +217,23 @@ async function getSnapsaveMedia(sourceUrl: string): Promise<{ videoUrl: string |
     body: `url=${encodeURIComponent(sourceUrl)}`,
   }).catch(() => null);
 
-  if (!resp?.ok) return { videoUrl: null, thumbDataUrl: null };
+  if (!resp?.ok) return { videoUrl: null, thumbDataUrl: null, videoCdnUrl: null };
 
   const obfJs = await resp.text().catch(() => null);
-  if (!obfJs) return { videoUrl: null, thumbDataUrl: null };
+  if (!obfJs) return { videoUrl: null, thumbDataUrl: null, videoCdnUrl: null };
 
   try {
     // Response is: [helper fns] eval(deobfuscator_call)
     // Splitting on 'eval(' lets us run only the pure deobfuscation step (no DOM APIs needed).
     // The deobfuscator returns an HTML string containing download links.
     const parts = obfJs.split("eval(");
-    if (parts.length < 2) return { videoUrl: null, thumbDataUrl: null };
+    if (parts.length < 2) return { videoUrl: null, thumbDataUrl: null, videoCdnUrl: null };
 
     const helpers = parts[0];
     const inner = parts.slice(1).join("eval("); // 'func(args))' — trailing ) closes outer eval
     // eslint-disable-next-line no-eval
     const html: unknown = eval(`${helpers}; (${inner.slice(0, -1)})`);
-    if (typeof html !== "string") return { videoUrl: null, thumbDataUrl: null };
+    if (typeof html !== "string") return { videoUrl: null, thumbDataUrl: null, videoCdnUrl: null };
 
     function decodeJwtUrl(rapidUrl: string): string | null {
       try {
@@ -252,24 +252,14 @@ async function getSnapsaveMedia(sourceUrl: string): Promise<{ videoUrl: string |
     const thumbMatches = [...html.matchAll(/(https?:\/\/d\.rapidcdn\.app\/thumb\?token=[^\s"'<>\\]+)/g)];
     const thumbCdnUrl = thumbMatches[0]?.[1] ? decodeJwtUrl(thumbMatches[0][1]) : null;
 
-    // Upload video to R2 for permanent storage (fall back to proxy path if R2 not configured)
-    let videoUrl: string | null = null;
-    if (videoCdnUrl) {
-      try {
-        const key = `videos/${Buffer.from(sourceUrl).toString("base64url").slice(0, 64)}.mp4`;
-        if (!await r2Exists(key)) {
-          videoUrl = await uploadToR2(key, videoCdnUrl);
-        } else {
-          const { r2PublicUrl } = await import("../lib/r2");
-          videoUrl = r2PublicUrl(key);
-        }
-      } catch {
-        // R2 not configured or upload failed — fall back to server proxy
-        videoUrl = `/api/references/proxy-video?url=${encodeURIComponent(videoCdnUrl)}`;
-      }
-    }
+    // Return proxy URL immediately so the browser can start playing right away.
+    // R2 upload happens in the background — next play will use the saved R2 URL.
+    const videoUrl = videoCdnUrl ? `/api/references/proxy-video?url=${encodeURIComponent(videoCdnUrl)}` : null;
 
-    // Download thumbnail and store as base64 data URL (small enough for DB)
+    // Store the raw CDN URL so the caller can kick off a background R2 upload
+    const videoCdnUrlOut = videoCdnUrl;
+
+    // Download thumbnail synchronously (small ~50KB, worth waiting for)
     let thumbDataUrl: string | null = null;
     if (thumbCdnUrl) {
       try {
@@ -284,15 +274,28 @@ async function getSnapsaveMedia(sourceUrl: string): Promise<{ videoUrl: string |
       } catch { /* skip thumbnail */ }
     }
 
-    return { videoUrl, thumbDataUrl };
+    return { videoUrl, thumbDataUrl, videoCdnUrl: videoCdnUrlOut };
   } catch {
-    return { videoUrl: null, thumbDataUrl: null };
+    return { videoUrl: null, thumbDataUrl: null, videoCdnUrl: null };
   }
 }
 
 async function getSnapsaveVideoUrl(sourceUrl: string): Promise<string | null> {
   const { videoUrl } = await getSnapsaveMedia(sourceUrl);
   return videoUrl;
+}
+
+// Upload a video CDN URL to R2 in the background and update the DB record.
+function uploadToR2Background(referenceId: number, sourceUrl: string, videoCdnUrl: string, thumbDataUrl: string | null) {
+  (async () => {
+    try {
+      const key = `videos/${Buffer.from(sourceUrl).toString("base64url").slice(0, 64)}.mp4`;
+      const r2Url = await uploadToR2(key, videoCdnUrl);
+      const updates: Record<string, string> = { mediaUrl: r2Url };
+      if (thumbDataUrl) updates.thumbnailUrl = thumbDataUrl;
+      await db.update(savedReferencesTable).set(updates).where(eq(savedReferencesTable.id, referenceId));
+    } catch { /* silently skip — proxy URL still works */ }
+  })();
 }
 
 // Proxy an Instagram CDN video through the server to avoid browser CORS restrictions.
@@ -347,15 +350,16 @@ router.get("/references/video-url", async (req, res): Promise<void> => {
   const ytdlpBase = process.env.YTDLP_API_URL?.replace(/\/+$/, "");
   const cobaltBase = process.env.COBALT_API_URL?.replace(/\/+$/, "");
 
-  // snapsave first — uploads to R2 for permanent storage, falls back to proxy
-  const { videoUrl: snapsaveUrl, thumbDataUrl } = await getSnapsaveMedia(url);
+  // snapsave first — returns proxy URL immediately, uploads to R2 in background
+  const { videoUrl: snapsaveUrl, thumbDataUrl, videoCdnUrl } = await getSnapsaveMedia(url);
   if (snapsaveUrl) {
-    // If we have a reference ID and got an R2 URL, persist it so future loads skip snapsave
     const refId = typeof req.query["referenceId"] === "string" ? parseInt(req.query["referenceId"], 10) : null;
-    if (refId && !isNaN(refId) && !snapsaveUrl.startsWith("/api/")) {
-      const updates: Record<string, string> = { mediaUrl: snapsaveUrl };
-      if (thumbDataUrl) updates.thumbnailUrl = thumbDataUrl;
-      db.update(savedReferencesTable).set(updates).where(eq(savedReferencesTable.id, refId)).catch(() => {});
+    // Persist thumbnail now (fast), kick off R2 video upload in background
+    if (refId && !isNaN(refId)) {
+      if (thumbDataUrl) {
+        db.update(savedReferencesTable).set({ thumbnailUrl: thumbDataUrl }).where(eq(savedReferencesTable.id, refId)).catch(() => {});
+      }
+      if (videoCdnUrl) uploadToR2Background(refId, url, videoCdnUrl, thumbDataUrl);
     }
     res.json({ videoUrl: snapsaveUrl, thumbnailUrl: thumbDataUrl }); return;
   }
@@ -405,18 +409,16 @@ router.post("/references/:id/refresh-thumbnail", async (req, res): Promise<void>
 
   if (!ref) { res.status(404).end(); return; }
 
-  const { videoUrl, thumbDataUrl } = await getSnapsaveMedia(ref.url);
+  const { videoUrl, thumbDataUrl, videoCdnUrl } = await getSnapsaveMedia(ref.url);
   if (!thumbDataUrl && !videoUrl) { res.status(502).json({ error: "Could not fetch media" }); return; }
 
-  const updates: Record<string, string> = {};
-  if (thumbDataUrl) updates.thumbnailUrl = thumbDataUrl;
-  // Only update mediaUrl if we got a permanent R2 URL (not a proxy path)
-  if (videoUrl && !videoUrl.startsWith("/api/")) updates.mediaUrl = videoUrl;
-
-  await db
-    .update(savedReferencesTable)
-    .set(updates)
-    .where(eq(savedReferencesTable.id, id));
+  // Save thumbnail immediately; R2 video upload happens in background
+  if (thumbDataUrl) {
+    await db.update(savedReferencesTable).set({ thumbnailUrl: thumbDataUrl }).where(eq(savedReferencesTable.id, id));
+  }
+  if (videoCdnUrl && !ref.mediaUrl?.includes("r2.dev")) {
+    uploadToR2Background(id, ref.url, videoCdnUrl, thumbDataUrl);
+  }
 
   res.json({ thumbnailUrl: thumbDataUrl, videoUrl });
 });
