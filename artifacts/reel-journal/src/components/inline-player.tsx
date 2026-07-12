@@ -7,6 +7,7 @@ interface InlinePlayerProps {
   mediaUrl?: string | null;
   thumbnailUrl?: string | null;
   instagramUrl?: string | null;
+  referenceId?: number | null;
   onClose: () => void;
   className?: string;
 }
@@ -20,7 +21,7 @@ function isTikTok(url?: string | null): boolean {
   return !!url && url.includes("tiktok.com");
 }
 
-export function InlinePlayer({ mediaUrl, thumbnailUrl, instagramUrl, onClose, className = "" }: InlinePlayerProps) {
+export function InlinePlayer({ mediaUrl, thumbnailUrl, instagramUrl, referenceId, onClose, className = "" }: InlinePlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [videoFailed, setVideoFailed] = useState(false);
   const [freshMediaUrl, setFreshMediaUrl] = useState<string | null>(null);
@@ -60,13 +61,14 @@ export function InlinePlayer({ mediaUrl, thumbnailUrl, instagramUrl, onClose, cl
           } catch { /* fall through */ }
         }
 
-        // Strategy 2: Cobalt — works for anyone's public IG or TikTok reel
+        // Strategy 2: snapsave → R2 upload (permanent) or proxy fallback
         try {
-          const r = await fetch(`${API_BASE}/api/references/video-url?url=${encodeURIComponent(instagramUrl)}`);
+          const qs = new URLSearchParams({ url: instagramUrl });
+          if (referenceId) qs.set("referenceId", String(referenceId));
+          const r = await fetch(`${API_BASE}/api/references/video-url?${qs}`);
           if (r.ok) {
             const d = await r.json() as { videoUrl?: string };
             if (d.videoUrl) {
-              // Proxy paths are relative — prefix with API_BASE so they resolve correctly
               const resolved = d.videoUrl.startsWith("/") ? `${API_BASE}${d.videoUrl}` : d.videoUrl;
               setFreshMediaUrl(resolved);
               return;

@@ -8,6 +8,7 @@ import {
   DeleteReferenceParams,
 } from "@workspace/api-zod";
 import { resolveReelMedia, enrichReferenceWithApify } from "../lib/resolve-reel-video";
+import { uploadToR2, uploadBytesToR2, r2Exists, isR2Url } from "../lib/r2";
 
 const router: IRouter = Router();
 
@@ -246,11 +247,29 @@ async function getSnapsaveMedia(sourceUrl: string): Promise<{ videoUrl: string |
     // Video: d.rapidcdn.app/v2
     const videoMatches = [...html.matchAll(/(https?:\/\/d\.rapidcdn\.app\/v2\?token=[^\s"'<>\\]+)/g)];
     const videoCdnUrl = videoMatches[0]?.[1] ? decodeJwtUrl(videoMatches[0][1]) : null;
-    const videoUrl = videoCdnUrl ? `/api/references/proxy-video?url=${encodeURIComponent(videoCdnUrl)}` : null;
 
-    // Thumbnail: d.rapidcdn.app/thumb — download and store as permanent base64 data URL
+    // Thumbnail: d.rapidcdn.app/thumb
     const thumbMatches = [...html.matchAll(/(https?:\/\/d\.rapidcdn\.app\/thumb\?token=[^\s"'<>\\]+)/g)];
     const thumbCdnUrl = thumbMatches[0]?.[1] ? decodeJwtUrl(thumbMatches[0][1]) : null;
+
+    // Upload video to R2 for permanent storage (fall back to proxy path if R2 not configured)
+    let videoUrl: string | null = null;
+    if (videoCdnUrl) {
+      try {
+        const key = `videos/${Buffer.from(sourceUrl).toString("base64url").slice(0, 64)}.mp4`;
+        if (!await r2Exists(key)) {
+          videoUrl = await uploadToR2(key, videoCdnUrl);
+        } else {
+          const { r2PublicUrl } = await import("../lib/r2");
+          videoUrl = r2PublicUrl(key);
+        }
+      } catch {
+        // R2 not configured or upload failed — fall back to server proxy
+        videoUrl = `/api/references/proxy-video?url=${encodeURIComponent(videoCdnUrl)}`;
+      }
+    }
+
+    // Download thumbnail and store as base64 data URL (small enough for DB)
     let thumbDataUrl: string | null = null;
     if (thumbCdnUrl) {
       try {
@@ -328,9 +347,18 @@ router.get("/references/video-url", async (req, res): Promise<void> => {
   const ytdlpBase = process.env.YTDLP_API_URL?.replace(/\/+$/, "");
   const cobaltBase = process.env.COBALT_API_URL?.replace(/\/+$/, "");
 
-  // snapsave first for all platforms — returns a stable server-proxied URL, no CDN auth issues
-  const snapsaveUrl = await getSnapsaveVideoUrl(url);
-  if (snapsaveUrl) { res.json({ videoUrl: snapsaveUrl }); return; }
+  // snapsave first — uploads to R2 for permanent storage, falls back to proxy
+  const { videoUrl: snapsaveUrl, thumbDataUrl } = await getSnapsaveMedia(url);
+  if (snapsaveUrl) {
+    // If we have a reference ID and got an R2 URL, persist it so future loads skip snapsave
+    const refId = typeof req.query["referenceId"] === "string" ? parseInt(req.query["referenceId"], 10) : null;
+    if (refId && !isNaN(refId) && !snapsaveUrl.startsWith("/api/")) {
+      const updates: Record<string, string> = { mediaUrl: snapsaveUrl };
+      if (thumbDataUrl) updates.thumbnailUrl = thumbDataUrl;
+      db.update(savedReferencesTable).set(updates).where(eq(savedReferencesTable.id, refId)).catch(() => {});
+    }
+    res.json({ videoUrl: snapsaveUrl, thumbnailUrl: thumbDataUrl }); return;
+  }
 
   // yt-dlp fallback — wrap raw CDN URLs in our proxy to avoid 403s in the browser
   if (ytdlpBase) {
@@ -364,28 +392,33 @@ router.get("/references/video-url", async (req, res): Promise<void> => {
   res.status(404).json({ error: "Could not retrieve video URL" });
 });
 
-// Fast thumbnail refresh using snapsave — no Apify needed, updates DB and returns data URL.
+// Refresh thumbnail (and video if not yet on R2) via snapsave — updates DB.
 router.post("/references/:id/refresh-thumbnail", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).end(); return; }
 
   const [ref] = await db
-    .select({ url: savedReferencesTable.url })
+    .select({ url: savedReferencesTable.url, mediaUrl: savedReferencesTable.mediaUrl })
     .from(savedReferencesTable)
     .where(eq(savedReferencesTable.id, id))
     .limit(1);
 
   if (!ref) { res.status(404).end(); return; }
 
-  const { thumbDataUrl } = await getSnapsaveMedia(ref.url);
-  if (!thumbDataUrl) { res.status(502).json({ error: "Could not fetch thumbnail" }); return; }
+  const { videoUrl, thumbDataUrl } = await getSnapsaveMedia(ref.url);
+  if (!thumbDataUrl && !videoUrl) { res.status(502).json({ error: "Could not fetch media" }); return; }
+
+  const updates: Record<string, string> = {};
+  if (thumbDataUrl) updates.thumbnailUrl = thumbDataUrl;
+  // Only update mediaUrl if we got a permanent R2 URL (not a proxy path)
+  if (videoUrl && !videoUrl.startsWith("/api/")) updates.mediaUrl = videoUrl;
 
   await db
     .update(savedReferencesTable)
-    .set({ thumbnailUrl: thumbDataUrl })
+    .set(updates)
     .where(eq(savedReferencesTable.id, id));
 
-  res.json({ thumbnailUrl: thumbDataUrl });
+  res.json({ thumbnailUrl: thumbDataUrl, videoUrl });
 });
 
 // Re-run Apify on ALL saved references to refresh expired CDN URLs

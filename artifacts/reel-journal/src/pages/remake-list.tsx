@@ -219,6 +219,7 @@ function NotesModal({
                 mediaUrl={r.mediaUrl}
                 thumbnailUrl={r.thumbnailUrl}
                 instagramUrl={r.url}
+                referenceId={r.id}
                 onClose={() => setPlaying(false)}
                 className="absolute inset-0"
               />
@@ -707,6 +708,7 @@ export default function RemakeList() {
                     mediaUrl={ref.mediaUrl}
                     thumbnailUrl={ref.thumbnailUrl}
                     instagramUrl={ref.url}
+                    referenceId={ref.id}
                     onClose={(e?: React.MouseEvent) => { e?.stopPropagation(); setPlayingId(null); }}
                     className="absolute inset-0"
                   />
