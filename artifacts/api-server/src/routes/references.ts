@@ -113,6 +113,53 @@ router.patch("/references/:id", async (req, res): Promise<void> => {
   res.json(formatReference(ref));
 });
 
+// Bulk import from Replit — accepts the old snake_case JSON format, skips dupes by URL
+router.post("/references/bulk-import", async (req, res): Promise<void> => {
+  const entries = req.body;
+  if (!Array.isArray(entries)) {
+    res.status(400).json({ error: "Expected an array of reference objects" });
+    return;
+  }
+
+  // Load existing URLs to skip duplicates
+  const existing = await db
+    .select({ url: savedReferencesTable.url })
+    .from(savedReferencesTable);
+  const existingUrls = new Set(existing.map((r) => r.url));
+
+  let inserted = 0;
+  let skipped = 0;
+
+  for (const e of entries) {
+    if (!e.url) { skipped++; continue; }
+    if (existingUrls.has(e.url)) { skipped++; continue; }
+
+    const thumb = typeof e.thumbnail_url === "string" && !e.thumbnail_url.startsWith("data:")
+      ? e.thumbnail_url
+      : null;
+
+    await db.insert(savedReferencesTable).values({
+      url:           e.url,
+      caption:       e.caption ?? null,
+      accountName:   e.account_name ?? null,
+      whyItsgood:    e.why_its_good ?? null,
+      whatToChange:  e.what_to_change ?? null,
+      howToRemake:   e.how_to_remake ?? null,
+      commentsCount: typeof e.comments_count === "number" ? e.comments_count : null,
+      likeCount:     typeof e.like_count === "number" ? e.like_count : null,
+      viewCount:     typeof e.view_count === "number" ? e.view_count : null,
+      mediaUrl:      e.media_url ?? null,
+      thumbnailUrl:  thumb,
+      tags:          Array.isArray(e.tags) ? e.tags : [],
+    });
+
+    existingUrls.add(e.url);
+    inserted++;
+  }
+
+  res.json({ inserted, skipped, message: `Imported ${inserted} references, skipped ${skipped} (duplicates or missing URL)` });
+});
+
 // External ingest — lets other apps POST a reel URL into the remake list
 // Optional auth: set INGEST_API_KEY env var; callers send "Authorization: Bearer <key>"
 router.post("/references/ingest", async (req, res): Promise<void> => {
