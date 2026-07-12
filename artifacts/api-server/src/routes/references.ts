@@ -258,30 +258,38 @@ async function getSnapsaveVideoUrl(instagramUrl: string): Promise<string | null>
 }
 
 // Proxy an Instagram CDN video through the server to avoid browser CORS restrictions.
-// The client passes the raw CDN URL; we fetch it server-side and stream the bytes back.
+// Forwards Range headers so the browser can seek (required for <video> to play).
 router.get("/references/proxy-video", async (req, res): Promise<void> => {
   const url = req.query["url"];
   if (typeof url !== "string" || !url.startsWith("http")) {
     res.status(400).end(); return;
   }
 
-  const upstream = await fetch(url, {
-    headers: {
-      "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15",
-      "Referer": "https://www.instagram.com/",
-    },
-  }).catch(() => null);
+  const upstreamHeaders: Record<string, string> = {
+    "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15",
+    "Referer": "https://www.instagram.com/",
+  };
+  const rangeHeader = req.headers["range"];
+  if (rangeHeader) upstreamHeaders["Range"] = rangeHeader;
 
-  if (!upstream?.ok || !upstream.body) {
+  const upstream = await fetch(url, { headers: upstreamHeaders }).catch(() => null);
+
+  if (!upstream || (!upstream.ok && upstream.status !== 206) || !upstream.body) {
     res.status(502).end(); return;
   }
 
-  res.setHeader("Content-Type", upstream.headers.get("content-type") ?? "video/mp4");
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Cache-Control", "public, max-age=3600");
+  res.setHeader("Accept-Ranges", "bytes");
+  res.setHeader("Content-Type", upstream.headers.get("content-type") ?? "video/mp4");
 
   const contentLength = upstream.headers.get("content-length");
   if (contentLength) res.setHeader("Content-Length", contentLength);
+
+  const contentRange = upstream.headers.get("content-range");
+  if (contentRange) res.setHeader("Content-Range", contentRange);
+
+  res.status(upstream.status === 206 ? 206 : 200);
 
   const { Readable } = await import("stream");
   Readable.fromWeb(upstream.body as import("stream/web").ReadableStream).pipe(res);
