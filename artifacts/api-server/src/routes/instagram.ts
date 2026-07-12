@@ -3,7 +3,7 @@ import { eq, asc } from "drizzle-orm";
 import { db, instagramAccountsTable, reelsTable } from "@workspace/db";
 import { ConnectInstagramBody } from "@workspace/api-zod";
 import { getHashtagId, searchHashtagMedia, verifyToken } from "../lib/instagram";
-import { runInstagramSync } from "../lib/sync";
+import { runInstagramSync, dedupReels } from "../lib/sync";
 
 const router: IRouter = Router();
 
@@ -150,18 +150,25 @@ router.post("/instagram/sync", async (req, res): Promise<void> => {
   try {
     const result = await runInstagramSync();
     if (!result) {
-      res.status(400).json({ error: "Sync failed — Apify returned no posts. Check the username is correct." });
+      res.status(400).json({ error: "Sync failed — ensure your account has a valid Graph API token." });
       return;
     }
     res.json({
       synced: result.synced,
       total: result.total,
-      message: `Synced ${result.synced} new Reels, updated ${result.total - result.synced} existing`,
+      deduped: result.deduped,
+      message: `Synced ${result.synced} new Reels, updated ${result.total - result.synced} existing${result.deduped > 0 ? `, removed ${result.deduped} duplicates` : ""}`,
     });
   } catch (err) {
     req.log.error({ err }, "Failed to sync Instagram media");
     res.status(400).json({ error: "Sync failed. Check server logs." });
   }
+});
+
+// One-shot dedup: removes duplicate reels from old Apify imports
+router.post("/instagram/dedup", async (_req, res): Promise<void> => {
+  const deleted = await dedupReels();
+  res.json({ deleted, message: `Removed ${deleted} duplicate reels` });
 });
 
 // Refresh a fresh thumbnail URL for a reel using the Graph API token.

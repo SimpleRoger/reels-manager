@@ -1,7 +1,6 @@
-import { eq, isNotNull, avg, sql, and } from "drizzle-orm";
+import { eq, isNotNull, avg, and, sql } from "drizzle-orm";
 import { db, instagramAccountsTable, reelsTable } from "@workspace/db";
 import { computePerformanceStatus, fetchUserMedia, fetchMediaInsights } from "./instagram";
-import { scrapeInstagramProfile } from "./apify";
 import { logger } from "./logger";
 
 type Averages = {
@@ -12,13 +11,83 @@ type Averages = {
   avgShares: number | null;
 };
 
+// Extract Instagram shortcode from a permalink URL
+function permalinkShortcode(url: string): string | null {
+  return url.match(/instagram\.com\/(?:reel|p)\/([A-Za-z0-9_-]+)/)?.[1] ?? null;
+}
+
+// Remove duplicate reels that point to the same Instagram post but have different
+// instagramIds (Apify stored shortcodes, Graph API stores numeric IDs).
+// Keeps the row with the most insight data; merges max metrics into it before
+// deleting the duplicates.
+export async function dedupReels(): Promise<number> {
+  const allReels = await db
+    .select()
+    .from(reelsTable)
+    .where(isNotNull(reelsTable.permalink));
+
+  // Group by shortcode extracted from permalink
+  const groups = new Map<string, typeof allReels>();
+  for (const reel of allReels) {
+    const key = permalinkShortcode(reel.permalink!) ?? reel.permalink!;
+    const arr = groups.get(key) ?? [];
+    arr.push(reel);
+    groups.set(key, arr);
+  }
+
+  let deleted = 0;
+
+  for (const [, group] of groups) {
+    if (group.length <= 1) continue;
+
+    // Prefer rows that have insight data; among ties prefer numeric instagramId
+    group.sort((a, b) => {
+      const score = (r: typeof a) =>
+        (r.reach != null ? 4 : 0) +
+        (r.saves != null ? 2 : 0) +
+        (r.shares != null ? 2 : 0) +
+        (r.plays != null ? 1 : 0) +
+        (/^\d+$/.test(r.instagramId) ? 1 : 0);
+      return score(b) - score(a);
+    });
+
+    const keeper = group[0]!;
+    const dupes  = group.slice(1);
+
+    const maxOf = (field: keyof typeof keeper) =>
+      group.some((r) => r[field] != null)
+        ? Math.max(...group.map((r) => (r[field] as number | null) ?? 0))
+        : null;
+
+    await db.update(reelsTable).set({
+      likeCount:     maxOf("likeCount"),
+      commentsCount: maxOf("commentsCount"),
+      plays:         maxOf("plays"),
+      reach:         maxOf("reach"),
+      saves:         maxOf("saves"),
+      shares:        maxOf("shares"),
+      // prefer Graph API thumbnail if it looks like a proper CDN url
+      thumbnailUrl:  group.find((r) => r.thumbnailUrl && r.reach != null)?.thumbnailUrl
+                     ?? keeper.thumbnailUrl,
+    }).where(eq(reelsTable.id, keeper.id));
+
+    for (const dup of dupes) {
+      await db.delete(reelsTable).where(eq(reelsTable.id, dup.id));
+      deleted++;
+    }
+  }
+
+  if (deleted > 0) logger.info({ deleted }, "Dedup: removed duplicate reels");
+  return deleted;
+}
+
 async function syncViaGraphApi(
   token: string,
   accountId: string,
   accountDbId: number,
   averages: Averages
 ): Promise<{ synced: number; total: number }> {
-  logger.info("Sync: using Graph API (token present)");
+  logger.info("Sync: using Graph API");
 
   const media = await fetchUserMedia(token, accountId);
   const reels = media.filter(
@@ -82,148 +151,79 @@ async function syncViaGraphApi(
   return { synced, total: reels.length };
 }
 
-async function syncViaApify(
-  username: string,
-  accountDbId: number,
-  averages: Averages
-): Promise<{ synced: number; total: number } | null> {
-  logger.info({ username }, "Sync: using Apify scraper (no token)");
-
-  let posts;
-  try {
-    posts = await scrapeInstagramProfile(username, 200);
-  } catch (err) {
-    logger.error({ err }, "Auto-sync: failed to scrape Instagram profile via Apify");
-    return null;
-  }
-
-  if (posts.length === 0) {
-    logger.warn({ username }, "Auto-sync: Apify returned no posts");
-    return null;
-  }
-
-  let synced = 0;
-
-  for (const post of posts) {
-    let existing = await db
-      .select()
-      .from(reelsTable)
-      .where(eq(reelsTable.instagramId, post.instagramId))
-      .limit(1);
-
-    if (existing.length === 0 && post.shortCode) {
-      existing = await db
-        .select()
-        .from(reelsTable)
-        .where(sql`${reelsTable.permalink} LIKE ${"%" + post.shortCode + "%"}`)
-        .limit(1);
-    }
-
-    const prev = existing[0];
-
-    const reelData = {
-      accountId: accountDbId,
-      instagramId: post.instagramId,
-      caption: post.caption,
-      permalink: post.permalink,
-      thumbnailUrl: post.thumbnailUrl,
-      mediaUrl: post.mediaUrl,
-      postedAt: post.postedAt,
-      likeCount: post.likesCount != null && prev?.likeCount != null
-        ? Math.max(post.likesCount, prev.likeCount)
-        : (post.likesCount ?? prev?.likeCount ?? null),
-      commentsCount: post.commentsCount != null && prev?.commentsCount != null
-        ? Math.max(post.commentsCount, prev.commentsCount)
-        : (post.commentsCount ?? prev?.commentsCount ?? null),
-      plays: post.plays != null && prev?.plays != null
-        ? Math.max(post.plays, prev.plays)
-        : (post.plays ?? prev?.plays ?? null),
-      reach: prev?.reach ?? null,
-      saves: prev?.saves ?? null,
-      shares: prev?.shares ?? null,
-      performanceStatus: null as string | null,
-    };
-
-    reelData.performanceStatus = computePerformanceStatus(reelData, averages);
-
-    if (prev) {
-      await db.update(reelsTable).set(reelData).where(eq(reelsTable.id, prev.id));
-    } else {
-      await db.insert(reelsTable).values({ ...reelData, tags: [] });
-      synced++;
-    }
-  }
-
-  return { synced, total: posts.length };
-}
-
 async function getAccountAverages(accountDbId: number): Promise<Averages> {
   const rows = await db
     .select({
-      avgLikes: avg(reelsTable.likeCount),
+      avgLikes:    avg(reelsTable.likeCount),
       avgComments: avg(reelsTable.commentsCount),
-      avgReach: avg(reelsTable.reach),
-      avgSaves: avg(reelsTable.saves),
-      avgShares: avg(reelsTable.shares),
+      avgReach:    avg(reelsTable.reach),
+      avgSaves:    avg(reelsTable.saves),
+      avgShares:   avg(reelsTable.shares),
     })
     .from(reelsTable)
     .where(and(isNotNull(reelsTable.likeCount), eq(reelsTable.accountId, accountDbId)));
 
   const avgs = rows[0] ?? {};
   return {
-    avgLikes: Number(avgs.avgLikes ?? 0),
+    avgLikes:    Number(avgs.avgLikes ?? 0),
     avgComments: Number(avgs.avgComments ?? 0),
-    avgReach: avgs.avgReach != null ? Number(avgs.avgReach) : null,
-    avgSaves: avgs.avgSaves != null ? Number(avgs.avgSaves) : null,
-    avgShares: avgs.avgShares != null ? Number(avgs.avgShares) : null,
+    avgReach:    avgs.avgReach    != null ? Number(avgs.avgReach)    : null,
+    avgSaves:    avgs.avgSaves    != null ? Number(avgs.avgSaves)    : null,
+    avgShares:   avgs.avgShares   != null ? Number(avgs.avgShares)   : null,
   };
 }
 
-export async function runInstagramSync(filterAccountDbId?: number): Promise<{ synced: number; total: number } | null> {
+export async function runInstagramSync(
+  filterAccountDbId?: number
+): Promise<{ synced: number; total: number; deduped: number } | null> {
   const accounts = filterAccountDbId
     ? await db.select().from(instagramAccountsTable).where(eq(instagramAccountsTable.id, filterAccountDbId))
     : await db.select().from(instagramAccountsTable);
 
   if (accounts.length === 0) {
-    logger.info("Auto-sync: no Instagram accounts connected, skipping");
+    logger.info("Sync: no Instagram accounts connected, skipping");
     return null;
   }
 
   let totalSynced = 0;
-  let totalCount = 0;
+  let totalCount  = 0;
 
   for (const account of accounts) {
-    logger.info({ username: account.username, accountDbId: account.id }, "Syncing account");
+    if (!account.accessToken) {
+      logger.warn({ username: account.username }, "Sync: skipping account — no Graph API token");
+      continue;
+    }
+
+    logger.info({ username: account.username, accountDbId: account.id }, "Syncing account via Graph API");
 
     const averages = await getAccountAverages(account.id);
 
-    let result: { synced: number; total: number } | null = null;
+    try {
+      const result = await syncViaGraphApi(
+        account.accessToken,
+        account.accountId ?? account.username,
+        account.id,
+        averages
+      );
 
-    if (account.accessToken) {
-      try {
-        result = await syncViaGraphApi(account.accessToken, account.accountId ?? account.username, account.id, averages);
-      } catch (err) {
-        logger.error({ err, username: account.username }, "Graph API sync failed — falling back to Apify");
-        result = await syncViaApify(account.username, account.id, averages);
-      }
-    } else {
-      result = await syncViaApify(account.username, account.id, averages);
-    }
-
-    if (result) {
       await db
         .update(instagramAccountsTable)
         .set({ lastSynced: new Date() })
         .where(eq(instagramAccountsTable.id, account.id));
 
-      logger.info({ username: account.username, synced: result.synced, total: result.total }, "Instagram sync complete");
+      logger.info({ username: account.username, synced: result.synced, total: result.total }, "Sync complete");
       totalSynced += result.synced;
-      totalCount += result.total;
+      totalCount  += result.total;
+    } catch (err) {
+      logger.error({ err, username: account.username }, "Graph API sync failed");
     }
   }
 
-  if (totalCount === 0) return null;
-  return { synced: totalSynced, total: totalCount };
+  // Dedup after every sync to remove any old Apify duplicates
+  const deduped = await dedupReels();
+
+  if (totalCount === 0 && deduped === 0) return null;
+  return { synced: totalSynced, total: totalCount, deduped };
 }
 
 const THIRTY_MINUTES = 30 * 60 * 1000;
