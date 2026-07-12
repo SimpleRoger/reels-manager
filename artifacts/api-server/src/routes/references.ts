@@ -288,7 +288,8 @@ router.get("/references/proxy-video", async (req, res): Promise<void> => {
 });
 
 // Returns a playable video URL for any public Instagram or TikTok reel.
-// Strategy order: yt-dlp (tubedl) → Cobalt → snapsave.app scrape
+// Instagram: snapsave → proxy (Cobalt needs cookies and its tunnel URLs expire in seconds)
+// TikTok: yt-dlp → Cobalt → snapsave
 router.get("/references/video-url", async (req, res): Promise<void> => {
   const url = req.query["url"];
   if (typeof url !== "string") {
@@ -296,10 +297,17 @@ router.get("/references/video-url", async (req, res): Promise<void> => {
     return;
   }
 
+  const isInstagram = url.includes("instagram.com");
   const ytdlpBase = process.env.YTDLP_API_URL?.replace(/\/+$/, "");
   const cobaltBase = process.env.COBALT_API_URL?.replace(/\/+$/, "");
 
-  // Try yt-dlp first
+  // For Instagram: snapsave first — no cookies needed, returns a stable proxy URL
+  if (isInstagram) {
+    const snapsaveUrl = await getSnapsaveVideoUrl(url);
+    if (snapsaveUrl) { res.json({ videoUrl: snapsaveUrl }); return; }
+  }
+
+  // For TikTok (or Instagram fallback): try yt-dlp
   if (ytdlpBase) {
     const ytResp = await fetch(`${ytdlpBase}/api/video-url?url=${encodeURIComponent(url)}`).catch(() => null);
     if (ytResp?.ok) {
@@ -308,8 +316,8 @@ router.get("/references/video-url", async (req, res): Promise<void> => {
     }
   }
 
-  // Fall back to Cobalt
-  if (cobaltBase) {
+  // Cobalt as last resort (TikTok only — its tunnel URLs expire too fast for Instagram)
+  if (cobaltBase && !isInstagram) {
     const cobaltResp = await fetch(cobaltBase, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Accept": "application/json" },
@@ -320,12 +328,6 @@ router.get("/references/video-url", async (req, res): Promise<void> => {
       const data = await cobaltResp.json() as { status: string; url?: string; error?: { code: string } };
       if (data.url && data.status !== "error") { res.json({ videoUrl: data.url }); return; }
     }
-  }
-
-  // Fall back to snapsave.app scrape (Instagram only)
-  if (url.includes("instagram.com")) {
-    const snapsaveUrl = await getSnapsaveVideoUrl(url);
-    if (snapsaveUrl) { res.json({ videoUrl: snapsaveUrl }); return; }
   }
 
   res.status(404).json({ error: "Could not retrieve video URL" });
