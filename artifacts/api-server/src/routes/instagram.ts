@@ -183,8 +183,9 @@ function shortcodeToId(shortcode: string): string {
   return id.toString();
 }
 
-// Fetch fresh media_url + thumbnail_url from Graph API given a permalink URL.
-// Called by the inline player when the stored CDN URL has expired.
+// Fetch fresh media_url + thumbnail_url for an Instagram reel given its permalink URL.
+// Strategy 1: Graph API (works for own account's content).
+// Strategy 2: Scrape og:video from the public Instagram page (works for anyone's public reels).
 router.get("/instagram/fresh-media", async (req, res): Promise<void> => {
   const url = req.query["url"];
   if (typeof url !== "string") {
@@ -198,35 +199,65 @@ router.get("/instagram/fresh-media", async (req, res): Promise<void> => {
     return;
   }
 
+  // --- Strategy 1: Graph API (own content) ---
   const accounts = await db.select().from(instagramAccountsTable).limit(1);
   const token = accounts[0]?.accessToken;
-  if (!token) {
-    res.status(400).json({ error: "No access token available" });
-    return;
+
+  if (token) {
+    try {
+      const numericId = shortcodeToId(shortcode);
+      const base = token.startsWith("IGAA") ? "https://graph.instagram.com/v21.0" : "https://graph.facebook.com/v21.0";
+      const apiResp = await fetch(`${base}/${numericId}?fields=thumbnail_url,media_url&access_token=${token}`);
+
+      if (apiResp.ok) {
+        const data = await apiResp.json() as { thumbnail_url?: string; media_url?: string };
+        if (data.media_url) {
+          // Persist fresh URL back to reels table if this is our own reel
+          await db.update(reelsTable)
+            .set({
+              ...(data.thumbnail_url ? { thumbnailUrl: data.thumbnail_url } : {}),
+              mediaUrl: data.media_url,
+            })
+            .where(eq(reelsTable.instagramId, numericId));
+
+          res.json({ mediaUrl: data.media_url, thumbnailUrl: data.thumbnail_url ?? null });
+          return;
+        }
+      }
+    } catch {
+      // fall through to Strategy 2
+    }
   }
 
-  const numericId = shortcodeToId(shortcode);
-  const base = token.startsWith("IGAA") ? "https://graph.instagram.com/v21.0" : "https://graph.facebook.com/v21.0";
-  const resp = await fetch(`${base}/${numericId}?fields=thumbnail_url,media_url&access_token=${token}`);
+  // --- Strategy 2: Scrape og:video from the public Instagram page ---
+  try {
+    const pageResp = await fetch(`https://www.instagram.com/reel/${shortcode}/`, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+        "Accept": "text/html,application/xhtml+xml",
+      },
+    });
 
-  if (!resp.ok) {
-    res.status(502).json({ error: "Graph API error" });
-    return;
+    if (pageResp.ok) {
+      const html = await pageResp.text();
+      // og:video:secure_url is the MP4 source; og:video is sometimes the same
+      const videoMatch = html.match(/og:video(?::secure_url)?[^>]*content="([^"]+\.mp4[^"]*)"/i)
+        ?? html.match(/og:video[^>]*content="([^"]+)"/i);
+      const imageMatch = html.match(/og:image[^>]*content="([^"]+)"/i);
+
+      const mediaUrl   = videoMatch ? videoMatch[1].replace(/&amp;/g, "&") : null;
+      const thumbUrl   = imageMatch ? imageMatch[1].replace(/&amp;/g, "&") : null;
+
+      if (mediaUrl) {
+        res.json({ mediaUrl, thumbnailUrl: thumbUrl });
+        return;
+      }
+    }
+  } catch {
+    // fall through
   }
 
-  const data = await resp.json() as { thumbnail_url?: string; media_url?: string };
-
-  // Persist fresh URLs back to our reels table if we have this reel
-  if (data.thumbnail_url || data.media_url) {
-    await db.update(reelsTable)
-      .set({
-        ...(data.thumbnail_url ? { thumbnailUrl: data.thumbnail_url } : {}),
-        ...(data.media_url    ? { mediaUrl:    data.media_url }    : {}),
-      })
-      .where(eq(reelsTable.instagramId, numericId));
-  }
-
-  res.json({ mediaUrl: data.media_url ?? null, thumbnailUrl: data.thumbnail_url ?? null });
+  res.json({ mediaUrl: null, thumbnailUrl: null });
 });
 
 // Refresh a fresh thumbnail URL for a reel using the Graph API token.
