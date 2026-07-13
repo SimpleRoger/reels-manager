@@ -1,13 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
-import { ShareExtension, useShareExtension, closeShareExtension } from "expo-share-extension";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { close, type InitialProps } from "expo-share-extension";
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? "https://workspaceapi-server-production-5bc6.up.railway.app";
+const API_URL =
+  process.env.EXPO_PUBLIC_API_URL ??
+  "https://workspaceapi-server-production-5bc6.up.railway.app";
 const SHARE_SECRET = process.env.EXPO_PUBLIC_SHARE_SECRET ?? "";
 
 function detectPlatform(url: string): string {
@@ -20,26 +17,16 @@ function detectPlatform(url: string): string {
 
 type Status = "saving" | "done" | "error" | "invalid";
 
-function ShareContent() {
-  const { shareInfo } = useShareExtension();
-  const [status, setStatus] = useState<Status>("saving");
+export default function ShareExtension({ url, text }: InitialProps) {
+  const sharedUrl = url ?? text ?? null;
+  const [status, setStatus] = useState<Status>(sharedUrl ? "saving" : "invalid");
   const [platform, setPlatform] = useState("link");
   const didSave = useRef(false);
 
   useEffect(() => {
-    if (!shareInfo || didSave.current) return;
-
-    const url = shareInfo.type === "url" ? shareInfo.value
-      : shareInfo.type === "text" ? shareInfo.value
-      : null;
-
-    if (!url) {
-      setStatus("invalid");
-      return;
-    }
-
+    if (!sharedUrl || didSave.current) return;
     didSave.current = true;
-    setPlatform(detectPlatform(url));
+    setPlatform(detectPlatform(sharedUrl));
 
     fetch(`${API_URL}/api/public/save`, {
       method: "POST",
@@ -47,18 +34,18 @@ function ShareContent() {
         "Content-Type": "application/json",
         "X-Share-Secret": SHARE_SECRET,
       },
-      body: JSON.stringify({ url }),
+      body: JSON.stringify({ url: sharedUrl }),
     })
       .then((r) => {
         if (!r.ok) throw new Error("save failed");
         setStatus("done");
-        setTimeout(() => closeShareExtension(), 1000);
+        setTimeout(close, 1000);
       })
       .catch(() => {
         setStatus("error");
-        setTimeout(() => closeShareExtension(), 2000);
+        setTimeout(close, 2500);
       });
-  }, [shareInfo]);
+  }, [sharedUrl]);
 
   return (
     <View style={styles.container}>
@@ -88,24 +75,15 @@ function ShareContent() {
       {status === "invalid" && (
         <>
           <Text style={styles.errorIcon}>!</Text>
-          <Text style={styles.title}>Not a URL</Text>
-          <Text style={styles.sub}>Share a link from Instagram, TikTok, YouTube or Reddit</Text>
+          <Text style={styles.title}>No URL found</Text>
+          <Text style={styles.sub}>
+            Share a link from Instagram, TikTok, YouTube or Reddit
+          </Text>
         </>
       )}
     </View>
   );
 }
-
-export default function ShareExtensionRoot() {
-  return (
-    <ShareExtension>
-      <ShareContent />
-    </ShareExtension>
-  );
-}
-
-const ORANGE = "#f07d1a";
-const ERROR = "#ef4444";
 
 const styles = StyleSheet.create({
   container: {
@@ -120,31 +98,13 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: ORANGE,
+    backgroundColor: "#f07d1a",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 4,
   },
-  checkMark: {
-    color: "#fff",
-    fontSize: 24,
-    fontWeight: "700",
-  },
-  errorIcon: {
-    fontSize: 40,
-    color: ERROR,
-    fontWeight: "700",
-    marginBottom: 4,
-  },
-  title: {
-    color: "#dde0eb",
-    fontSize: 18,
-    fontWeight: "700",
-    textAlign: "center",
-  },
-  sub: {
-    color: "#9098b0",
-    fontSize: 13,
-    textAlign: "center",
-  },
+  checkMark: { color: "#fff", fontSize: 24, fontWeight: "700" },
+  errorIcon: { fontSize: 40, color: "#ef4444", fontWeight: "700", marginBottom: 4 },
+  title: { color: "#dde0eb", fontSize: 18, fontWeight: "700", textAlign: "center" },
+  sub: { color: "#9098b0", fontSize: 13, textAlign: "center" },
 });

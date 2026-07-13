@@ -43,9 +43,10 @@
         {
           "backgroundColor": "#13151a",
           "height": 380,
-          "activationRules": {
-            "contentTypes": ["public.url"]
-          },
+          "activationRules": [
+            { "type": "url", "max": 1 },
+            { "type": "text" }
+          ],
           "appGroupIdentifier": "group.com.rogerrari.reeljournal"
         }
       ]
