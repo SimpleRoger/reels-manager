@@ -16,7 +16,12 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.rogerrari.reeljournal",
-      "buildNumber": "1"
+      "buildNumber": "1",
+      "entitlements": {
+        "com.apple.security.application-groups": [
+          "group.com.rogerrari.reeljournal"
+        ]
+      }
     },
     "android": {
       "backgroundColor": "#0F1015"
@@ -32,7 +37,18 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-share-extension",
+        {
+          "backgroundColor": "#13151a",
+          "height": 380,
+          "activationRules": {
+            "contentTypes": ["public.url"]
+          },
+          "appGroupIdentifier": "group.com.rogerrari.reeljournal"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
