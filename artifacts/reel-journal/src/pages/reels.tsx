@@ -380,7 +380,7 @@ export default function ReelsLog() {
         <LoudnessView reels={data?.reels ?? []} onRefresh={refresh} />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          {data?.reels.map((reel) => {
+          {data?.reels?.map((reel) => {
             const isPlaying = playingId === reel.id;
             return (
               <Card key={reel.id} className="overflow-hidden bg-card hover:border-primary/50 transition-colors group cursor-pointer h-full flex flex-col hover-elevate">

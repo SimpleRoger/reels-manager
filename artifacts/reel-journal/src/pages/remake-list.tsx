@@ -14,8 +14,11 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Trash2, ExternalLink, Bookmark, Plus, Link2, Loader2,
-  X, Play, Eye, Heart, MessageCircle, FileText, Tag, ArrowUpDown, Clapperboard,
+  X, Play, Eye, Heart, MessageCircle, FileText, Tag, ArrowUpDown, Cloud,
 } from "lucide-react";
+
+const R2_PUBLIC_URL = "https://pub-673c5f24f1654fc9a07c6200c7b2b5a7.r2.dev";
+function isR2Url(url?: string | null) { return !!url && url.startsWith(R2_PUBLIC_URL); }
 import { useToast } from "@/hooks/use-toast";
 import { InlinePlayer } from "@/components/inline-player";
 import { VideoThumb } from "@/components/video-thumb";
@@ -388,28 +391,28 @@ export default function RemakeList() {
     return () => clearInterval(timer);
   }, [data?.references]);
 
-  // Auto-refresh stale CDN URLs once per browser session
+  // Auto-refresh thumbnails/videos that are missing — once per browser session
   useEffect(() => {
     if (!data?.references.length) return;
     const SESSION_KEY = "remake_refreshed_at";
     const lastRefresh = Number(sessionStorage.getItem(SESSION_KEY) ?? 0);
-    const hoursSinceRefresh = (Date.now() - lastRefresh) / 3_600_000;
-    if (hoursSinceRefresh < 2) return;
-    const anyStale = data.references.some((r) => {
-      const ageHours = (Date.now() - new Date((r as any).updatedAt ?? 0).getTime()) / 3_600_000;
-      return ageHours > 4;
-    });
-    if (!anyStale) return;
+    const minutesSinceRefresh = (Date.now() - lastRefresh) / 60_000;
+    if (minutesSinceRefresh < 30) return;
+    // Trigger refresh if any card is missing a base64 thumbnail or a permanent R2 video URL
+    const needsRefresh = data.references.some(
+      (r) => !r.thumbnailUrl || !r.thumbnailUrl.startsWith("data:") || !isR2Url(r.mediaUrl)
+    );
+    if (!needsRefresh) return;
     sessionStorage.setItem(SESSION_KEY, String(Date.now()));
     fetch("/api/references/refresh-all", { method: "POST" }).catch(() => {});
     const start = Date.now();
     const poll = setInterval(() => {
       if (Date.now() - start > 180_000) { clearInterval(poll); return; }
       invalidate();
-    }, 30_000);
+    }, 15_000);
     return () => clearInterval(poll);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [!!data?.references.length]);
+  }, [!!data?.references?.length]);
 
   function handleSave(
     id: number,
@@ -741,6 +744,11 @@ export default function RemakeList() {
                       {hasNotes && (
                         <div className="bg-primary/80 rounded-full p-1">
                           <FileText className="w-2.5 h-2.5 text-black" />
+                        </div>
+                      )}
+                      {isR2Url(ref.mediaUrl) && (
+                        <div className="bg-sky-500/80 rounded-full p-1" title="Video saved to cloud">
+                          <Cloud className="w-2.5 h-2.5 text-white" />
                         </div>
                       )}
                     </div>

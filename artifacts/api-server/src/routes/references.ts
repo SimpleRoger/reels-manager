@@ -358,11 +358,11 @@ router.get("/references/video-url", async (req, res): Promise<void> => {
   if (snapsaveUrl) {
     const refId = typeof req.query["referenceId"] === "string" ? parseInt(req.query["referenceId"], 10) : null;
     if (refId && !isNaN(refId)) {
-      // Save proxy URL + thumbnail to DB immediately so next page load skips snapsave
-      const immediateUpdate: Record<string, string> = { mediaUrl: snapsaveUrl };
-      if (thumbDataUrl) immediateUpdate.thumbnailUrl = thumbDataUrl;
-      db.update(savedReferencesTable).set(immediateUpdate).where(eq(savedReferencesTable.id, refId)).catch(() => {});
-      // Then upgrade to permanent R2 URL in background
+      // Save thumbnail immediately (permanent base64, worth storing now)
+      if (thumbDataUrl) {
+        db.update(savedReferencesTable).set({ thumbnailUrl: thumbDataUrl }).where(eq(savedReferencesTable.id, refId)).catch(() => {});
+      }
+      // Upload video to R2 in background — only save to DB once we have a permanent URL
       if (videoCdnUrl) uploadToR2Background(refId, url, videoCdnUrl, thumbDataUrl);
     }
     res.json({ videoUrl: snapsaveUrl, thumbnailUrl: thumbDataUrl }); return;

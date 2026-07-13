@@ -27,14 +27,14 @@ export function InlinePlayer({ mediaUrl, thumbnailUrl, instagramUrl, referenceId
   const [freshMediaUrl, setFreshMediaUrl] = useState<string | null>(null);
   const [freshFetchDone, setFreshFetchDone] = useState(false);
   const [tiktokEmbedUrl, setTiktokEmbedUrl] = useState<string | null>(null);
-  const [tiktokResolveFailed, setTiktokResolveFailed] = useState(false);
+  const [fetchingFresh, setFetchingFresh] = useState(false);
 
   useEffect(() => {
     setVideoFailed(false);
     setFreshMediaUrl(null);
     setFreshFetchDone(false);
     setTiktokEmbedUrl(null);
-    setTiktokResolveFailed(false);
+    setFetchingFresh(false);
   }, [mediaUrl, instagramUrl]);
 
   useEffect(() => {
@@ -44,12 +44,14 @@ export function InlinePlayer({ mediaUrl, thumbnailUrl, instagramUrl, referenceId
     }
   }, [mediaUrl, freshMediaUrl, videoFailed]);
 
-  // When there's no stored media URL or the CDN URL has expired, ask our server
-  // to fetch a fresh one. Strategy: Graph API first (own reels), then Cobalt (anyone's).
+  // When there's no stored media URL or the CDN URL has expired, fetch a fresh one.
+  // Strategy: Graph API (own reels) → snapsave/proxy → TikTok embed (last resort).
+  // TikTok embed is sequential fallback — not a parallel race — so we prefer native video.
   useEffect(() => {
     const needsFresh = !mediaUrl || videoFailed;
     if (needsFresh && instagramUrl && !freshFetchDone) {
       setFreshFetchDone(true);
+      setFetchingFresh(true);
 
       const fetchFresh = async () => {
         // Strategy 1: Graph API — works instantly for your own reels
@@ -57,7 +59,7 @@ export function InlinePlayer({ mediaUrl, thumbnailUrl, instagramUrl, referenceId
           try {
             const r = await fetch(`${API_BASE}/api/instagram/fresh-media?url=${encodeURIComponent(instagramUrl)}`);
             const d = await r.json() as { mediaUrl?: string };
-            if (d.mediaUrl) { setFreshMediaUrl(d.mediaUrl); return; }
+            if (d.mediaUrl) { setFreshMediaUrl(d.mediaUrl); setFetchingFresh(false); return; }
           } catch { /* fall through */ }
         }
 
@@ -71,28 +73,27 @@ export function InlinePlayer({ mediaUrl, thumbnailUrl, instagramUrl, referenceId
             if (d.videoUrl) {
               const resolved = d.videoUrl.startsWith("/") ? `${API_BASE}${d.videoUrl}` : d.videoUrl;
               setFreshMediaUrl(resolved);
+              setFetchingFresh(false);
               return;
             }
           }
         } catch { /* fall through to embed */ }
+
+        // Strategy 3 (TikTok only): embed as last resort after snapsave fails
+        if (isTikTok(instagramUrl)) {
+          try {
+            const r = await fetch(`${API_BASE}/api/references/tiktok-embed?url=${encodeURIComponent(instagramUrl)}`);
+            const d = await r.json() as { embedUrl?: string };
+            if (d.embedUrl) { setTiktokEmbedUrl(d.embedUrl); }
+          } catch { /* nothing left to try */ }
+        }
+
+        setFetchingFresh(false);
       };
 
       fetchFresh();
     }
-  }, [mediaUrl, videoFailed, instagramUrl, freshFetchDone]);
-
-  // When CDN video fails and the source is TikTok, resolve the embed URL server-side
-  useEffect(() => {
-    if (videoFailed && isTikTok(instagramUrl) && !tiktokEmbedUrl && !tiktokResolveFailed) {
-      fetch(`${API_BASE}/api/references/tiktok-embed?url=${encodeURIComponent(instagramUrl!)}`)
-        .then((r) => r.json())
-        .then((d: { embedUrl?: string }) => {
-          if (d.embedUrl) setTiktokEmbedUrl(d.embedUrl);
-          else setTiktokResolveFailed(true);
-        })
-        .catch(() => setTiktokResolveFailed(true));
-    }
-  }, [videoFailed, instagramUrl]);
+  }, [mediaUrl, videoFailed, instagramUrl, freshFetchDone, referenceId]);
 
   const shortcode = extractShortcode(instagramUrl);
   const activeMediaUrl = freshMediaUrl ?? mediaUrl;
@@ -119,6 +120,11 @@ export function InlinePlayer({ mediaUrl, thumbnailUrl, instagramUrl, referenceId
           onClick={(e) => e.stopPropagation()}
           onError={() => setVideoFailed(true)}
         />
+      ) : fetchingFresh ? (
+        // Fetching fresh URL — show spinner instead of jumping to embed
+        <div className="w-full h-full flex items-center justify-center">
+          <div className="w-5 h-5 border-2 border-white/20 border-t-white/70 rounded-full animate-spin" />
+        </div>
       ) : shortcode ? (
         // Fallback: Instagram embed with header/footer clipped via overflow:hidden
         // so only the video content is visible (no Instagram UI chrome).
@@ -150,7 +156,7 @@ export function InlinePlayer({ mediaUrl, thumbnailUrl, instagramUrl, referenceId
           </a>
         </div>
       ) : tiktokEmbedUrl ? (
-        // Fallback: TikTok embed iframe
+        // Fallback: TikTok embed iframe (only after snapsave fails)
         <iframe
           src={tiktokEmbedUrl}
           className="w-full h-full"
@@ -159,11 +165,6 @@ export function InlinePlayer({ mediaUrl, thumbnailUrl, instagramUrl, referenceId
           scrolling="no"
           allow="autoplay; clipboard-write; encrypted-media; picture-in-picture"
         />
-      ) : isTikTok(instagramUrl) && !tiktokResolveFailed ? (
-        // Resolving TikTok embed URL…
-        <div className="w-full h-full flex items-center justify-center">
-          <div className="w-5 h-5 border-2 border-white/20 border-t-white/70 rounded-full animate-spin" />
-        </div>
       ) : instagramUrl ? (
         // Last resort: open in browser
         <div className="w-full h-full flex flex-col items-center justify-center gap-3 text-white/60">

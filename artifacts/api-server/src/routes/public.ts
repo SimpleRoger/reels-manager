@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, reelsTable } from "@workspace/db";
+import { db, reelsTable, instagramAccountsTable } from "@workspace/db";
 import { desc } from "drizzle-orm";
 import { runInstagramSync } from "../lib/sync";
 import { logger } from "../lib/logger";
@@ -66,6 +66,57 @@ router.get("/public/latest-reel", async (_req, res): Promise<void> => {
     postedAt: reel.postedAt,
     updatedAt: reel.updatedAt,
     performanceStatus: reel.performanceStatus,
+  });
+});
+
+// GET /api/instagram/my-stats — public, no auth required (used for personal testing/widgets)
+router.get("/instagram/my-stats", async (_req, res): Promise<void> => {
+  const accounts = await db.select().from(instagramAccountsTable).limit(1);
+  const token = accounts[0]?.accessToken;
+  const accountId = accounts[0]?.accountId;
+
+  if (!token || !accountId) {
+    res.status(400).json({ error: "No Instagram account connected with a Graph API token" });
+    return;
+  }
+
+  const base = token.startsWith("IGAA") ? "https://graph.instagram.com/v21.0" : "https://graph.facebook.com/v21.0";
+  const fields = "id,caption,permalink,timestamp,media_type,media_product_type,like_count,comments_count";
+
+  const mediaResp = await fetch(
+    `${base}/${accountId}/media?fields=${fields}&limit=1&access_token=${token}`
+  ).catch(() => null);
+
+  if (!mediaResp?.ok) {
+    res.status(502).json({ error: "Failed to fetch media from Graph API" });
+    return;
+  }
+
+  const mediaData = await mediaResp.json() as {
+    data?: Array<{ id: string; caption?: string; permalink?: string; timestamp?: string; like_count?: number; comments_count?: number }>;
+  };
+
+  const item = mediaData.data?.[0];
+  if (!item) { res.status(404).json({ error: "No media found" }); return; }
+
+  let views: number | null = null;
+  const insightsResp = await fetch(
+    `${base}/${item.id}/insights?metric=views,total_interactions&access_token=${token}`
+  ).catch(() => null);
+  if (insightsResp?.ok) {
+    const insights = await insightsResp.json() as { data?: Array<{ name: string; values?: Array<{ value: number }>; value?: number }> };
+    const metric = insights.data?.find((m) => m.name === "views");
+    views = metric?.values?.[0]?.value ?? metric?.value ?? null;
+  }
+
+  res.json({
+    id: item.id,
+    permalink: item.permalink ?? null,
+    caption: item.caption ? item.caption.slice(0, 120) : null,
+    postedAt: item.timestamp ?? null,
+    views,
+    likes: item.like_count ?? null,
+    comments: item.comments_count ?? null,
   });
 });
 

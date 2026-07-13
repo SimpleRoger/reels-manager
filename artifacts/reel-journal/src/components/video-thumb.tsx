@@ -10,6 +10,14 @@ function proxyUrl(url: string) {
   return `${API_BASE}/api/media-proxy?url=${encodeURIComponent(url)}`;
 }
 
+// Relative /api/ paths from formatReference need the API base in production
+// (frontend and API are on different domains).
+function resolveThumbUrl(url?: string | null): string | null {
+  if (!url) return null;
+  if (url.startsWith("/api/")) return `${API_BASE}${url}`;
+  return url;
+}
+
 function extractShortcode(permalink?: string | null): string | null {
   if (!permalink) return null;
   return permalink.match(/instagram\.com\/(?:reel|p)\/([A-Za-z0-9_-]+)/)?.[1] ?? null;
@@ -99,7 +107,7 @@ export function VideoThumb({ thumbnailUrl, videoUrl, permalink, instagramId, ref
   if (stage === "thumb" && thumbnailUrl) {
     return (
       <img
-        src={thumbnailUrl}
+        src={resolveThumbUrl(thumbnailUrl)!}
         alt=""
         className={`w-full h-full object-cover ${className}`}
         onError={handleThumbError}
