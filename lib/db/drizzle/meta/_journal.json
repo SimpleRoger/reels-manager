@@ -15,6 +15,13 @@
       "when": 1783900000000,
       "tag": "0001_multi_account",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783900800000,
+      "tag": "0002_user_api_keys",
+      "breakpoints": true
     }
   ]
 }

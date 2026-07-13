@@ -17,6 +17,7 @@ import mediaProxyRouter from "./media-proxy";
 import calendarRouter from "./calendar";
 import loudnessRouter from "./loudness";
 import publicRouter from "./public";
+import userRouter from "./user";
 
 const router: IRouter = Router();
 
@@ -38,5 +39,6 @@ router.use(mediaProxyRouter);
 router.use(calendarRouter);
 router.use(loudnessRouter);
 router.use(publicRouter);
+router.use(userRouter);
 
 export default router;

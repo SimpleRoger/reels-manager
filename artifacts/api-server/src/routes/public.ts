@@ -1,9 +1,8 @@
 import { Router, type IRouter } from "express";
-import { db, reelsTable, instagramAccountsTable, savedReferencesTable } from "@workspace/db";
+import { db, reelsTable, instagramAccountsTable } from "@workspace/db";
 import { desc } from "drizzle-orm";
 import { runInstagramSync } from "../lib/sync";
 import { logger } from "../lib/logger";
-import { enrichReferenceWithApify, resolveReelMedia } from "../lib/resolve-reel-video";
 
 const router: IRouter = Router();
 
@@ -120,51 +119,5 @@ router.get("/instagram/my-stats", async (_req, res): Promise<void> => {
     comments: item.comments_count ?? null,
   });
 });
-
-// POST /api/public/save — called by the iOS share extension.
-// Protected by a pre-shared secret set via SHARE_SECRET env var.
-// No user auth needed; this is a single-user personal app.
-router.post("/public/save", async (req, res): Promise<void> => {
-  const secret = process.env.SHARE_SECRET;
-  if (secret && req.headers["x-share-secret"] !== secret) {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-
-  const { url } = req.body as { url?: string };
-  if (!url || typeof url !== "string") {
-    res.status(400).json({ error: "url is required" });
-    return;
-  }
-
-  try {
-    const resolved = await resolveReelMedia(url);
-    const [ref] = await db
-      .insert(savedReferencesTable)
-      .values({
-        url,
-        mediaUrl: resolved.mediaUrl ?? null,
-        thumbnailUrl: resolved.thumbnailUrl ?? null,
-      })
-      .returning();
-
-    if (!resolved.mediaUrl) {
-      enrichReferenceWithApify(ref.id, url).catch(() => {});
-    }
-
-    res.status(201).json({ id: ref.id });
-  } catch (err) {
-    logger.error({ err, url }, "public/save: failed to save reference");
-    res.status(500).json({ error: "Failed to save" });
-  }
-});
-
-function detectPlatform(url: string): string {
-  if (url.includes("tiktok.com")) return "tiktok";
-  if (url.includes("instagram.com")) return "instagram";
-  if (url.includes("youtube.com") || url.includes("youtu.be")) return "youtube";
-  if (url.includes("reddit.com") || url.includes("redd.it")) return "reddit";
-  return "web";
-}
 
 export default router;

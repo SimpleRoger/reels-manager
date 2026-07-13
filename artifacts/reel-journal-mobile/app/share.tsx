@@ -1,11 +1,11 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { close, type InitialProps } from "expo-share-extension";
 import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
-import { close, type InitialProps } from "expo-share-extension";
 
 const API_URL =
   process.env.EXPO_PUBLIC_API_URL ??
   "https://workspaceapi-server-production-5bc6.up.railway.app";
-const SHARE_SECRET = process.env.EXPO_PUBLIC_SHARE_SECRET ?? "";
 
 function detectPlatform(url: string): string {
   if (url.includes("tiktok.com")) return "TikTok";
@@ -15,7 +15,7 @@ function detectPlatform(url: string): string {
   return "link";
 }
 
-type Status = "saving" | "done" | "error" | "invalid";
+type Status = "saving" | "done" | "error" | "invalid" | "unauthenticated";
 
 export default function ShareExtension({ url, text }: InitialProps) {
   const sharedUrl = url ?? text ?? null;
@@ -28,23 +28,40 @@ export default function ShareExtension({ url, text }: InitialProps) {
     didSave.current = true;
     setPlatform(detectPlatform(sharedUrl));
 
-    fetch(`${API_URL}/api/public/save`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Share-Secret": SHARE_SECRET,
-      },
-      body: JSON.stringify({ url: sharedUrl }),
-    })
-      .then((r) => {
-        if (!r.ok) throw new Error("save failed");
-        setStatus("done");
-        setTimeout(close, 1000);
-      })
-      .catch(() => {
+    const save = async () => {
+      const apiKey = await AsyncStorage.getItem("userApiKey");
+      if (!apiKey) {
+        setStatus("unauthenticated");
+        setTimeout(close, 2500);
+        return;
+      }
+
+      const resp = await fetch(`${API_URL}/api/save`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Api-Key": apiKey,
+        },
+        body: JSON.stringify({ url: sharedUrl }),
+      });
+
+      if (!resp.ok) {
+        const body = await resp.text().catch(() => "");
+        console.error("[Share] error", resp.status, body);
         setStatus("error");
         setTimeout(close, 2500);
-      });
+        return;
+      }
+
+      setStatus("done");
+      setTimeout(close, 1000);
+    };
+
+    save().catch((err) => {
+      console.error("[Share] error", String(err));
+      setStatus("error");
+      setTimeout(close, 2500);
+    });
   }, [sharedUrl]);
 
   return (
@@ -52,7 +69,7 @@ export default function ShareExtension({ url, text }: InitialProps) {
       {status === "saving" && (
         <>
           <ActivityIndicator color="#f07d1a" size="large" />
-          <Text style={styles.title}>Saving {platform}...</Text>
+          <Text style={styles.title}>Saving {platform}…</Text>
           <Text style={styles.sub}>Adding to Reel Journal</Text>
         </>
       )}
@@ -70,6 +87,13 @@ export default function ShareExtension({ url, text }: InitialProps) {
           <Text style={styles.errorIcon}>✕</Text>
           <Text style={styles.title}>Couldn't save</Text>
           <Text style={styles.sub}>Check your connection and try again</Text>
+        </>
+      )}
+      {status === "unauthenticated" && (
+        <>
+          <Text style={styles.errorIcon}>!</Text>
+          <Text style={styles.title}>Not signed in</Text>
+          <Text style={styles.sub}>Open Reel Journal and sign in first</Text>
         </>
       )}
       {status === "invalid" && (

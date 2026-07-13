@@ -48,7 +48,8 @@
             { "type": "text" }
           ]
         }
-      ]
+      ],
+      ["./plugins/withShareExtensionAsyncStorage", "group.com.rogerrari.reeljournal"]
     ],
     "experiments": {
       "typedRoutes": true,

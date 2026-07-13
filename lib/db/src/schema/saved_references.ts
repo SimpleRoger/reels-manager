@@ -16,6 +16,7 @@ export const savedReferencesTable = pgTable("saved_references", {
   commentsCount: integer("comments_count"),
   likeCount: integer("like_count"),
   tags: jsonb("tags").$type<string[]>().default([]),
+  userId: text("user_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

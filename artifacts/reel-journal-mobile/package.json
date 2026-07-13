@@ -2,7 +2,7 @@
   "name": "@workspace/reel-journal-mobile",
   "version": "0.0.0",
   "private": true,
-  "main": "expo-router/entry",
+  "main": "index.js",
   "scripts": {
     "dev": "EXPO_PACKAGER_PROXY_URL=https://$REPLIT_EXPO_DEV_DOMAIN EXPO_PUBLIC_DOMAIN=$REPLIT_DEV_DOMAIN EXPO_PUBLIC_REPL_ID=$REPL_ID REACT_NATIVE_PACKAGER_HOSTNAME=$REPLIT_DEV_DOMAIN pnpm exec expo start --localhost --port $PORT",
     "build": "node scripts/build.js",
@@ -58,6 +58,8 @@
     "zod-validation-error": "^3.4.0"
   },
   "dependencies": {
+    "@clerk/clerk-expo": "^2.0.0",
+    "expo-secure-store": "~14.0.0",
     "expo-share-extension": "^5.0.6",
     "expo-video": "^3.0.16",
     "expo": "~54.0.35",
