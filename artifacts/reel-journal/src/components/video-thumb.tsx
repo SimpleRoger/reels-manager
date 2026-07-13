@@ -55,6 +55,10 @@ function initialStage(thumbnailUrl?: string | null, videoUrl?: string | null): S
  *  3. First video frame captured from proxied videoUrl
  *  4. Dark placeholder with play icon
  */
+function tikTokProxyUrl(permalink: string): string {
+  return `${API_BASE}/api/instagram/thumbnail?url=${encodeURIComponent(permalink)}`;
+}
+
 export function VideoThumb({ thumbnailUrl, videoUrl, permalink, instagramId, referenceId, className = "" }: VideoThumbProps) {
   const [frameUrl, setFrameUrl] = useState<string | null>(null);
   const [freshUrl, setFreshUrl] = useState<string | null>(null);
@@ -65,6 +69,14 @@ export function VideoThumb({ thumbnailUrl, videoUrl, permalink, instagramId, ref
     setFreshUrl(null);
     setStage(initialStage(thumbnailUrl, videoUrl));
   }, [thumbnailUrl, videoUrl, permalink, instagramId, referenceId]);
+
+  // TikTok with no stored thumbnail — use oEmbed proxy on mount
+  useEffect(() => {
+    if (stage === "failed" && isTikTok(permalink)) {
+      setFreshUrl(tikTokProxyUrl(permalink!));
+      setStage("graph-api");
+    }
+  }, [stage, permalink]);
 
   const handleThumbError = () => {
     const id = instagramId;
@@ -81,8 +93,12 @@ export function VideoThumb({ thumbnailUrl, videoUrl, permalink, instagramId, ref
           }
         })
         .catch(() => setStage(videoUrl ? "video" : "failed"));
+    } else if (isTikTok(permalink)) {
+      // TikTok CDN URL expired — use oEmbed proxy (fast, no snapsave needed)
+      setFreshUrl(tikTokProxyUrl(permalink!));
+      setStage("graph-api");
     } else if (referenceId) {
-      // Saved reference — refresh thumbnail via snapsave (works for IG + TikTok)
+      // Non-TikTok saved reference — refresh via snapsave
       fetch(`${API_BASE}/api/references/${referenceId}/refresh-thumbnail`, { method: "POST" })
         .then((r) => r.ok ? r.json() : null)
         .then((data: { thumbnailUrl?: string | null } | null) => {
@@ -94,10 +110,6 @@ export function VideoThumb({ thumbnailUrl, videoUrl, permalink, instagramId, ref
           }
         })
         .catch(() => setStage(videoUrl ? "video" : "failed"));
-    } else if (isTikTok(permalink)) {
-      const url = `${API_BASE}/api/instagram/thumbnail?url=${encodeURIComponent(permalink!)}`;
-      setFreshUrl(url);
-      setStage("graph-api");
     } else {
       setStage(videoUrl ? "video" : "failed");
     }
