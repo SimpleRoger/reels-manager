@@ -1,7 +1,6 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
-import { clerkMiddleware, requireAuth } from "@clerk/express";
 import router from "./routes";
 import publicRouter from "./routes/public";
 import { logger } from "./lib/logger";
@@ -31,13 +30,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-app.use(clerkMiddleware());
-
-// Public routes — no auth required
 app.use("/api", publicRouter);
-
-// All other /api routes require auth
-app.use("/api", requireAuth());
 app.use("/api", router);
 
 export default app;
