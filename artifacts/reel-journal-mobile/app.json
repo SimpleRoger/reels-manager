@@ -41,13 +41,12 @@
       [
         "expo-share-extension",
         {
-          "backgroundColor": "#13151a",
+          "backgroundColor": { "red": 19, "green": 21, "blue": 26, "alpha": 255 },
           "height": 380,
           "activationRules": [
             { "type": "url", "max": 1 },
             { "type": "text" }
-          ],
-          "appGroupIdentifier": "group.com.rogerrari.reeljournal"
+          ]
         }
       ]
     ],
