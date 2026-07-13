@@ -1,4 +1,5 @@
 import { Link, useLocation } from "wouter";
+import { useClerk } from "@clerk/react";
 import {
   Film,
   BookOpen,
@@ -6,11 +7,11 @@ import {
   ListChecks,
   Settings,
   UserCircle2,
-  MessageSquare,
   CalendarDays,
   Music,
   Clapperboard,
   Dumbbell,
+  LogOut,
 } from "lucide-react";
 
 const navigation = [
@@ -37,6 +38,7 @@ const TAG_COLORS: Record<string, string> = {
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
+  const { signOut } = useClerk();
 
   function isActive(href: string) {
     return location === href || (href !== "/" && location.startsWith(href));
@@ -97,7 +99,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
 
-        <div className="p-4 border-t border-sidebar-border">
+        <div className="p-4 border-t border-sidebar-border space-y-1">
           <Link
             href="/settings"
             className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
@@ -109,6 +111,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <Settings className="h-4 w-4" />
             Settings
           </Link>
+          <button
+            onClick={() => signOut({ redirectUrl: "/login" })}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-primary"
+          >
+            <LogOut className="h-4 w-4" />
+            Sign Out
+          </button>
         </div>
       </div>
 

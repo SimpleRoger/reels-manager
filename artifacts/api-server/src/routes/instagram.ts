@@ -334,38 +334,29 @@ router.get("/instagram/thumbnail", async (req, res): Promise<void> => {
 
   if (typeof urlParam === "string" && urlParam.includes("tiktok.com")) {
     try {
-      const resolveResp = await fetch(urlParam, {
-        method: "HEAD",
-        redirect: "follow",
-        headers: {
-          "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15",
-        },
-      });
-      const canonicalUrl = resolveResp.url ?? urlParam;
+      // Use TikTok's oEmbed API — no auth needed, reliable thumbnail_url
+      const oembedResp = await fetch(
+        `https://www.tiktok.com/oembed?url=${encodeURIComponent(urlParam)}`,
+        { headers: { "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" } }
+      );
 
-      const pageResp = await fetch(canonicalUrl, {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
-          "Accept": "text/html,application/xhtml+xml",
-        },
-      });
-
-      if (!pageResp.ok) {
-        res.status(404).json({ error: "TikTok page unavailable" });
+      if (!oembedResp.ok) {
+        res.status(404).json({ error: "TikTok oEmbed unavailable" });
         return;
       }
 
-      const html = await pageResp.text();
-      const match = html.match(/og:image" content="([^"]+)"/);
-      if (!match) {
-        res.status(404).json({ error: "No og:image found on TikTok page" });
+      const oembed = await oembedResp.json() as { thumbnail_url?: string };
+      const thumbUrl = oembed.thumbnail_url;
+
+      if (!thumbUrl) {
+        res.status(404).json({ error: "No thumbnail in TikTok oEmbed response" });
         return;
       }
 
-      const freshUrl = match[1].replace(/&amp;/g, "&");
-      const imgResp = await fetch(freshUrl, {
+      const imgResp = await fetch(thumbUrl, {
         headers: {
           "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15",
+          "Referer": "https://www.tiktok.com/",
         },
       });
 
@@ -383,7 +374,7 @@ router.get("/instagram/thumbnail", async (req, res): Promise<void> => {
       res.send(Buffer.from(buffer));
       return;
     } catch (err) {
-      req.log.warn({ err, url: urlParam }, "Failed to fetch TikTok thumbnail via og:image");
+      req.log.warn({ err, url: urlParam }, "Failed to fetch TikTok thumbnail via oEmbed");
       res.status(502).json({ error: "Failed to fetch TikTok thumbnail" });
       return;
     }
