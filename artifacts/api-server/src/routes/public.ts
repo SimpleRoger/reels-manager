@@ -8,7 +8,11 @@ const router: IRouter = Router();
 
 const SYNC_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
 
-const REELS_PER_ACCOUNT = 2;
+const DEFAULT_REELS_PER_ACCOUNT = 2;
+const REELS_PER_ACCOUNT: Record<string, number> = {
+  youaresooooamazing: 3,
+};
+const reelsLimit = (username: string) => REELS_PER_ACCOUNT[username] ?? DEFAULT_REELS_PER_ACCOUNT;
 
 const reelFields = {
   permalink: reelsTable.permalink,
@@ -44,7 +48,7 @@ router.get("/public/latest-reel", async (_req, res): Promise<void> => {
           .from(reelsTable)
           .where(eq(reelsTable.accountId, account.id))
           .orderBy(desc(reelsTable.postedAt))
-          .limit(REELS_PER_ACCOUNT)
+          .limit(reelsLimit(account.username))
           .then((reels) => ({ username: account.username, reels }))
       )
     );
@@ -103,7 +107,7 @@ router.get("/public/views-spoken", async (_req, res): Promise<void> => {
         .from(reelsTable)
         .where(eq(reelsTable.accountId, account.id))
         .orderBy(desc(reelsTable.postedAt))
-        .limit(REELS_PER_ACCOUNT)
+        .limit(reelsLimit(account.username))
         .then((reels) => ({ username: account.username, reels }))
     )
   );
