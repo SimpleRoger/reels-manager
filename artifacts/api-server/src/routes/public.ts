@@ -87,6 +87,38 @@ router.get("/public/latest-reel", async (_req, res): Promise<void> => {
   res.json(result);
 });
 
+// GET /api/public/views-spoken — returns plain text for Shortcuts "Speak" action
+// e.g. "roger.rari: 1st reel 15571 views, 2nd reel 12000 views. youaresooooamazing: 1st reel 5000 views, 2nd reel 3000 views."
+router.get("/public/views-spoken", async (_req, res): Promise<void> => {
+  const accounts = await db.select().from(instagramAccountsTable);
+  if (accounts.length === 0) {
+    res.type("text/plain").send("No accounts connected.");
+    return;
+  }
+
+  const byAccount = await Promise.all(
+    accounts.map((account) =>
+      db
+        .select({ plays: reelsTable.plays })
+        .from(reelsTable)
+        .where(eq(reelsTable.accountId, account.id))
+        .orderBy(desc(reelsTable.postedAt))
+        .limit(REELS_PER_ACCOUNT)
+        .then((reels) => ({ username: account.username, reels }))
+    )
+  );
+
+  const ordinals = ["1st", "2nd", "3rd", "4th"];
+  const parts = byAccount.map(({ username, reels }) => {
+    const reelParts = reels.map((r, i) =>
+      `${ordinals[i] ?? `${i + 1}th`} reel ${r.plays?.toLocaleString() ?? "unknown"} views`
+    );
+    return `${username}: ${reelParts.join(", ")}`;
+  });
+
+  res.type("text/plain").send(parts.join(". ") + ".");
+});
+
 // GET /api/instagram/my-stats — public, no auth required (used for personal testing/widgets)
 router.get("/instagram/my-stats", async (_req, res): Promise<void> => {
   const accounts = await db.select().from(instagramAccountsTable).limit(1);
