@@ -3,6 +3,8 @@ import {
   useGetInstagramStatus,
   useSyncReels,
 } from "@workspace/api-client-react";
+import { useAuth } from "@clerk/clerk-expo";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Feather } from "@expo/vector-icons";
 import React, { useState } from "react";
 import {
@@ -22,6 +24,12 @@ export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const [syncing, setSyncing] = useState(false);
+  const { signOut } = useAuth();
+
+  async function handleSignOut() {
+    await AsyncStorage.removeItem("userApiKey");
+    await signOut();
+  }
 
   const { data: summary, isLoading, refetch } = useGetDashboardSummary();
   const { data: status } = useGetInstagramStatus();
@@ -178,6 +186,16 @@ export default function ProfileScreen() {
             )}
           </>
         )}
+
+        <Pressable
+          onPress={handleSignOut}
+          style={[styles.signOutBtn, { borderColor: colors.border }]}
+        >
+          <Feather name="log-out" size={16} color={colors.mutedForeground} />
+          <Text style={[styles.signOutText, { color: colors.mutedForeground }]}>
+            Sign out
+          </Text>
+        </Pressable>
       </ScrollView>
     </View>
   );
@@ -274,4 +292,15 @@ const styles = StyleSheet.create({
   statValue: { fontSize: 24, fontWeight: "700" },
   statLabel: { fontSize: 12 },
   lastSynced: { fontSize: 12, textAlign: "center" },
+  signOutBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 32,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  signOutText: { fontSize: 15, fontWeight: "500" },
 });

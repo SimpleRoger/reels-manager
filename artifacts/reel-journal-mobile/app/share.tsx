@@ -1,7 +1,29 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { close, type InitialProps } from "expo-share-extension";
-import React, { useEffect, useRef, useState } from "react";
+import React, { Component, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+
+class ShareErrorBoundary extends Component<
+  { children: React.ReactNode },
+  { error: string | null }
+> {
+  state = { error: null };
+  static getDerivedStateFromError(e: unknown) {
+    return { error: String(e) };
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <View style={styles.container}>
+          <Text style={styles.errorIcon}>✕</Text>
+          <Text style={styles.title}>Extension error</Text>
+          <Text style={styles.sub}>{this.state.error}</Text>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const API_URL =
   process.env.EXPO_PUBLIC_API_URL ??
@@ -17,7 +39,7 @@ function detectPlatform(url: string): string {
 
 type Status = "saving" | "done" | "error" | "invalid" | "unauthenticated";
 
-export default function ShareExtension({ url, text }: InitialProps) {
+function ShareExtensionInner({ url, text }: InitialProps) {
   const sharedUrl = url ?? text ?? null;
   const [status, setStatus] = useState<Status>(sharedUrl ? "saving" : "invalid");
   const [platform, setPlatform] = useState("link");
@@ -106,6 +128,14 @@ export default function ShareExtension({ url, text }: InitialProps) {
         </>
       )}
     </View>
+  );
+}
+
+export default function ShareExtension(props: InitialProps) {
+  return (
+    <ShareErrorBoundary>
+      <ShareExtensionInner {...props} />
+    </ShareErrorBoundary>
   );
 }
 

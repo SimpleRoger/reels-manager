@@ -41,6 +41,24 @@ async function verifyApiKey(header: string | undefined): Promise<string | null> 
   return row?.userId ?? null;
 }
 
+// GET /api/admin/share-key?userId=xxx — retrieve or create API key by user ID.
+// Protected by Clerk secret key so it can be called from the CLI to bootstrap the share extension.
+router.get("/admin/share-key", async (req, res): Promise<void> => {
+  if (req.headers["x-admin-key"] !== process.env.CLERK_SECRET_KEY) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  const userId = req.query.userId as string | undefined;
+  if (!userId) { res.status(400).json({ error: "userId required" }); return; }
+
+  const [existing] = await db.select().from(userApiKeysTable).where(eq(userApiKeysTable.userId, userId)).limit(1);
+  if (existing) { res.json({ key: existing.key }); return; }
+
+  const key = randomBytes(32).toString("hex");
+  await db.insert(userApiKeysTable).values({ userId, key });
+  res.status(201).json({ key });
+});
+
 // POST /api/user/api-key — get or create a long-lived API key for the authenticated user.
 // Called by the mobile app after Clerk sign-in; the key is stored in App Group storage
 // so the share extension can read it without needing a live Clerk session.

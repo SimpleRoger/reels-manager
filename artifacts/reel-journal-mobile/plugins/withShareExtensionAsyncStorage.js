@@ -1,17 +1,27 @@
-// Config plugin: sets RCTAsyncStorage_AppGroup in the share extension's Info.plist
-// so both the main app and the extension read/write from the same App Group UserDefaults.
-const { withDangerousMod, withInfoPlist } = require("@expo/config-plugins");
+// Config plugin: wires up App Group storage sharing between the main app and share extension.
+// Sets RCTAsyncStorage_AppGroup in both Info.plist files AND adds the App Group entitlement
+// to the main app (expo-share-extension handles the extension entitlement automatically).
+const { withDangerousMod, withInfoPlist, withEntitlementsPlist } = require("@expo/config-plugins");
 const path = require("path");
 const fs = require("fs");
 
 function withShareExtensionAsyncStorage(config, appGroup) {
-  // Main app — set via Info.plist mod
+  // 1. Main app Info.plist — tell AsyncStorage which App Group suite to use
   config = withInfoPlist(config, (c) => {
     c.modResults["RCTAsyncStorage_AppGroup"] = appGroup;
     return c;
   });
 
-  // Share extension — modify its Info.plist after expo-share-extension creates it
+  // 2. Main app entitlements — required for iOS to allow App Group storage access
+  config = withEntitlementsPlist(config, (c) => {
+    const existing = c.modResults["com.apple.security.application-groups"] ?? [];
+    if (!existing.includes(appGroup)) {
+      c.modResults["com.apple.security.application-groups"] = [...existing, appGroup];
+    }
+    return c;
+  });
+
+  // 3. Share extension Info.plist — same key so the extension reads from the same suite
   config = withDangerousMod(config, [
     "ios",
     async (c) => {
