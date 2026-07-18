@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, reelsTable, instagramAccountsTable } from "@workspace/db";
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { runInstagramSync } from "../lib/sync";
 import { logger } from "../lib/logger";
 
@@ -8,65 +8,83 @@ const router: IRouter = Router();
 
 const SYNC_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
 
+const REELS_PER_ACCOUNT = 2;
+
+const reelFields = {
+  permalink: reelsTable.permalink,
+  caption: reelsTable.caption,
+  postedAt: reelsTable.postedAt,
+  updatedAt: reelsTable.updatedAt,
+  plays: reelsTable.plays,
+  likeCount: reelsTable.likeCount,
+  commentsCount: reelsTable.commentsCount,
+  reach: reelsTable.reach,
+  saves: reelsTable.saves,
+  shares: reelsTable.shares,
+  performanceStatus: reelsTable.performanceStatus,
+};
+
 /**
  * GET /api/public/latest-reel
- * Returns stats for the most recently posted reel.
- * If data is older than 5 minutes, runs a full sync first (waits for it)
- * so the response always has fresh numbers. No auth required.
+ * Returns the 2 most recent reels for each connected account (4 total for 2 accounts).
+ * Syncs stale data first. No auth required.
  */
 router.get("/public/latest-reel", async (_req, res): Promise<void> => {
-  const getLatest = () =>
-    db
-      .select({
-        permalink: reelsTable.permalink,
-        caption: reelsTable.caption,
-        postedAt: reelsTable.postedAt,
-        updatedAt: reelsTable.updatedAt,
-        plays: reelsTable.plays,
-        likeCount: reelsTable.likeCount,
-        commentsCount: reelsTable.commentsCount,
-        reach: reelsTable.reach,
-        saves: reelsTable.saves,
-        shares: reelsTable.shares,
-        performanceStatus: reelsTable.performanceStatus,
-      })
-      .from(reelsTable)
-      .orderBy(desc(reelsTable.postedAt))
-      .limit(1);
-
-  let [reel] = await getLatest();
-
-  if (!reel) {
-    res.status(404).json({ error: "No reels found" });
+  const accounts = await db.select().from(instagramAccountsTable);
+  if (accounts.length === 0) {
+    res.status(404).json({ error: "No accounts connected" });
     return;
   }
 
-  const ageMs = reel.updatedAt ? Date.now() - reel.updatedAt.getTime() : Infinity;
+  const fetchPerAccount = () =>
+    Promise.all(
+      accounts.map((account) =>
+        db
+          .select(reelFields)
+          .from(reelsTable)
+          .where(eq(reelsTable.accountId, account.id))
+          .orderBy(desc(reelsTable.postedAt))
+          .limit(REELS_PER_ACCOUNT)
+          .then((reels) => ({ username: account.username, reels }))
+      )
+    );
 
-  if (ageMs > SYNC_COOLDOWN_MS) {
-    logger.info({ ageMs }, "public/latest-reel: stale data, syncing now");
+  let byAccount = await fetchPerAccount();
+
+  // Sync if any account's data is stale
+  const allReels = byAccount.flatMap((a) => a.reels);
+  const oldestUpdateMs = allReels.reduce((min, r) => {
+    return Math.min(min, r.updatedAt ? r.updatedAt.getTime() : 0);
+  }, Infinity);
+
+  if (!allReels.length || Date.now() - oldestUpdateMs > SYNC_COOLDOWN_MS) {
+    logger.info("public/latest-reel: stale data, syncing");
     try {
       await runInstagramSync();
-      // Re-fetch after sync so we return the freshest numbers
-      [reel] = await getLatest();
+      byAccount = await fetchPerAccount();
     } catch (err) {
       logger.warn({ err }, "public/latest-reel: sync failed, returning cached data");
     }
   }
 
-  res.json({
-    views: reel.plays,
-    likes: reel.likeCount,
-    comments: reel.commentsCount,
-    reach: reel.reach,
-    saves: reel.saves,
-    shares: reel.shares,
-    permalink: reel.permalink,
-    caption: reel.caption,
-    postedAt: reel.postedAt,
-    updatedAt: reel.updatedAt,
-    performanceStatus: reel.performanceStatus,
-  });
+  const result = byAccount.flatMap(({ username, reels }) =>
+    reels.map((r) => ({
+      account: username,
+      views: r.plays,
+      likes: r.likeCount,
+      comments: r.commentsCount,
+      reach: r.reach,
+      saves: r.saves,
+      shares: r.shares,
+      permalink: r.permalink,
+      caption: r.caption,
+      postedAt: r.postedAt,
+      updatedAt: r.updatedAt,
+      performanceStatus: r.performanceStatus,
+    }))
+  );
+
+  res.json(result);
 });
 
 // GET /api/instagram/my-stats — public, no auth required (used for personal testing/widgets)
