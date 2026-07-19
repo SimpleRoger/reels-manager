@@ -1,5 +1,4 @@
 import { useListReferences } from "@workspace/api-client-react";
-import { useAuth } from "@clerk/clerk-expo";
 import { Feather } from "@expo/vector-icons";
 
 const API_URL =
@@ -11,8 +10,7 @@ function resolveUrl(url?: string | null): string | null {
   if (url.startsWith("http") || url.startsWith("data:")) return url;
   return `${API_URL}${url}`;
 }
-import { VideoView, useVideoPlayer } from "expo-video";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -62,69 +60,22 @@ function VideoModal({
   colors: ReturnType<typeof useColors>;
 }) {
   const insets = useSafeAreaInsets();
-  const { getToken } = useAuth();
-  const [videoUri, setVideoUri] = useState<string | null>(null);
-  const [videoLoading, setVideoLoading] = useState(true);
-  const [videoError, setVideoError] = useState(false);
-
-  const player = useVideoPlayer(null, (p) => {
-    p.loop = true;
-  });
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const token = await getToken();
-        const resp = await fetch(`${API_URL}/api/references/${item.id}/play-url`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        if (!resp.ok) throw new Error(`${resp.status}`);
-        const { url } = (await resp.json()) as { url: string };
-        if (!cancelled) {
-          await player.replaceAsync({ uri: url });
-          player.play();
-          setVideoUri(url);
-          setVideoLoading(false);
-        }
-      } catch {
-        if (!cancelled) {
-          setVideoLoading(false);
-          setVideoError(true);
-        }
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [item.id]);
 
   return (
     <View style={[StyleSheet.absoluteFill, { backgroundColor: "#000" }]}>
-      {videoLoading ? (
-        <View style={[StyleSheet.absoluteFill, { alignItems: "center", justifyContent: "center" }]}>
-          <ActivityIndicator color="#f07d1a" size="large" />
-        </View>
-      ) : videoError || !videoUri ? (
-        item.thumbnailUrl ? (
-          <Image
-            source={{ uri: resolveUrl(item.thumbnailUrl) ?? "" }}
-            style={StyleSheet.absoluteFill}
-            resizeMode="contain"
-          />
-        ) : (
-          <View style={[StyleSheet.absoluteFill, { alignItems: "center", justifyContent: "center" }]}>
-            <Feather name="film" size={48} color={colors.mutedForeground} />
-            <Text style={[styles.noVideo, { color: colors.mutedForeground }]}>
-              Video not available
-            </Text>
-          </View>
-        )
-      ) : (
-        <VideoView
-          player={player}
+      {item.thumbnailUrl ? (
+        <Image
+          source={{ uri: resolveUrl(item.thumbnailUrl) ?? "" }}
           style={StyleSheet.absoluteFill}
-          contentFit="contain"
-          nativeControls
+          resizeMode="contain"
         />
+      ) : (
+        <View style={[StyleSheet.absoluteFill, { alignItems: "center", justifyContent: "center" }]}>
+          <Feather name="film" size={48} color={colors.mutedForeground} />
+          <Text style={[styles.noVideo, { color: colors.mutedForeground }]}>
+            Video not available
+          </Text>
+        </View>
       )}
 
       {/* Close button */}
