@@ -4,7 +4,8 @@ import { randomBytes } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { db, userApiKeysTable, savedReferencesTable } from "@workspace/db";
 import { logger } from "../lib/logger";
-import { resolveReelMedia, enrichReferenceWithApify } from "../lib/resolve-reel-video";
+import { resolveReelMedia } from "../lib/resolve-reel-video";
+import { getSnapsaveMedia, uploadToR2Background } from "../lib/snapsave";
 
 const router: IRouter = Router();
 
@@ -112,8 +113,20 @@ router.post("/save", async (req, res): Promise<void> => {
       })
       .returning();
 
+    // Enrich with snapsave (fast, ~2s) instead of Apify (slow, ~2min)
     if (!resolved.mediaUrl) {
-      enrichReferenceWithApify(ref.id, url).catch(() => {});
+      (async () => {
+        try {
+          const { videoUrl, thumbDataUrl, videoCdnUrl } = await getSnapsaveMedia(url);
+          const updates: Record<string, string> = {};
+          if (thumbDataUrl) updates.thumbnailUrl = thumbDataUrl;
+          if (videoUrl) updates.mediaUrl = videoUrl;
+          if (Object.keys(updates).length) {
+            await db.update(savedReferencesTable).set(updates).where(eq(savedReferencesTable.id, ref.id));
+          }
+          if (videoCdnUrl) uploadToR2Background(ref.id, url, videoCdnUrl, thumbDataUrl);
+        } catch { /* skip */ }
+      })();
     }
 
     res.status(201).json({ id: ref.id });

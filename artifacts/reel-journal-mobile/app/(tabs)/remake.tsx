@@ -1,7 +1,17 @@
 import { useListReferences } from "@workspace/api-client-react";
 import { Feather } from "@expo/vector-icons";
+
+const API_URL =
+  process.env.EXPO_PUBLIC_API_URL ??
+  "https://workspaceapi-server-production-5bc6.up.railway.app";
+
+function resolveThumb(url?: string | null): string | null {
+  if (!url) return null;
+  if (url.startsWith("http")) return url;
+  return `${API_URL}${url}`;
+}
 import { VideoView, useVideoPlayer } from "expo-video";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -10,6 +20,7 @@ import {
   Platform,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -28,6 +39,17 @@ type Reference = {
   likeCount?: number | null;
   commentsCount?: number | null;
 };
+
+type SortKey = "recent" | "views" | "likes";
+type Category = "All" | "Instagram" | "TikTok" | "YouTube" | "Reddit";
+
+function detectCategory(url: string): Category {
+  if (url.includes("instagram.com")) return "Instagram";
+  if (url.includes("tiktok.com")) return "TikTok";
+  if (url.includes("youtube.com") || url.includes("youtu.be")) return "YouTube";
+  if (url.includes("reddit.com") || url.includes("redd.it")) return "Reddit";
+  return "Instagram";
+}
 
 function VideoModal({
   item,
@@ -59,7 +81,7 @@ function VideoModal({
         />
       ) : selectedRef.thumbnailUrl ? (
         <Image
-          source={{ uri: selectedRef.thumbnailUrl }}
+          source={{ uri: resolveThumb(selectedRef.thumbnailUrl) ?? "" }}
           style={StyleSheet.absoluteFill}
           resizeMode="contain"
         />
@@ -126,12 +148,30 @@ export default function RemakeScreen() {
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
   const [selectedRef, setSelectedRef] = useState<Reference | null>(null);
+  const [sort, setSort] = useState<SortKey>("recent");
+  const [category, setCategory] = useState<Category>("All");
 
   const { data, isLoading, refetch } = useListReferences();
 
-  const refs = [...(data?.references ?? [])].sort(
-    (a, b) => ((b as any).viewCount ?? -1) - ((a as any).viewCount ?? -1)
-  ) as Reference[];
+  const allRefs = (data?.references ?? []) as Reference[];
+
+  const availableCategories = useMemo<Category[]>(() => {
+    const cats = new Set(allRefs.map((r) => detectCategory(r.url)));
+    const order: Category[] = ["Instagram", "TikTok", "YouTube", "Reddit"];
+    return order.filter((c) => cats.has(c));
+  }, [allRefs]);
+
+  const refs = useMemo(() => {
+    let filtered = category === "All"
+      ? allRefs
+      : allRefs.filter((r) => detectCategory(r.url) === category);
+
+    return [...filtered].sort((a, b) => {
+      if (sort === "recent") return b.id - a.id;
+      if (sort === "likes") return ((b.likeCount ?? -1) - (a.likeCount ?? -1));
+      return ((b.viewCount ?? -1) - (a.viewCount ?? -1));
+    });
+  }, [allRefs, sort, category]);
 
   async function onRefresh() {
     setRefreshing(true);
@@ -143,18 +183,41 @@ export default function RemakeScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View
-        style={[
-          styles.header,
-          { paddingTop: topPad + 12, backgroundColor: colors.background },
-        ]}
-      >
-        <Text style={[styles.title, { color: colors.foreground }]}>
-          Remake List
-        </Text>
-        <Text style={[styles.count, { color: colors.mutedForeground }]}>
-          {refs.length} saved
-        </Text>
+      <View style={[styles.headerWrap, { paddingTop: topPad + 12, backgroundColor: colors.background }]}>
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: colors.foreground }]}>Remake List</Text>
+          <Text style={[styles.count, { color: colors.mutedForeground }]}>{allRefs.length} saved</Text>
+        </View>
+
+        {/* Sort pills */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillRow} contentContainerStyle={styles.pillContent}>
+          {(["recent", "views", "likes"] as SortKey[]).map((s) => (
+            <Pressable
+              key={s}
+              onPress={() => setSort(s)}
+              style={[styles.pill, sort === s && { backgroundColor: colors.primary }]}
+            >
+              <Text style={[styles.pillText, { color: sort === s ? colors.primaryForeground : colors.mutedForeground }]}>
+                {s === "recent" ? "Recent" : s === "views" ? "Most Viewed" : "Most Liked"}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+
+        {/* Category chips — only show if more than one category exists */}
+        {availableCategories.length > 1 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pillRow} contentContainerStyle={styles.pillContent}>
+            {(["All", ...availableCategories] as Category[]).map((c) => (
+              <Pressable
+                key={c}
+                onPress={() => setCategory(c)}
+                style={[styles.chip, category === c && { backgroundColor: colors.card, borderColor: colors.primary }]}
+              >
+                <Text style={[styles.chipText, { color: category === c ? colors.primary : colors.mutedForeground }]}>{c}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        )}
       </View>
 
       {isLoading ? (
@@ -200,7 +263,7 @@ export default function RemakeScreen() {
               <View style={styles.thumbContainer}>
                 {item.thumbnailUrl ? (
                   <Image
-                    source={{ uri: item.thumbnailUrl }}
+                    source={{ uri: resolveThumb(item.thumbnailUrl) ?? "" }}
                     style={styles.thumb}
                     resizeMode="cover"
                   />
@@ -293,15 +356,34 @@ function formatNum(v?: number | null): string {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  headerWrap: { paddingBottom: 8 },
   header: {
     paddingHorizontal: 20,
-    paddingBottom: 12,
+    paddingBottom: 10,
     flexDirection: "row",
     alignItems: "baseline",
     justifyContent: "space-between",
   },
   title: { fontSize: 22, fontWeight: "700" },
   count: { fontSize: 12 },
+  pillRow: { marginBottom: 6 },
+  pillContent: { paddingHorizontal: 16, gap: 8 },
+  pill: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.07)",
+  },
+  pillText: { fontSize: 13, fontWeight: "600" },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "transparent",
+    backgroundColor: "rgba(255,255,255,0.05)",
+  },
+  chipText: { fontSize: 12, fontWeight: "500" },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8 },
   emptyText: { fontSize: 16, fontWeight: "600", marginTop: 8 },
   emptyHint: { fontSize: 13 },

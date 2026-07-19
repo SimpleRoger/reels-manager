@@ -1,4 +1,3 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { close, type InitialProps } from "expo-share-extension";
 import React, { Component, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
@@ -29,6 +28,8 @@ const API_URL =
   process.env.EXPO_PUBLIC_API_URL ??
   "https://workspaceapi-server-production-5bc6.up.railway.app";
 
+const SHARE_API_KEY = process.env.EXPO_PUBLIC_SHARE_API_KEY ?? "";
+
 function detectPlatform(url: string): string {
   if (url.includes("tiktok.com")) return "TikTok";
   if (url.includes("instagram.com")) return "Instagram";
@@ -37,7 +38,7 @@ function detectPlatform(url: string): string {
   return "link";
 }
 
-type Status = "saving" | "done" | "error" | "invalid" | "unauthenticated";
+type Status = "saving" | "done" | "error" | "invalid";
 
 function ShareExtensionInner({ url, text }: InitialProps) {
   const sharedUrl = url ?? text ?? null;
@@ -51,9 +52,9 @@ function ShareExtensionInner({ url, text }: InitialProps) {
     setPlatform(detectPlatform(sharedUrl));
 
     const save = async () => {
-      const apiKey = await AsyncStorage.getItem("userApiKey");
-      if (!apiKey) {
-        setStatus("unauthenticated");
+      const isSupported = sharedUrl.includes("instagram.com") || sharedUrl.includes("tiktok.com");
+      if (!isSupported) {
+        setStatus("invalid");
         setTimeout(close, 2500);
         return;
       }
@@ -62,7 +63,7 @@ function ShareExtensionInner({ url, text }: InitialProps) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Api-Key": apiKey,
+          "X-Api-Key": SHARE_API_KEY,
         },
         body: JSON.stringify({ url: sharedUrl }),
       });
@@ -111,20 +112,11 @@ function ShareExtensionInner({ url, text }: InitialProps) {
           <Text style={styles.sub}>Check your connection and try again</Text>
         </>
       )}
-      {status === "unauthenticated" && (
-        <>
-          <Text style={styles.errorIcon}>!</Text>
-          <Text style={styles.title}>Not signed in</Text>
-          <Text style={styles.sub}>Open Reel Journal and sign in first</Text>
-        </>
-      )}
       {status === "invalid" && (
         <>
           <Text style={styles.errorIcon}>!</Text>
-          <Text style={styles.title}>No URL found</Text>
-          <Text style={styles.sub}>
-            Share a link from Instagram, TikTok, YouTube or Reddit
-          </Text>
+          <Text style={styles.title}>Not supported</Text>
+          <Text style={styles.sub}>Share an Instagram or TikTok link</Text>
         </>
       )}
     </View>
