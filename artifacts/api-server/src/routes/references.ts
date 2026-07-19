@@ -9,6 +9,7 @@ import {
 } from "@workspace/api-zod";
 import { resolveReelMedia, enrichReferenceWithApify } from "../lib/resolve-reel-video";
 import { uploadToR2, uploadBytesToR2, r2Exists, isR2Url } from "../lib/r2";
+import { getSnapsaveMedia, uploadToR2Background } from "../lib/snapsave";
 
 const router: IRouter = Router();
 
@@ -52,6 +53,45 @@ router.get("/references/:id/thumbnail", async (req, res): Promise<void> => {
 
   // Fall back: redirect to CDN (may expire, but that's the best we have)
   res.redirect(302, ref.thumbnailUrl);
+});
+
+// GET /api/references/:id/play-url — returns a fresh, playable video URL.
+// If the stored mediaUrl is a permanent R2 URL it returns that directly.
+// Otherwise it re-fetches from snapsave (~2s) to get a fresh CDN URL, since
+// rapidcdn JWT tokens expire within a few hours.
+const API_BASE = process.env.PUBLIC_URL ?? "https://workspaceapi-server-production-5bc6.up.railway.app";
+router.get("/references/:id/play-url", async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).end(); return; }
+
+  const [ref] = await db
+    .select({ id: savedReferencesTable.id, url: savedReferencesTable.url, mediaUrl: savedReferencesTable.mediaUrl })
+    .from(savedReferencesTable)
+    .where(eq(savedReferencesTable.id, id))
+    .limit(1);
+
+  if (!ref) { res.status(404).json({ error: "Not found" }); return; }
+
+  // Permanent R2 URL — return immediately
+  if (ref.mediaUrl && isR2Url(ref.mediaUrl)) {
+    res.json({ url: ref.mediaUrl });
+    return;
+  }
+
+  // Fetch a fresh URL from snapsave
+  try {
+    const { videoUrl, thumbDataUrl, videoCdnUrl } = await getSnapsaveMedia(ref.url);
+    if (!videoUrl) { res.status(404).json({ error: "Video unavailable" }); return; }
+
+    const fullUrl = videoUrl.startsWith("http") ? videoUrl : `${API_BASE}${videoUrl}`;
+
+    // Kick off R2 upload in background so next time we return the permanent URL
+    if (videoCdnUrl) uploadToR2Background(ref.id, ref.url, videoCdnUrl, thumbDataUrl);
+
+    res.json({ url: fullUrl });
+  } catch {
+    res.status(502).json({ error: "Could not fetch video" });
+  }
 });
 
 router.get("/references", async (_req, res): Promise<void> => {
