@@ -1,7 +1,7 @@
 // Config plugin: wires up App Group storage sharing between the main app and share extension.
 // Sets RCTAsyncStorage_AppGroup in both Info.plist files AND adds the App Group entitlement
 // to the main app (expo-share-extension handles the extension entitlement automatically).
-const { withDangerousMod, withInfoPlist, withEntitlementsPlist } = require("@expo/config-plugins");
+const { withDangerousMod, withInfoPlist, withEntitlementsPlist } = require("expo/config-plugins");
 const path = require("path");
 const fs = require("fs");
 

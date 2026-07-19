@@ -1,17 +1,18 @@
 import { useListReferences } from "@workspace/api-client-react";
+import { useAuth } from "@clerk/clerk-expo";
 import { Feather } from "@expo/vector-icons";
 
 const API_URL =
   process.env.EXPO_PUBLIC_API_URL ??
   "https://workspaceapi-server-production-5bc6.up.railway.app";
 
-function resolveThumb(url?: string | null): string | null {
+function resolveUrl(url?: string | null): string | null {
   if (!url) return null;
-  if (url.startsWith("http")) return url;
+  if (url.startsWith("http") || url.startsWith("data:")) return url;
   return `${API_URL}${url}`;
 }
 import { VideoView, useVideoPlayer } from "expo-video";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -61,37 +62,69 @@ function VideoModal({
   colors: ReturnType<typeof useColors>;
 }) {
   const insets = useSafeAreaInsets();
-  const selectedRef = item;
-  const player = useVideoPlayer(
-    selectedRef.mediaUrl ? { uri: selectedRef.mediaUrl } : null,
-    (p) => {
-      p.loop = true;
-      p.play();
-    }
-  );
+  const { getToken } = useAuth();
+  const [videoUri, setVideoUri] = useState<string | null>(null);
+  const [videoLoading, setVideoLoading] = useState(true);
+  const [videoError, setVideoError] = useState(false);
+
+  const player = useVideoPlayer(null, (p) => {
+    p.loop = true;
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await getToken();
+        const resp = await fetch(`${API_URL}/api/references/${item.id}/play-url`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!resp.ok) throw new Error(`${resp.status}`);
+        const { url } = (await resp.json()) as { url: string };
+        if (!cancelled) {
+          await player.replaceAsync({ uri: url });
+          player.play();
+          setVideoUri(url);
+          setVideoLoading(false);
+        }
+      } catch {
+        if (!cancelled) {
+          setVideoLoading(false);
+          setVideoError(true);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [item.id]);
 
   return (
     <View style={[StyleSheet.absoluteFill, { backgroundColor: "#000" }]}>
-      {selectedRef.mediaUrl ? (
+      {videoLoading ? (
+        <View style={[StyleSheet.absoluteFill, { alignItems: "center", justifyContent: "center" }]}>
+          <ActivityIndicator color="#f07d1a" size="large" />
+        </View>
+      ) : videoError || !videoUri ? (
+        item.thumbnailUrl ? (
+          <Image
+            source={{ uri: resolveUrl(item.thumbnailUrl) ?? "" }}
+            style={StyleSheet.absoluteFill}
+            resizeMode="contain"
+          />
+        ) : (
+          <View style={[StyleSheet.absoluteFill, { alignItems: "center", justifyContent: "center" }]}>
+            <Feather name="film" size={48} color={colors.mutedForeground} />
+            <Text style={[styles.noVideo, { color: colors.mutedForeground }]}>
+              Video not available
+            </Text>
+          </View>
+        )
+      ) : (
         <VideoView
           player={player}
           style={StyleSheet.absoluteFill}
           contentFit="contain"
           nativeControls
         />
-      ) : selectedRef.thumbnailUrl ? (
-        <Image
-          source={{ uri: resolveThumb(selectedRef.thumbnailUrl) ?? "" }}
-          style={StyleSheet.absoluteFill}
-          resizeMode="contain"
-        />
-      ) : (
-        <View style={[StyleSheet.absoluteFill, { alignItems: "center", justifyContent: "center" }]}>
-          <Feather name="film" size={48} color={colors.mutedForeground} />
-          <Text style={[styles.noVideo, { color: colors.mutedForeground }]}>
-            Video not available yet
-          </Text>
-        </View>
       )}
 
       {/* Close button */}
@@ -104,36 +137,36 @@ function VideoModal({
 
       {/* Stats overlay at bottom */}
       <View style={[styles.overlay, { paddingBottom: insets.bottom + 16 }]}>
-        {selectedRef.accountName && (
-          <Text style={styles.overlayAccount}>@{selectedRef.accountName}</Text>
+        {item.accountName && (
+          <Text style={styles.overlayAccount}>@{item.accountName}</Text>
         )}
-        {selectedRef.caption && (
+        {item.caption && (
           <Text style={styles.overlayCaption} numberOfLines={2}>
-            {selectedRef.caption}
+            {item.caption}
           </Text>
         )}
         <View style={styles.overlayStats}>
-          {selectedRef.viewCount != null && (
+          {item.viewCount != null && (
             <View style={styles.overlayStat}>
               <Feather name="eye" size={13} color="rgba(255,255,255,0.8)" />
               <Text style={styles.overlayStatText}>
-                {formatNum(selectedRef.viewCount)}
+                {formatNum(item.viewCount)}
               </Text>
             </View>
           )}
-          {selectedRef.likeCount != null && (
+          {item.likeCount != null && (
             <View style={styles.overlayStat}>
               <Feather name="heart" size={13} color="rgba(255,255,255,0.8)" />
               <Text style={styles.overlayStatText}>
-                {formatNum(selectedRef.likeCount)}
+                {formatNum(item.likeCount)}
               </Text>
             </View>
           )}
-          {selectedRef.commentsCount != null && (
+          {item.commentsCount != null && (
             <View style={styles.overlayStat}>
               <Feather name="message-circle" size={13} color="rgba(255,255,255,0.8)" />
               <Text style={styles.overlayStatText}>
-                {formatNum(selectedRef.commentsCount)}
+                {formatNum(item.commentsCount)}
               </Text>
             </View>
           )}
@@ -263,7 +296,7 @@ export default function RemakeScreen() {
               <View style={styles.thumbContainer}>
                 {item.thumbnailUrl ? (
                   <Image
-                    source={{ uri: resolveThumb(item.thumbnailUrl) ?? "" }}
+                    source={{ uri: resolveUrl(item.thumbnailUrl) ?? "" }}
                     style={styles.thumb}
                     resizeMode="cover"
                   />
