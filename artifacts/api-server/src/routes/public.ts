@@ -10,7 +10,7 @@ const SYNC_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
 
 const DEFAULT_REELS_PER_ACCOUNT = 2;
 const REELS_PER_ACCOUNT: Record<string, number> = {
-  youaresooooamazing: 3,
+  youaresooooamazing: 5,
 };
 const reelsLimit = (username: string) => REELS_PER_ACCOUNT[username] ?? DEFAULT_REELS_PER_ACCOUNT;
 
