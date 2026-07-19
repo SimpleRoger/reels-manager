@@ -19,8 +19,12 @@
       "buildNumber": "1",
       "entitlements": {
         "com.apple.security.application-groups": [
+          "group.com.rogerrari.reeljournal",
           "group.com.rogerrari.reeljournal"
         ]
+      },
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -41,19 +45,59 @@
       [
         "expo-share-extension",
         {
-          "backgroundColor": { "red": 19, "green": 21, "blue": 26, "alpha": 255 },
+          "backgroundColor": {
+            "red": 19,
+            "green": 21,
+            "blue": 26,
+            "alpha": 255
+          },
           "height": 380,
           "activationRules": [
-            { "type": "url", "max": 1 },
-            { "type": "text" }
+            {
+              "type": "url",
+              "max": 1
+            },
+            {
+              "type": "text"
+            }
           ]
         }
       ],
-      ["./plugins/withShareExtensionAsyncStorage", "group.com.rogerrari.reeljournal"]
+      [
+        "./plugins/withShareExtensionAsyncStorage",
+        "group.com.rogerrari.reeljournal"
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {
+        "origin": "https://replit.com/"
+      },
+      "eas": {
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "targetName": "ReelJournalShareExtension",
+                  "bundleIdentifier": "com.rogerrari.reeljournal.ShareExtension",
+                  "entitlements": {
+                    "com.apple.security.application-groups": [
+                      "group.com.rogerrari.reeljournal"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "projectId": "c4761773-0341-43ad-8357-b243c6f75596"
+      },
+      "appleApplicationGroup": "group.com.rogerrari.reeljournal"
+    },
+    "owner": "simpleroger"
   }
 }
