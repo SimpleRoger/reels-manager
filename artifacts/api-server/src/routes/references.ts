@@ -28,13 +28,19 @@ function formatReference(ref: typeof savedReferencesTable.$inferSelect) {
 }
 
 // GET /api/references/:id/thumbnail — serves the stored image bytes for this reference.
-// If the DB has a data URL it streams the decoded bytes; otherwise it proxies the CDN URL.
+// For data URLs: decode and send directly. For CDN URLs: proxy server-side (avoids TikTok
+// CORS/referer restrictions and expired tokens). If the CDN URL is stale, re-fetch from
+// snapsave, store the new data URL, and serve it so future requests are instant.
 router.get("/references/:id/thumbnail", async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).end(); return; }
 
   const [ref] = await db
-    .select({ thumbnailUrl: savedReferencesTable.thumbnailUrl })
+    .select({
+      id: savedReferencesTable.id,
+      url: savedReferencesTable.url,
+      thumbnailUrl: savedReferencesTable.thumbnailUrl,
+    })
     .from(savedReferencesTable)
     .where(eq(savedReferencesTable.id, id))
     .limit(1);
@@ -51,8 +57,42 @@ router.get("/references/:id/thumbnail", async (req, res): Promise<void> => {
     return;
   }
 
-  // Fall back: redirect to CDN (may expire, but that's the best we have)
-  res.redirect(302, ref.thumbnailUrl);
+  // Proxy the CDN URL server-side — avoids TikTok CORS/referer blocking in the browser
+  const isTikTok = ref.url.includes("tiktok.com");
+  const upstream = await fetch(ref.thumbnailUrl, {
+    headers: {
+      "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15",
+      "Referer": isTikTok ? "https://www.tiktok.com/" : "https://www.instagram.com/",
+    },
+  }).catch(() => null);
+
+  if (upstream?.ok) {
+    const buf = Buffer.from(await upstream.arrayBuffer());
+    const mime = upstream.headers.get("content-type")?.split(";")[0] ?? "image/jpeg";
+    res.set("Content-Type", mime);
+    res.set("Cache-Control", "public, max-age=3600");
+    res.send(buf);
+    return;
+  }
+
+  // CDN URL is stale — re-fetch from snapsave, store as permanent data URL
+  try {
+    const { thumbDataUrl } = await getSnapsaveMedia(ref.url);
+    if (thumbDataUrl) {
+      await db.update(savedReferencesTable)
+        .set({ thumbnailUrl: thumbDataUrl })
+        .where(eq(savedReferencesTable.id, ref.id));
+      const [meta, b64] = thumbDataUrl.split(",", 2);
+      const mime = meta.replace("data:", "").replace(";base64", "");
+      const buf = Buffer.from(b64, "base64");
+      res.set("Content-Type", mime);
+      res.set("Cache-Control", "public, max-age=31536000, immutable");
+      res.send(buf);
+      return;
+    }
+  } catch { /* skip */ }
+
+  res.status(404).end();
 });
 
 // GET /api/references/:id/play-url — returns a fresh, playable video URL.
