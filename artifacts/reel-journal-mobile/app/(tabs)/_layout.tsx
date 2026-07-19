@@ -26,7 +26,7 @@ function NativeTabLayout() {
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="remake">
         <Icon sf={{ default: "bookmark", selected: "bookmark.fill" }} />
-        <Label>Remake</Label>
+        <Label>Saved</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="playbook">
         <Icon sf={{ default: "book", selected: "book.fill" }} />
@@ -115,7 +115,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="remake"
         options={{
-          title: "Remake",
+          title: "Saved",
           tabBarIcon: ({ color }) =>
             isIOS ? (
               <SymbolView name="bookmark" tintColor={color} size={22} />

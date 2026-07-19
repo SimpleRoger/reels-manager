@@ -218,7 +218,7 @@ export default function RemakeScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.headerWrap, { paddingTop: topPad + 12, backgroundColor: colors.background }]}>
         <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.foreground }]}>Remake List</Text>
+          <Text style={[styles.title, { color: colors.foreground }]}>Saved Content</Text>
           <Text style={[styles.count, { color: colors.mutedForeground }]}>{allRefs.length} saved</Text>
         </View>
 
