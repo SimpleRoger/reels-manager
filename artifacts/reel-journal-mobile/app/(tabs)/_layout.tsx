@@ -141,7 +141,8 @@ function ClassicTabLayout() {
 }
 
 export default function TabLayout() {
-  if (isLiquidGlassAvailable()) {
+  // NativeTabs crashes on iOS 26 beta — disable until expo-router stabilises
+  if (false && isLiquidGlassAvailable()) {
     return <NativeTabLayout />;
   }
   return <ClassicTabLayout />;
