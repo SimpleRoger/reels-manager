@@ -14,14 +14,13 @@ import { getSnapsaveMedia, uploadToR2Background } from "../lib/snapsave";
 const router: IRouter = Router();
 
 function formatReference(ref: typeof savedReferencesTable.$inferSelect) {
-  // Replace stored data URLs with a proper image endpoint URL so the client
-  // never has to embed a 48KB base64 string in a JSON response or img src attr.
-  const thumb = ref.thumbnailUrl?.startsWith("data:")
-    ? `/api/references/${ref.id}/thumbnail`
-    : ref.thumbnailUrl;
+  // Always route thumbnails through the proxy endpoint so the server can
+  // handle expired CDN URLs, referer/CORS restrictions, and snapsave fallback.
+  // Never expose raw CDN URLs (TikTok especially) to the browser directly.
+  const thumb = ref.thumbnailUrl ? `/api/references/${ref.id}/thumbnail` : null;
   return {
     ...ref,
-    thumbnailUrl: thumb ?? null,
+    thumbnailUrl: thumb,
     createdAt: ref.createdAt.toISOString(),
     updatedAt: ref.updatedAt.toISOString(),
   };
