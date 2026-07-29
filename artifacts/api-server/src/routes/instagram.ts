@@ -480,7 +480,7 @@ router.get("/instagram/thumbnail", async (req, res): Promise<void> => {
 // GET /api/instagram/my-stats
 // Returns view/like/comment counts for your single most recent reel.
 router.get("/instagram/my-stats", async (req, res): Promise<void> => {
-  const accounts = await db.select().from(instagramAccountsTable).limit(1);
+  const accounts = await db.select().from(instagramAccountsTable).orderBy(asc(instagramAccountsTable.id)).limit(1);
   const token = accounts[0]?.accessToken;
   const accountId = accounts[0]?.accountId;
 
