@@ -282,6 +282,52 @@ router.get("/instagram/fresh-thumbnail/:instagramId", async (req, res): Promise<
   res.json({ thumbnailUrl: freshUrl });
 });
 
+// GET /api/instagram/token-status — debug endpoint: tests stored token against the Graph API
+// and returns the raw error from Meta if it fails.
+router.get("/instagram/token-status", async (_req, res): Promise<void> => {
+  const accounts = await db.select().from(instagramAccountsTable).orderBy(asc(instagramAccountsTable.id));
+
+  const results = await Promise.all(
+    accounts.map(async (account) => {
+      if (!account.accessToken) {
+        return { id: account.id, username: account.username, hasToken: false, valid: false, error: "No token stored" };
+      }
+
+      const token = account.accessToken;
+      const base = token.startsWith("IGAA")
+        ? "https://graph.instagram.com/v21.0"
+        : "https://graph.facebook.com/v21.0";
+
+      // Test the token by fetching /me
+      const meResp = await fetch(`${base}/me?fields=id,username&access_token=${token}`).catch(() => null);
+      const meBody = meResp ? (await meResp.json().catch(() => null)) : null;
+      const meOk = meResp?.ok && meBody?.id;
+
+      // Also test fetching media (the actual call that sync uses)
+      const mediaId = account.accountId ?? "me";
+      const mediaResp = await fetch(
+        `${base}/${mediaId}/media?fields=id&limit=1&access_token=${token}`
+      ).catch(() => null);
+      const mediaBody = mediaResp ? (await mediaResp.json().catch(() => null)) : null;
+      const mediaOk = mediaResp?.ok;
+
+      return {
+        id: account.id,
+        username: account.username,
+        accountId: account.accountId,
+        tokenPrefix: token.slice(0, 10) + "...",
+        meStatus: meResp?.status ?? null,
+        meResponse: meBody,
+        mediaStatus: mediaResp?.status ?? null,
+        mediaResponse: mediaBody,
+        valid: !!meOk && !!mediaOk,
+      };
+    })
+  );
+
+  res.json({ accounts: results });
+});
+
 router.get("/instagram/hashtag-search", async (req, res): Promise<void> => {
   const hashtag = req.query["hashtag"];
   const limit = Number(req.query["limit"] ?? 20);
