@@ -345,7 +345,11 @@ function NotesModal({
 
 export default function RemakeList() {
   const { data, isLoading } = useListReferences({
-    query: { queryKey: getListReferencesQueryKey() },
+    query: {
+      queryKey: getListReferencesQueryKey(),
+      staleTime: 30_000,
+      placeholderData: (prev: typeof data) => prev,
+    },
   });
 
   const createMutation = useCreateReference();
@@ -388,7 +392,7 @@ export default function RemakeList() {
       (r) => r.viewCount == null && r.likeCount == null && r.commentsCount == null
     );
     if (!hasPending) return;
-    const timer = setInterval(invalidate, 8_000);
+    const timer = setInterval(invalidate, 30_000);
     return () => clearInterval(timer);
   }, [data?.references]);
 
