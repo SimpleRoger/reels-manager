@@ -44,10 +44,11 @@ function ProtectedRouter() {
     );
   }
 
-  if (!isSignedIn) {
-    navigate("/login");
-    return null;
-  }
+  // Auth temporarily disabled
+  // if (!isSignedIn) {
+  //   navigate("/login");
+  //   return null;
+  // }
 
   return (
     <Layout>
