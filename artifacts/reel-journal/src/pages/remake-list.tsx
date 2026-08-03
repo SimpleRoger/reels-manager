@@ -360,6 +360,7 @@ export default function RemakeList() {
   // Tag filter is driven by the URL ?tag= param so sidebar links work
   const tagFilter = new URLSearchParams(search).get("tag");
   const [sortBy, setSortBy] = useState<"recent" | "views" | "likes" | "comments">("recent");
+  const [timeframe, setTimeframe] = useState<"all" | "week" | "month">("all");
 
   function setTagFilter(tag: string | null) {
     if (tag) {
@@ -519,8 +520,17 @@ export default function RemakeList() {
   })();
 
   // Filtered + sorted references
+  const now = Date.now();
+  const timeframeCutoff = timeframe === "week" ? now - 7 * 24 * 60 * 60 * 1000
+    : timeframe === "month" ? now - 30 * 24 * 60 * 60 * 1000
+    : null;
+
   const references = [...(data?.references ?? [])]
     .filter((r) => {
+      if (timeframeCutoff) {
+        const saved = new Date((r as any).createdAt ?? 0).getTime();
+        if (saved < timeframeCutoff) return false;
+      }
       if (!tagFilter) return true;
       return (r.tags ?? []).some((t) => t.toLowerCase() === tagFilter.toLowerCase());
     })
@@ -654,22 +664,39 @@ export default function RemakeList() {
         </div>
         )}
 
-        {/* Sort controls */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
-          {(["recent", "views", "likes", "comments"] as const).map((opt) => (
-            <button
-              key={opt}
-              onClick={() => setSortBy(opt)}
-              className={`text-[10px] font-mono uppercase tracking-wider px-3 py-1 rounded-full border transition-all ${
-                sortBy === opt
-                  ? "bg-primary text-black border-primary"
-                  : "border-border text-muted-foreground hover:border-muted-foreground"
-              }`}
-            >
-              {opt === "recent" ? "Recent" : opt === "views" ? "Views" : opt === "likes" ? "Likes" : "Comments"}
-            </button>
-          ))}
+        {/* Timeframe + sort controls */}
+        <div className="flex items-center gap-3 shrink-0 flex-wrap">
+          <div className="flex items-center gap-1.5">
+            {([["all", "All time"], ["week", "This week"], ["month", "This month"]] as const).map(([val, label]) => (
+              <button
+                key={val}
+                onClick={() => setTimeframe(val)}
+                className={`text-[10px] font-mono uppercase tracking-wider px-3 py-1 rounded-full border transition-all ${
+                  timeframe === val
+                    ? "bg-primary text-black border-primary"
+                    : "border-border text-muted-foreground hover:border-muted-foreground"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <ArrowUpDown className="w-3 h-3 text-muted-foreground" />
+            {(["recent", "views", "likes", "comments"] as const).map((opt) => (
+              <button
+                key={opt}
+                onClick={() => setSortBy(opt)}
+                className={`text-[10px] font-mono uppercase tracking-wider px-3 py-1 rounded-full border transition-all ${
+                  sortBy === opt
+                    ? "bg-primary text-black border-primary"
+                    : "border-border text-muted-foreground hover:border-muted-foreground"
+                }`}
+              >
+                {opt === "recent" ? "Recent" : opt === "views" ? "Views" : opt === "likes" ? "Likes" : "Comments"}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
