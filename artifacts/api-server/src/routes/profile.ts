@@ -1,12 +1,12 @@
 import { Router, type IRouter } from "express";
-import { avg, isNotNull, desc, gte } from "drizzle-orm";
+import { avg, isNotNull, desc, gte, asc, eq, and } from "drizzle-orm";
 import { db, instagramAccountsTable, reelsTable } from "@workspace/db";
 import { fetchUserProfile } from "../lib/instagram";
 
 const router: IRouter = Router();
 
 router.get("/profile", async (req, res): Promise<void> => {
-  const accounts = await db.select().from(instagramAccountsTable).limit(1);
+  const accounts = await db.select().from(instagramAccountsTable).orderBy(asc(instagramAccountsTable.id)).limit(1);
   if (accounts.length === 0) {
     res.status(404).json({ error: "No Instagram account connected" });
     return;
@@ -24,7 +24,7 @@ router.get("/profile", async (req, res): Promise<void> => {
       avgShares: avg(reelsTable.shares),
     })
     .from(reelsTable)
-    .where(isNotNull(reelsTable.likeCount));
+    .where(and(isNotNull(reelsTable.likeCount), eq(reelsTable.accountId, account.id)));
 
   const avgs = avgResult[0] ?? {};
 
@@ -39,7 +39,7 @@ router.get("/profile", async (req, res): Promise<void> => {
       performanceStatus: reelsTable.performanceStatus,
     })
     .from(reelsTable)
-    .where(isNotNull(reelsTable.reach))
+    .where(and(isNotNull(reelsTable.reach), eq(reelsTable.accountId, account.id)))
     .orderBy(desc(reelsTable.reach))
     .limit(5);
 
@@ -75,7 +75,7 @@ router.get("/profile", async (req, res): Promise<void> => {
 });
 
 router.get("/profile/growth-forecast", async (req, res): Promise<void> => {
-  const accounts = await db.select().from(instagramAccountsTable).limit(1);
+  const accounts = await db.select().from(instagramAccountsTable).orderBy(asc(instagramAccountsTable.id)).limit(1);
   if (accounts.length === 0) {
     res.status(404).json({ error: "No Instagram account connected" });
     return;
@@ -91,7 +91,7 @@ router.get("/profile/growth-forecast", async (req, res): Promise<void> => {
   const recentReels = await db
     .select({ postedAt: reelsTable.postedAt, reach: reelsTable.reach })
     .from(reelsTable)
-    .where(gte(reelsTable.postedAt, since90));
+    .where(and(gte(reelsTable.postedAt, since90), eq(reelsTable.accountId, account.id)));
 
   const totalRecentReels = recentReels.length;
   const monthsOfData = 3;
@@ -227,7 +227,7 @@ router.post("/profile/ai-tips", async (req, res): Promise<void> => {
     return;
   }
 
-  const accounts = await db.select().from(instagramAccountsTable).limit(1);
+  const accounts = await db.select().from(instagramAccountsTable).orderBy(asc(instagramAccountsTable.id)).limit(1);
   if (accounts.length === 0) {
     res.status(404).json({ error: "No Instagram account connected" });
     return;
@@ -245,7 +245,7 @@ router.post("/profile/ai-tips", async (req, res): Promise<void> => {
       avgShares: avg(reelsTable.shares),
     })
     .from(reelsTable)
-    .where(isNotNull(reelsTable.likeCount));
+    .where(and(isNotNull(reelsTable.likeCount), eq(reelsTable.accountId, account.id)));
 
   const avgs = avgResult[0] ?? {};
 
@@ -260,7 +260,7 @@ router.post("/profile/ai-tips", async (req, res): Promise<void> => {
       performanceStatus: reelsTable.performanceStatus,
     })
     .from(reelsTable)
-    .where(isNotNull(reelsTable.reach))
+    .where(and(isNotNull(reelsTable.reach), eq(reelsTable.accountId, account.id)))
     .orderBy(desc(reelsTable.reach))
     .limit(5);
 
@@ -340,7 +340,7 @@ Respond ONLY with a JSON object. All values must be plain readable strings. Use 
 });
 
 router.get("/profile/audience-online", async (req, res): Promise<void> => {
-  const accounts = await db.select().from(instagramAccountsTable).limit(1);
+  const accounts = await db.select().from(instagramAccountsTable).orderBy(asc(instagramAccountsTable.id)).limit(1);
   if (accounts.length === 0) {
     res.status(404).json({ error: "No Instagram account connected" });
     return;
